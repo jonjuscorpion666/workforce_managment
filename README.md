@@ -1,0 +1,249 @@
+# Workforce Transformation Platform
+
+Enterprise employee engagement, accountability, and transformation management platform built for healthcare networks.
+
+---
+
+## What It Does
+
+A full-stack internal tool that gives nursing leadership end-to-end visibility over their workforce — from survey distribution to issue resolution to transformation program tracking. Nurses interact through a dedicated mobile-friendly portal. Leaders manage everything through a command-center dashboard.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 14 (App Router, React 18) |
+| Backend | NestJS 10 (Node.js) |
+| Database | PostgreSQL 16 (TypeORM) |
+| Queue | Redis 7 + Bull |
+| Search | Elasticsearch 8 |
+| Auth | JWT + Refresh Tokens (Passport.js) |
+| Styling | Tailwind CSS |
+| State | TanStack React Query + Zustand |
+| Docs | Swagger / OpenAPI |
+
+---
+
+## Quick Start (Development)
+
+**Prerequisites:** Node.js 20+, Docker, Docker Compose
+
+```bash
+# 1. Clone and install
+git clone https://github.com/your-org/workforce-platform.git
+cd workforce-platform
+npm install
+
+# 2. Start infrastructure (Postgres, Redis, Elasticsearch)
+docker-compose up -d postgres redis elasticsearch
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env — set JWT_SECRET at minimum
+
+# 4. Start both apps
+npm run dev
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:3001/api/v1 |
+| Swagger Docs | http://localhost:3001/api/docs |
+| Nurse Portal | http://localhost:3000/portal |
+
+---
+
+## Production Deployment
+
+```bash
+# 1. Provision server (Ubuntu 22.04, 4GB RAM minimum)
+apt update && apt install -y docker.io docker-compose-v2 git certbot
+
+# 2. Clone and configure
+git clone ... && cd workforce-platform
+cp .env.example .env
+nano .env  # set all CHANGE_ME values + domain
+
+# 3. SSL certificate (free)
+certbot certonly --standalone -d your-domain.com
+
+# 4. Update nginx/nginx.conf — replace your-domain.com
+
+# 5. Launch everything
+docker-compose up -d
+
+# 6. All future deploys
+./deploy.sh
+```
+
+See `nginx/nginx.conf` for reverse proxy config and `docker-compose.yml` for the full service definition.
+
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in:
+
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Generate: `openssl rand -base64 64` |
+| `REFRESH_TOKEN_SECRET` | Yes | Generate: `openssl rand -base64 64` |
+| `REDIS_HOST` | Yes | Redis hostname (default: `redis`) |
+| `CORS_ORIGINS` | Yes | Comma-separated allowed origins |
+| `NEXT_PUBLIC_API_URL` | Yes | Public URL of the backend API |
+| `SMTP_*` | No | Email notification settings |
+| `OPENAI_API_KEY` | No | AI features (optional) |
+
+---
+
+## Project Structure
+
+```
+workforce-platform/
+├── apps/
+│   ├── backend/                  # NestJS API
+│   │   └── src/
+│   │       ├── modules/
+│   │       │   ├── auth/         # JWT auth, users, roles, permissions
+│   │       │   ├── surveys/      # Survey creation, distribution, approvals
+│   │       │   ├── responses/    # Survey response collection
+│   │       │   ├── issues/       # Issue tracking + action plans
+│   │       │   ├── tasks/        # Task management
+│   │       │   ├── program-flow/ # Transformation cycle pipeline
+│   │       │   ├── speakup/      # Skip-level escalation channel
+│   │       │   ├── announcements/# Leadership communications
+│   │       │   ├── meetings/     # Meeting management
+│   │       │   ├── escalations/  # Escalation workflows
+│   │       │   ├── analytics/    # Dashboard analytics
+│   │       │   ├── kpis/         # KPI tracking
+│   │       │   ├── audit/        # Audit trail
+│   │       │   ├── dashboard/    # User dashboard
+│   │       │   ├── org/          # Organizational hierarchy
+│   │       │   └── admin/        # Platform configuration
+│   │       └── common/
+│   │           ├── guards/       # JWT auth guard, roles guard
+│   │           └── decorators/   # @Roles() decorator
+│   │
+│   └── frontend/                 # Next.js 14 App Router
+│       └── src/app/
+│           ├── portal/           # Nurse/staff portal (separate auth)
+│           ├── dashboard/        # Leadership dashboard
+│           ├── surveys/          # Survey management
+│           ├── issues/           # Issue tracker
+│           ├── tasks/            # Task board
+│           ├── program-flow/     # Transformation pipeline
+│           ├── speak-up/         # Speak Up case management
+│           ├── announcements/    # Announcements
+│           ├── meetings/         # Meeting management
+│           ├── analytics/        # Analytics + SVP dashboard
+│           ├── escalations/      # Escalation management
+│           ├── kpis/             # KPI dashboard
+│           ├── audit/            # Audit log viewer
+│           └── admin/            # Admin settings
+│
+├── docker-compose.yml            # Full stack (infra + apps + nginx)
+├── nginx/nginx.conf              # Reverse proxy + SSL
+├── deploy.sh                     # One-command deploy script
+└── .env.example                  # Environment variable template
+```
+
+---
+
+## User Roles
+
+| Role | Access Level |
+|---|---|
+| `SUPER_ADMIN` | Full platform access |
+| `SVP` | Network-wide visibility, SVP dashboard |
+| `CNP` / `CNO` | Hospital-wide, all leadership features |
+| `VP` | Vice-president level access |
+| `DIRECTOR` | Department-level management |
+| `MANAGER` | Unit-level management |
+| `NURSE` / `STAFF` | Nurse portal only (surveys, speak up, announcements) |
+| `HR_ANALYST` | HR and analytics access |
+| `READ_ONLY` | View-only |
+
+---
+
+## API Reference
+
+Full interactive documentation available at `/api/docs` (Swagger UI) when running.
+
+**Base URL:** `/api/v1`
+**Auth:** `Authorization: Bearer <token>`
+
+### Core endpoints
+
+```
+POST   /auth/login                  Login
+POST   /auth/register               Register
+GET    /auth/me                     Current user
+
+GET    /surveys                     List surveys
+POST   /surveys                     Create survey
+
+POST   /responses                   Submit survey response
+
+GET    /issues                      List issues
+POST   /issues                      Create issue
+PATCH  /issues/:id                  Update issue
+
+GET    /tasks                       List tasks
+POST   /tasks                       Create task
+
+GET    /program-flow/cycles         List transformation cycles
+POST   /program-flow/cycles         Create cycle
+GET    /program-flow/cycles/:id/pipeline   Pipeline view
+
+POST   /speak-up/cases              Submit speak up case
+GET    /speak-up/cases              List cases (leadership)
+POST   /speak-up/cases/:id/resolve  Resolve case
+
+GET    /announcements/feed          Personalized announcement feed
+GET    /analytics                   Dashboard analytics
+GET    /kpis                        KPI data
+```
+
+---
+
+## Scripts
+
+```bash
+npm run dev              # Start both apps in watch mode
+npm run dev:backend      # Backend only
+npm run dev:frontend     # Frontend only
+npm run build            # Build both apps for production
+
+# Database (backend)
+npm run migration:generate   # Generate migration from entity changes
+npm run migration:run        # Run pending migrations
+npm run seed                 # Seed demo data
+
+# Docker
+npm run docker:up        # Start infrastructure services
+npm run docker:down      # Stop infrastructure services
+./deploy.sh              # Full production deploy
+```
+
+---
+
+## Important Notes
+
+**Development vs Production database:**
+TypeORM runs with `synchronize: true` in development (auto-migrates schema). In production, set `NODE_ENV=production` and use migration files instead — this prevents accidental data loss.
+
+**Anonymous speak-up submissions:**
+The `POST /speak-up/cases` endpoint intentionally has no auth guard so nurses can submit without being identified. Identity is only stored when `privacy: "CONFIDENTIAL"` is explicitly chosen.
+
+**Nurse portal auth:**
+The nurse portal (`/portal`) uses a separate Zustand auth store (`nurse-auth.ts`) and validates that the logged-in user has the `NURSE` or `STAFF` role. Nurses cannot access the leadership app.
+
+---
+
+## License
+
+Private — internal use only.

@@ -1,0 +1,10 @@
+firstName,lastName,email,password,role,orgUnit,managerEmail,jobTitle,employeeId
+Maria,Garcia,maria.garcia@franciscanhealth.org,TempPass123!,MANAGER,Franciscan Health Chicago,,Nurse Manager,EMP-1003
+Jane,Smith,jane.smith@franciscanhealth.org,TempPass123!,STAFF,Franciscan Health Chicago,maria.garcia@franciscanhealth.org,Registered Nurse,EMP-1001
+John,Doe,john.doe@franciscanhealth.org,TempPass123!,STAFF,Franciscan Health Chicago,maria.garcia@franciscanhealth.org,Registered Nurse,EMP-1002
+Robert,Johnson,robert.johnson@franciscanhealth.org,TempPass123!,DIRECTOR,Franciscan Health Olympia Fields,,Director of Nursing,EMP-1004
+Sarah,Williams,sarah.williams@franciscanhealth.org,TempPass123!,MANAGER,Franciscan Health Olympia Fields,robert.johnson@franciscanhealth.org,Nurse Manager,EMP-1005
+Michael,Brown,michael.brown@franciscanhealth.org,TempPass123!,STAFF,Franciscan Health Olympia Fields,sarah.williams@franciscanhealth.org,ICU Nurse,EMP-1006
+Emily,Davis,emily.davis@franciscanhealth.org,TempPass123!,STAFF,Franciscan Health Munster,sarah.williams@franciscanhealth.org,ER Nurse,EMP-1007
+David,Martinez,david.martinez@franciscanhealth.org,TempPass123!,MANAGER,Franciscan Health Dyer,,Charge Nurse,EMP-1008
+Lisa,Thompson,lisa.thompson@franciscanhealth.org,TempPass123!,STAFF,Franciscan Health Dyer,david.martinez@franciscanhealth.org,Registered Nurse,EMP-1009

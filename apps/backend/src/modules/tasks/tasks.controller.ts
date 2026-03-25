@@ -1,0 +1,50 @@
+import { Controller, Get, Post, Patch, Param, Body, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { TasksService } from './tasks.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+
+@ApiTags('Tasks')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('tasks')
+export class TasksController {
+  constructor(private readonly tasksService: TasksService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create task (linked to an issue)' })
+  create(@Body() body: any, @Req() req: any) {
+    return this.tasksService.create(body, req.user.id);
+  }
+
+  @Get()
+  @ApiQuery({ name: 'owner', required: false })
+  @ApiQuery({ name: 'assignedTo', required: false })
+  @ApiQuery({ name: 'issueId', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'orgUnitId', required: false })
+  findAll(@Query() query: any) {
+    return this.tasksService.findAll(query);
+  }
+
+  @Get('overdue')
+  @ApiOperation({ summary: 'Get all overdue tasks' })
+  getOverdue() {
+    return this.tasksService.getOverdue();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.tasksService.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.tasksService.update(id, body, req.user.id);
+  }
+
+  @Get(':id/subtasks')
+  @ApiOperation({ summary: 'Get child tasks' })
+  getSubtasks(@Param('id') id: string) {
+    return this.tasksService.getSubtasks(id);
+  }
+}
