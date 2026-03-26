@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/utils';
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Issue {
+  [key: string]: unknown;
   id: string;
   title: string;
   description?: string;
@@ -413,10 +414,8 @@ export default function IssuesPage() {
 
   // Sort
   const sorted = [...filtered].sort((a, b) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const av = (a as any)[sortKey] as string ?? '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bv = (b as any)[sortKey] as string ?? '';
+    const av = (a as Record<string, unknown>)[sortKey] as string ?? '';
+    const bv = (b as Record<string, unknown>)[sortKey] as string ?? '';
     return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
   });
 
