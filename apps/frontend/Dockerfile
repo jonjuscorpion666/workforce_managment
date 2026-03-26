@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY apps/frontend/package*.json ./apps/frontend/
 
-RUN npm ci --workspace=apps/frontend --include-workspace-root
+RUN npm ci --workspace=apps/frontend --include-workspace-root --no-audit
 
 COPY apps/frontend ./apps/frontend
 
