@@ -413,8 +413,8 @@ export default function IssuesPage() {
 
   // Sort
   const sorted = [...filtered].sort((a, b) => {
-    const av = (a as Record<string, unknown>)[sortKey] as string ?? '';
-    const bv = (b as Record<string, unknown>)[sortKey] as string ?? '';
+    const av = (a as unknown as Record<string, unknown>)[sortKey] as string ?? '';
+    const bv = (b as unknown as Record<string, unknown>)[sortKey] as string ?? '';
     return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
   });
 
