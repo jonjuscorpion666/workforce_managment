@@ -86,6 +86,7 @@ export class SurveysService {
     const qb = this.surveyRepo.createQueryBuilder('s')
       .leftJoinAndSelect('s.questions', 'q')
       .leftJoinAndSelect('s.targetOrgUnit', 'ou')
+      .where('s.isTemplate = false')           // never show templates in the normal list
       .orderBy('s.createdAt', 'DESC');
 
     if (query.status)         qb.andWhere('s.status = :status',                   { status: query.status });
@@ -95,6 +96,47 @@ export class SurveysService {
     if (query.createdById)    qb.andWhere('s.createdById = :createdById',         { createdById: query.createdById });
 
     return qb.getMany();
+  }
+
+  async getTemplates() {
+    return this.surveyRepo.find({
+      where: { isTemplate: true },
+      relations: ['questions'],
+      order: { createdAt: 'DESC' } as any,
+    });
+  }
+
+  async saveAsTemplate(id: string, createdById: string) {
+    const source = await this.findOne(id);
+    const template = this.surveyRepo.create({
+      title:        source.title,
+      description:  source.description,
+      objective:    source.objective,
+      type:         source.type,
+      isAnonymous:  source.isAnonymous,
+      targetScope:  source.targetScope,
+      targetRoles:  source.targetRoles,
+      targetShifts: source.targetShifts,
+      tags:         source.tags,
+      isTemplate:   true,
+      status:       SurveyStatus.DRAFT,
+      approvalStatus: ApprovalStatus.NOT_REQUIRED,
+      createdById,
+    }) as unknown as Survey;
+
+    template.questions = (source.questions ?? [])
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map((q) =>
+        this.questionRepo.create({
+          text: q.text, helpText: q.helpText, type: q.type,
+          isRequired: q.isRequired, options: q.options,
+          orderIndex: q.orderIndex, category: q.category, dimension: q.dimension,
+        }),
+      );
+
+    const saved = await this.surveyRepo.save(template) as unknown as Survey;
+    await this.auditService.log('surveys', saved.id, 'CREATE', createdById, null, saved, `[Template] ${saved.title}`);
+    return saved;
   }
 
   async findOne(id: string) {

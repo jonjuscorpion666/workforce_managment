@@ -699,6 +699,178 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── Config tab ────────────────────────────────────────────────────────────
+
+type ConfigType = 'boolean' | 'number';
+interface ConfigSchema {
+  key: string;
+  label: string;
+  description: string;
+  type: ConfigType;
+  group: string;
+  min?: number;
+  max?: number;
+  unit?: string;
+}
+
+const CONFIG_SCHEMA: ConfigSchema[] = [
+  // Survey Governance
+  {
+    key: 'cno_survey_requires_svp_approval',
+    label: 'CNO surveys require SVP approval',
+    description: 'When enabled, surveys created by CNOs are held in PENDING until an SVP approves them.',
+    type: 'boolean',
+    group: 'Survey Governance',
+  },
+  {
+    key: 'cno_must_use_template',
+    label: 'CNOs must use an approved template',
+    description: 'When enabled, CNOs must base new surveys on an approved template.',
+    type: 'boolean',
+    group: 'Survey Governance',
+  },
+  {
+    key: 'director_survey_requires_approval',
+    label: 'Director surveys require approval',
+    description: 'When enabled, Director surveys must be approved by a CNO or SVP before going live.',
+    type: 'boolean',
+    group: 'Survey Governance',
+  },
+  {
+    key: 'director_max_questions',
+    label: 'Director max questions per survey',
+    description: 'Maximum number of questions a Director can include in a pulse survey.',
+    type: 'number',
+    group: 'Survey Governance',
+    min: 1,
+    max: 20,
+    unit: 'questions',
+  },
+  {
+    key: 'manager_survey_creation_enabled',
+    label: 'Allow managers to create surveys',
+    description: 'Not recommended — enabling this risks survey fatigue and data inconsistency.',
+    type: 'boolean',
+    group: 'Survey Governance',
+  },
+  // Issue Analysis
+  {
+    key: 'auto_issue_threshold',
+    label: 'Auto-issue score threshold',
+    description: 'Units scoring below this percentage on any engagement dimension will automatically have an issue created. Applies when running survey analysis.',
+    type: 'number',
+    group: 'Issue Analysis',
+    min: 1,
+    max: 100,
+    unit: '%',
+  },
+];
+
+const CONFIG_GROUPS = Array.from(new Set(CONFIG_SCHEMA.map((s) => s.group)));
+
+function ConfigTab({ config }: { config: any[] }) {
+  const qc = useQueryClient();
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saved,  setSaved]  = useState<string | null>(null);
+
+  const configMap = new Map(config.map((c) => [c.key, c.value]));
+
+  async function handleChange(key: string, value: any) {
+    setSaving(key);
+    try {
+      await api.post('/admin/config', { key, value });
+      qc.invalidateQueries({ queryKey: ['admin-config'] });
+      setSaved(key);
+      setTimeout(() => setSaved(null), 2000);
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  // Collect config keys not covered by schema (raw display)
+  const knownKeys = new Set(CONFIG_SCHEMA.map((s) => s.key));
+  const unknownConfigs = config.filter((c) => !knownKeys.has(c.key));
+
+  return (
+    <div className="space-y-6">
+      {CONFIG_GROUPS.map((group) => (
+        <div key={group} className="card">
+          <div className="flex items-center gap-2 mb-5">
+            <Settings className="w-4 h-4 text-brand-600" />
+            <h2 className="font-semibold text-gray-900">{group}</h2>
+          </div>
+          <div className="space-y-5">
+            {CONFIG_SCHEMA.filter((s) => s.group === group).map((schema) => {
+              const current = configMap.get(schema.key);
+              const isSaving = saving === schema.key;
+              const isSaved  = saved  === schema.key;
+
+              return (
+                <div key={schema.key} className="flex items-start justify-between gap-6 py-3 border-b border-gray-100 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{schema.label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{schema.description}</p>
+                    <p className="text-xs font-mono text-gray-300 mt-1">{schema.key}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {schema.type === 'boolean' ? (
+                      <button
+                        onClick={() => handleChange(schema.key, !current)}
+                        disabled={isSaving}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                          current ? 'bg-brand-600' : 'bg-gray-200'
+                        } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${current ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          defaultValue={current ?? ''}
+                          min={schema.min}
+                          max={schema.max}
+                          disabled={isSaving}
+                          onBlur={(e) => {
+                            const val = Number(e.target.value);
+                            if (!isNaN(val) && val !== current) handleChange(schema.key, val);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          }}
+                          className="w-20 text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                        />
+                        {schema.unit && <span className="text-xs text-gray-400">{schema.unit}</span>}
+                      </div>
+                    )}
+                    {isSaved && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Raw display for any config keys not covered by schema */}
+      {unknownConfigs.length > 0 && (
+        <div className="card">
+          <h2 className="font-semibold text-gray-900 mb-4">Other Config</h2>
+          <div className="space-y-3">
+            {unknownConfigs.map((c: any) => (
+              <div key={c.id} className="border-b border-gray-100 pb-3 last:border-0">
+                <p className="text-xs font-mono text-gray-500 mb-0.5">{c.key}</p>
+                <p className="text-sm text-gray-800">{JSON.stringify(c.value)}</p>
+                {c.description && <p className="text-xs text-gray-400 mt-0.5">{c.description}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -968,24 +1140,7 @@ export default function AdminPage() {
       )}
 
       {/* ── Config ── */}
-      {tab === 'config' && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <Settings className="w-5 h-5 text-brand-600" />
-            <h2 className="font-semibold text-gray-900">Platform Config ({config.length})</h2>
-          </div>
-          <div className="space-y-3">
-            {config.map((c: any) => (
-              <div key={c.id} className="border-b border-gray-100 pb-3 last:border-0">
-                <p className="text-xs font-mono text-gray-500 mb-0.5">{c.key}</p>
-                <p className="text-sm text-gray-800">{JSON.stringify(c.value)}</p>
-                {c.description && <p className="text-xs text-gray-400 mt-0.5">{c.description}</p>}
-              </div>
-            ))}
-            {config.length === 0 && <p className="text-gray-400 text-sm">No config values.</p>}
-          </div>
-        </div>
-      )}
+      {tab === 'config' && <ConfigTab config={config} />}
     </div>
   );
 }

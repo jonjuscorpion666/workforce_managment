@@ -35,6 +35,13 @@ export class IssuesController {
     return this.issuesService.update(id, body, req.user.id);
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete an issue and all related data' })
+  delete(@Param('id') id: string) {
+    return this.issuesService.delete(id);
+  }
+
   @Get(':id/history')
   @ApiOperation({ summary: 'Get issue change history' })
   getHistory(@Param('id') id: string) {

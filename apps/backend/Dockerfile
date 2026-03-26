@@ -29,6 +29,10 @@ RUN npm ci --workspace=apps/backend --include-workspace-root --omit=dev
 # Copy compiled output
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 
+# Start script (handles optional seed + app start)
+COPY apps/backend/start.sh ./start.sh
+RUN chmod +x start.sh
+
 EXPOSE 3001
 
-CMD ["node", "apps/backend/dist/main"]
+CMD ["sh", "start.sh"]

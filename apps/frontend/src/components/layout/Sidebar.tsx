@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ClipboardList, AlertTriangle, CheckSquare,
-  TrendingUp, ArrowUpCircle, Users, Megaphone, MessageCircle,
-  BarChart2, PieChart, Calendar, Settings, LogOut, ShieldCheck, GitBranch, BookOpen,
+  ArrowUpCircle, Users, Megaphone, MessageCircle,
+  BarChart2, PieChart, Settings, LogOut, ShieldCheck, GitBranch, BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -19,10 +19,8 @@ const navItems = [
   { label: 'SVP Dashboard',  href: '/analytics/svp',   icon: PieChart,   indent: true },
   { label: 'Program Flow',   href: '/program-flow',    icon: GitBranch },
   { label: 'Escalations',    href: '/escalations',     icon: ArrowUpCircle },
-  { label: 'Meetings',       href: '/meetings',        icon: Calendar },
   { label: 'Announcements',  href: '/announcements',   icon: Megaphone },
   { label: 'Speak Up',       href: '/speak-up',        icon: MessageCircle },
-  { label: 'KPIs',           href: '/kpis',            icon: TrendingUp },
   { label: 'Audit Log',      href: '/audit',           icon: ShieldCheck },
   { label: 'Admin',          href: '/admin',           icon: Settings },
   { label: 'Help',           href: '/help',            icon: BookOpen },

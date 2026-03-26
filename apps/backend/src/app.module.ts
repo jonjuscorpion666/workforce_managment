@@ -33,20 +33,26 @@ import { ProgramFlowModule } from './modules/program-flow/program-flow.module';
         type: 'postgres',
         url: config.get('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: config.get('NODE_ENV') === 'development',
+        synchronize: config.get('NODE_ENV') !== 'production' || config.get('DB_SYNC') === 'true',
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
 
-    // Queue
+    // Queue — support both REDIS_URL (Railway) and individual host/port
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        redis: {
-          host: config.get('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        if (redisUrl) {
+          return { url: redisUrl };
+        }
+        return {
+          redis: {
+            host: config.get('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+          },
+        };
+      },
     }),
 
     // Scheduler (cron jobs)

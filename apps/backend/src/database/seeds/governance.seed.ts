@@ -44,6 +44,12 @@ const GOVERNANCE_DEFAULTS: { key: string; value: any; description: string }[] = 
     description:
       'When false (recommended), Managers cannot create surveys. They may request surveys via the Speak Up / request channel. Enabling this is not recommended due to risk of survey overload and data inconsistency.',
   },
+  {
+    key: 'auto_issue_threshold',
+    value: 70,
+    description:
+      'Favorable score percentage below which an issue is automatically created during survey analysis. Units scoring below this value on any engagement dimension will have an issue raised. Default: 70.',
+  },
 ];
 
 export async function seedGovernance(dataSource: DataSource) {
@@ -68,5 +74,6 @@ export async function seedGovernance(dataSource: DataSource) {
   console.log('   director_survey_requires_approval  = true   (Directors need CNO/SVP sign-off)');
   console.log('   director_max_questions             = 5      (survey fatigue guard)');
   console.log('   director_can_target_scope          = UNIT');
-  console.log('   manager_survey_creation_enabled    = false  (not recommended)\n');
+  console.log('   manager_survey_creation_enabled    = false  (not recommended)');
+  console.log('   auto_issue_threshold               = 70     (% below which issues are auto-created)\n');
 }

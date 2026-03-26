@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Plus, ChevronDown, ChevronRight, Check, Clock, AlertCircle, X,
-  CheckCircle2, CircleDot,
+  CheckCircle2, CircleDot, Trash2,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -770,6 +770,11 @@ export default function IssueDetailPage() {
     enabled: !!id,
   });
 
+  const deleteIssue = useMutation({
+    mutationFn: () => api.delete(`/issues/${id}`),
+    onSuccess: () => router.push('/issues'),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -815,6 +820,18 @@ export default function IssueDetailPage() {
             <span className={`badge ${statusBadgeClass(issue.status)}`}>{labelify(issue.status)}</span>
             <span className={`badge ${severityBadgeClass(issue.severity)}`}>{issue.severity}</span>
             <span className={`badge ${levelBadgeClass(issue.issueLevel)}`}>{issue.issueLevel}</span>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-40"
+              disabled={deleteIssue.isPending}
+              onClick={() => {
+                if (window.confirm(`Delete "${issue.title}"? This will also remove all tasks, comments, and history. This cannot be undone.`)) {
+                  deleteIssue.mutate();
+                }
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {deleteIssue.isPending ? 'Deleting…' : 'Delete'}
+            </button>
           </div>
         </div>
       </div>

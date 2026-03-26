@@ -38,6 +38,9 @@ export class Task {
   issueId: string;
 
   @Column({ nullable: true })
+  milestoneId: string;
+
+  @Column({ nullable: true })
   ownerId: string;
 
   @Column({ nullable: true })

@@ -70,6 +70,10 @@ export class Survey {
   @Column({ nullable: true })
   linkedIssueId: string;
 
+  /** When true this survey is a reusable template — excluded from the main survey list */
+  @Column({ default: false })
+  isTemplate: boolean;
+
   // ── Targeting ─────────────────────────────────────────────────────────────────
 
   /** Breadth of this survey — SYSTEM (all), HOSPITAL (selected), or UNIT */

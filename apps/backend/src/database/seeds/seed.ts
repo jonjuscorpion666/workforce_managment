@@ -18,11 +18,13 @@ import { IssueHistory } from '../../modules/issues/entities/issue-history.entity
 import { ActionPlan, ActionPlanMilestone } from '../../modules/issues/entities/action-plan.entity';
 import { Task } from '../../modules/tasks/entities/task.entity';
 import { TaskAttachment } from '../../modules/tasks/entities/task-attachment.entity';
+import { TaskComment } from '../../modules/tasks/entities/task-comment.entity';
 import { Escalation } from '../../modules/escalations/entities/escalation.entity';
 import { Meeting } from '../../modules/meetings/entities/meeting.entity';
 import { MeetingNote } from '../../modules/meetings/entities/meeting-note.entity';
 import { Announcement } from '../../modules/announcements/entities/announcement.entity';
 import { SpeakUpCase } from '../../modules/speakup/entities/speak-up-case.entity';
+import { SpeakUpActivity } from '../../modules/speakup/entities/speak-up-activity.entity';
 import { KPI } from '../../modules/kpis/entities/kpi.entity';
 import { AuditLog } from '../../modules/audit/entities/audit-log.entity';
 import { Config } from '../../modules/admin/entities/config.entity';
@@ -42,11 +44,11 @@ const AppDataSource = new DataSource({
     User, Role, Permission, OrgUnit,
     Survey, Question, Response,
     Issue, IssueHistory, ActionPlan, ActionPlanMilestone,
-    Task, TaskAttachment,
+    Task, TaskAttachment, TaskComment,
     Escalation,
     Meeting, MeetingNote,
     Announcement,
-    SpeakUpCase,
+    SpeakUpCase, SpeakUpActivity,
     KPI,
     AuditLog,
     Config,

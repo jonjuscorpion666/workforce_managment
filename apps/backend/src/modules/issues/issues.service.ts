@@ -7,6 +7,9 @@ import { ActionPlan, ActionPlanMilestone, ActionPlanStatus, MilestoneStatus } fr
 import { AuditService } from '../audit/audit.service';
 import { Response } from '../responses/entities/response.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
+import { Config } from '../admin/entities/config.entity';
+import { Task } from '../tasks/entities/task.entity';
+import { TaskComment } from '../tasks/entities/task-comment.entity';
 
 // ─── Survey dimension → representative question ID map ──────────────────────
 const DIMENSIONS: Record<string, string> = {
@@ -51,6 +54,9 @@ export class IssuesService {
     @InjectRepository(ActionPlanMilestone) private readonly milestoneRepo: Repository<ActionPlanMilestone>,
     @InjectRepository(Response) private readonly responseRepo: Repository<Response>,
     @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
+    @InjectRepository(Config)       private readonly configRepo:      Repository<Config>,
+    @InjectRepository(Task)         private readonly taskRepo:         Repository<Task>,
+    @InjectRepository(TaskComment)  private readonly taskCommentRepo:  Repository<TaskComment>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -176,6 +182,10 @@ export class IssuesService {
 
   // ─── Auto-create issues from survey analysis ────────────────────────────────
   async autoCreateFromSurvey(surveyId: string, createdById: string) {
+    // Read threshold from platform config, fallback to 70
+    const thresholdConfig = await this.configRepo.findOne({ where: { key: 'auto_issue_threshold' } });
+    const THRESHOLD = Number(thresholdConfig?.value ?? 70);
+
     // Fetch all responses for the survey that have an orgUnitId
     const responses = await this.responseRepo.find({
       where: { surveyId },
@@ -212,7 +222,7 @@ export class IssuesService {
         if (scores.length === 0) continue;
 
         const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-        if (avg < 70) {
+        if (avg < THRESHOLD) {
           lowScores.push({
             uid,
             dimension,
@@ -277,7 +287,7 @@ export class IssuesService {
 
       const issue = this.repo.create({
         title: `Low ${dimension} — ${unitName}`,
-        description: `Auto-generated from survey analysis. Favorable score: ${score}% (below 70% threshold).`,
+        description: `Auto-generated from survey analysis. Favorable score: ${score}% (below ${THRESHOLD}% threshold).`,
         source: IssueSource.SURVEY_AUTO,
         linkedSurveyId: surveyId,
         linkedQuestionId: DIMENSIONS[dimension],
@@ -286,8 +296,8 @@ export class IssuesService {
         orgUnitId: uid,
         hospitalId: hospitalId ?? undefined,
         baselineScore: score,
-        targetScore: 70,
-        closureThreshold: 70,
+        targetScore: THRESHOLD,
+        closureThreshold: THRESHOLD,
         severity,
         priority,
         status: IssueStatus.OPEN,
@@ -408,5 +418,22 @@ export class IssuesService {
       .andWhere('ap.status = :status', { status: ActionPlanStatus.ACTIVE })
       .orderBy('ap.endDate', 'ASC')
       .getMany();
+  }
+
+  async delete(id: string) {
+    const issue = await this.repo.findOne({ where: { id } });
+    if (!issue) throw new NotFoundException(`Issue ${id} not found`);
+
+    // Delete task comments, then tasks linked to this issue
+    const tasks = await this.taskRepo.find({ where: { issueId: id } });
+    if (tasks.length) {
+      const taskIds = tasks.map((t) => t.id);
+      await this.taskCommentRepo.delete({ taskId: In(taskIds) });
+      await this.taskRepo.delete({ issueId: id });
+    }
+
+    // IssueHistory, ActionPlans, and Milestones cascade via DB FK onDelete
+    await this.historyRepo.delete({ issueId: id });
+    await this.repo.delete(id);
   }
 }

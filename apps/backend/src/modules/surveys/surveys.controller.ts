@@ -44,6 +44,18 @@ export class SurveysController {
     return this.surveysService.getGovernance();
   }
 
+  @Get('templates')
+  @ApiOperation({ summary: 'List all saved survey templates' })
+  getTemplates() {
+    return this.surveysService.getTemplates();
+  }
+
+  @Post(':id/save-as-template')
+  @ApiOperation({ summary: 'Save an existing survey as a reusable template' })
+  saveAsTemplate(@Param('id') id: string, @Req() req: any) {
+    return this.surveysService.saveAsTemplate(id, req.user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get survey by ID' })
   findOne(@Param('id') id: string) {

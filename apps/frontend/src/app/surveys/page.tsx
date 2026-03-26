@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, Link2, Check, Clock, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, Link2, Check, Clock, CheckCircle2, XCircle, ShieldCheck, BookmarkPlus } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate, getStatusColor } from '@/lib/utils';
@@ -27,12 +27,23 @@ function ApprovalBadge({ status }: { status?: string }) {
 
 export default function SurveysPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const { hasRole } = useAuth();
   const isSVP = hasRole('SVP') || hasRole('SUPER_ADMIN');
+  const qc = useQueryClient();
 
   const { data: surveys = [], isLoading } = useQuery({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
+  });
+
+  const saveAsTemplate = useMutation({
+    mutationFn: (surveyId: string) => api.post(`/surveys/${surveyId}/save-as-template`).then((r) => r.data),
+    onSuccess: (_, surveyId) => {
+      qc.invalidateQueries({ queryKey: ['survey-templates'] });
+      setSavedTemplateId(surveyId);
+      setTimeout(() => setSavedTemplateId(null), 2500);
+    },
   });
 
   const { data: pendingCount = 0 } = useQuery({
@@ -84,7 +95,7 @@ export default function SurveysPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Title', 'Type', 'Status', 'Approval', 'Target', 'Anonymous', 'Opens', 'Closes', 'Link'].map((h) => (
+                {['Title', 'Type', 'Status', 'Approval', 'Target', 'Anonymous', 'Opens', 'Closes', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left font-medium text-gray-600">{h}</th>
                 ))}
               </tr>
@@ -124,17 +135,30 @@ export default function SurveysPage() {
                   <td className="px-4 py-3 text-gray-500">{s.opensAt ? formatDate(s.opensAt) : '—'}</td>
                   <td className="px-4 py-3 text-gray-500">{s.closesAt ? formatDate(s.closesAt) : '—'}</td>
                   <td className="px-4 py-3">
-                    {s.status === 'ACTIVE' && (
+                    <div className="flex items-center gap-2">
+                      {s.status === 'ACTIVE' && (
+                        <button
+                          onClick={() => copyLink(s.id)}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          {copiedId === s.id
+                            ? <><Check className="w-3.5 h-3.5 text-green-500" /> Copied!</>
+                            : <><Link2 className="w-3.5 h-3.5" /> Copy Link</>
+                          }
+                        </button>
+                      )}
                       <button
-                        onClick={() => copyLink(s.id)}
-                        className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        onClick={() => saveAsTemplate.mutate(s.id)}
+                        disabled={saveAsTemplate.isPending}
+                        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium disabled:opacity-40"
+                        title="Save as template"
                       >
-                        {copiedId === s.id
-                          ? <><Check className="w-3.5 h-3.5 text-green-500" /> Copied!</>
-                          : <><Link2 className="w-3.5 h-3.5" /> Copy Link</>
+                        {savedTemplateId === s.id
+                          ? <><Check className="w-3.5 h-3.5 text-green-500" /> Saved!</>
+                          : <><BookmarkPlus className="w-3.5 h-3.5" /> Template</>
                         }
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}

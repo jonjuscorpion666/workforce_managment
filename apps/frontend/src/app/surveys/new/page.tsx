@@ -7,7 +7,7 @@ import {
   Plus, Trash2, GripVertical, ArrowLeft, Send, Save,
   ChevronDown, ChevronUp, Globe, Building2, LayoutGrid,
   ShieldCheck, Target, Info, AlertTriangle, Clock, Lock,
-  Users, MessageSquare, Zap,
+  Users, MessageSquare, Zap, BookmarkPlus,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -291,6 +291,35 @@ export default function NewSurveyPage() {
     }
   }, [isCNO, userOrgUnit, hospitals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Template picker state
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [appliedTemplateName, setAppliedTemplateName] = useState('');
+
+  // Fetch templates
+  const { data: templates = [] } = useQuery<any[]>({
+    queryKey: ['survey-templates'],
+    queryFn: () => api.get('/surveys/templates').then((r) => r.data),
+  });
+
+  function applyTemplate(t: any) {
+    setTitle(t.title);
+    setDescription(t.description ?? '');
+    setObjective(t.objective ?? '');
+    setType(t.type);
+    setIsAnonymous(t.isAnonymous);
+    if (!isDirector && !isCNO && t.targetScope) setTargetScope(t.targetScope as TargetScope);
+    const qs = (t.questions ?? [])
+      .sort((a: any, b: any) => a.orderIndex - b.orderIndex)
+      .map((q: any) => ({
+        _id: Math.random().toString(36).slice(2),
+        text: q.text, helpText: q.helpText ?? '',
+        type: q.type, isRequired: q.isRequired, options: q.options ?? [],
+      }));
+    setQuestions(isDirector ? qs.slice(0, DIRECTOR_MAX_QUESTIONS) : qs.length ? qs : [makeQuestion()]);
+    setAppliedTemplateName(t.title);
+    setShowTemplatePicker(false);
+  }
+
   // Fetch governance config
   const { data: governance } = useQuery<{
     requiresSvpApproval: boolean;
@@ -431,6 +460,64 @@ export default function NewSurveyPage() {
           </div>
         )}
       </div>
+
+      {/* Template picker */}
+      {templates.length > 0 && (
+        <div className="border border-violet-200 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowTemplatePicker((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-violet-50 hover:bg-violet-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <BookmarkPlus className="w-4 h-4 text-violet-600" />
+              <span className="text-sm font-semibold text-violet-800">Start from a Template</span>
+              {appliedTemplateName && (
+                <span className="text-xs bg-violet-200 text-violet-700 px-2 py-0.5 rounded-full font-medium">
+                  Using: {appliedTemplateName}
+                </span>
+              )}
+              <span className="text-xs text-violet-500 font-normal">{templates.length} available</span>
+            </div>
+            {showTemplatePicker
+              ? <ChevronDown className="w-4 h-4 text-violet-400" />
+              : <ChevronDown className="w-4 h-4 text-violet-400 -rotate-90" />
+            }
+          </button>
+
+          {showTemplatePicker && (
+            <div className="p-4 bg-white border-t border-violet-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {templates.map((t: any) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    className="text-left p-3 rounded-lg border border-gray-200 hover:border-violet-400 hover:bg-violet-50 transition-all group"
+                  >
+                    <p className="text-sm font-semibold text-gray-800 group-hover:text-violet-700 leading-snug">{t.title}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-xs text-gray-400">{t.type}</span>
+                      <span className="text-gray-300">·</span>
+                      <span className="text-xs text-gray-400">{(t.questions ?? []).length} question{(t.questions ?? []).length !== 1 ? 's' : ''}</span>
+                      {t.isAnonymous && (
+                        <>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-xs text-gray-400">Anonymous</span>
+                        </>
+                      )}
+                    </div>
+                    {t.description && (
+                      <p className="text-xs text-gray-400 mt-1 line-clamp-2">{t.description}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-3">Selecting a template pre-fills the form — you can edit everything before saving.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Director governance notice */}
       {isDirector && (

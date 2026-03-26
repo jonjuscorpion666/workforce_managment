@@ -153,10 +153,110 @@ export async function seedFloatPoolIssue(dataSource: DataSource) {
 
   console.log('\n🌱 Seeding: Low Overall Experience — Float Pool...');
 
-  // ── Guard: skip if already seeded ──────────���──────────────────────────────
+  // ── Guard: skip if fully seeded; create missing tasks if issue exists ───────
   const existing = await issueRepo.findOne({ where: { title: 'Low Overall Experience — Float Pool' } });
   if (existing) {
-    console.log('   → Already seeded, skipping.\n');
+    const existingTaskCount = await taskRepo.count({ where: { issueId: existing.id } });
+    if (existingTaskCount > 0) {
+      console.log(`   → Already seeded (${existingTaskCount} tasks found), skipping.\n`);
+      return;
+    }
+
+    // Issue exists but tasks were never created — fill in missing pieces
+    console.log('   → Issue exists but no tasks found — creating missing dependencies + tasks...');
+    const director2 = await userRepo.findOne({ where: { email: 'director@hospital.com' } });
+    const manager2  = await userRepo.findOne({ where: { email: 'manager@hospital.com' } });
+    if (!director2 || !manager2) {
+      console.warn('   ⚠ Director or Manager user not found — cannot create tasks.');
+      return;
+    }
+
+    // Ensure Float Pool dept + unit exist
+    const indyHospital2 = await orgRepo.findOne({ where: { code: 'FH-INDY' } });
+    if (!indyHospital2) {
+      console.warn('   ⚠ FH-INDY hospital not found — cannot create tasks.');
+      return;
+    }
+    let floatPoolDept2 = await orgRepo.findOne({ where: { code: 'FH-INDY-FLOAT-DEPT' } });
+    if (!floatPoolDept2) {
+      floatPoolDept2 = await orgRepo.save(orgRepo.create({
+        name: 'Float Pool', code: 'FH-INDY-FLOAT-DEPT',
+        level: OrgLevel.DEPARTMENT, location: 'Indianapolis, IN',
+        timezone: 'America/Indiana/Indianapolis',
+        parent: indyHospital2, parentId: indyHospital2.id, isActive: true,
+      }));
+      console.log('   ✓ Created department: Float Pool');
+    }
+    let floatUnit = await orgRepo.findOne({ where: { code: 'FH-INDY-FLOAT' } });
+    if (!floatUnit) {
+      floatUnit = await orgRepo.save(orgRepo.create({
+        name: 'Float Pool — Inpatient', code: 'FH-INDY-FLOAT',
+        level: OrgLevel.UNIT, location: 'Indianapolis, IN',
+        timezone: 'America/Indiana/Indianapolis',
+        parent: floatPoolDept2, parentId: floatPoolDept2.id, isActive: true,
+      }));
+      console.log('   ✓ Created unit: Float Pool — Inpatient');
+    }
+
+    // Ensure action plan exists
+    let plan2 = await planRepo.findOne({ where: { issueId: existing.id } });
+    if (!plan2) {
+      plan2 = await planRepo.save(planRepo.create({
+        issueId: existing.id,
+        title: 'Float Pool Experience Improvement Plan',
+        objective: 'Raise the Overall Experience dimension score for Float Pool nurses from 48% to at least 70% within 90 days, by improving orientation consistency, scheduling fairness, and management communication.',
+        rootCauseSummary: 'Three primary drivers: (1) No standardised orientation checklist. (2) Reactive scheduling with short notice. (3) No regular management touchpoint for float nurses.',
+        plannedActions: ['Conduct interviews and review data.', 'Redesign protocol.', 'Roll out with training.', 'Deploy follow-up survey.'],
+        successCriteria: 'Overall Experience ≥ 70% in the follow-up pulse survey.',
+        ownerId: director2.id,
+        startDate: new Date(),
+        endDate: daysFromNow(90),
+        status: ActionPlanStatus.ACTIVE,
+        progressPercent: 0,
+        createdById: director2.id,
+      }));
+      console.log('   ✓ Created action plan');
+    }
+
+    // Ensure milestones exist
+    let milestones2 = await milestoneRepo.find({ where: { actionPlanId: plan2.id }, order: { dueDate: 'ASC' } });
+    if (milestones2.length === 0) {
+      const milestoneDefs2 = [
+        { title: 'Phase 1 — Root Cause Investigation', dueDate: daysFromNow(14), notes: 'Conduct interviews, review data, analyse Speak Up submissions.' },
+        { title: 'Phase 2 — Protocol Redesign',        dueDate: daysFromNow(35), notes: 'Draft and gain sign-off on revised orientation checklist and scheduling criteria.' },
+        { title: 'Phase 3 — Implementation & Training',dueDate: daysFromNow(56), notes: 'Roll out protocol, brief staff, establish bi-weekly check-ins.' },
+        { title: 'Phase 4 — Follow-up Survey & Validation', dueDate: daysFromNow(77), notes: 'Deploy pulse survey, review scores, document lessons learned.' },
+      ];
+      for (const def of milestoneDefs2) {
+        const m = await milestoneRepo.save(milestoneRepo.create({
+          actionPlanId: plan2.id, title: def.title, dueDate: def.dueDate,
+          status: MilestoneStatus.PENDING, notes: def.notes,
+        }));
+        milestones2.push(m);
+        console.log(`   ✓ Milestone: ${m.title}`);
+      }
+    }
+
+    const allDefs = [MILESTONE_1_TASKS, MILESTONE_2_TASKS, MILESTONE_3_TASKS, MILESTONE_4_TASKS];
+    for (let i = 0; i < milestones2.length && i < allDefs.length; i++) {
+      for (const def of allDefs[i]) {
+        const assigneeId = def.assigneeRole === 'manager' ? manager2.id : director2.id;
+        await taskRepo.save(taskRepo.create({
+          title:        def.title,
+          description:  def.description,
+          status:       TaskStatus.TODO,
+          priority:     def.priority,
+          issueId:      existing.id,
+          ownerId:      manager2.id,
+          assignedToId: assigneeId,
+          orgUnitId:    floatUnit.id,
+          dueDate:      daysFromNow(def.dueDaysFromNow),
+          createdById:  director2.id,
+        }));
+      }
+      console.log(`   ✓ Tasks created for: ${milestones2[i].title}`);
+    }
+    console.log('✅ Float Pool tasks seeded\n');
     return;
   }
 
@@ -213,30 +313,32 @@ export async function seedFloatPoolIssue(dataSource: DataSource) {
   }
 
   // ── Create Issue ──────────────────────────────────────────────────────────
-  const issue = await issueRepo.save(issueRepo.create({
+  const issueDraft = issueRepo.create({
     title: 'Low Overall Experience — Float Pool',
     description:
       'Float pool nurses at Franciscan Health Indianapolis scored 48% on the Overall Experience dimension in the most recent pulse survey — well below the 70% threshold. ' +
       'Key pain points identified: inconsistent unit orientation, unpredictable scheduling, and lack of a structured handoff process when arriving at an unfamiliar unit. ' +
       'This is a recurring concern across two survey cycles.',
-    status: 'ACTION_PLANNED',
-    severity: 'HIGH',
-    priority: 'P2',
-    source: 'SURVEY_AUTO',
-    category: 'Staff Experience',
-    subcategory: 'Overall Experience',
-    issueLevel: 'UNIT',
-    hospital: 'Franciscan Health Indianapolis',
-    ownerRole: 'Director',
-    ownerId: director.id,
+    status:       'ACTION_PLANNED' as any,
+    severity:     'HIGH'           as any,
+    priority:     'P2'             as any,
+    source:       'SURVEY_AUTO'    as any,
+    category:     'Staff Experience',
+    subcategory:  'Overall Experience',
+    issueLevel:   'UNIT',
+    hospitalId:   indyHospital.id,
+    ownerRole:    'Director',
+    ownerId:      director.id,
     assignedToId: manager.id,
-    orgUnitId: floatPoolUnit.id,
-    baselineScore: 48,
-    targetThreshold: 70,
-    dueDate: daysFromNow(90),
-    statusNote: 'Action plan created. Four-phase improvement programme underway.',
-    createdById: director.id,
-  }));
+    orgUnitId:    floatPoolUnit!.id,
+    baselineScore:     48,
+    targetScore:       70,
+    closureThreshold:  70,
+    dueDate:           daysFromNow(90),
+    statusNote:        'Action plan created. Four-phase improvement programme underway.',
+    createdById:       director.id,
+  } as any);
+  const issue = await issueRepo.save(issueDraft) as unknown as Issue;
   console.log(`   ✓ Created issue: ${issue.title} [${issue.id}]`);
 
   // ── Create Action Plan ────────────────────────────────────────────────────

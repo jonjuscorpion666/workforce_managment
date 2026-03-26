@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, X, AlertCircle, ChevronDown, ChevronRight,
   ExternalLink, Clock, Calendar, User, Layers, CheckCheck,
+  MessageSquare, Send, Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -23,6 +24,8 @@ interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   issueId?: string;
+  milestoneId?: string;
+  milestoneName?: string;
   ownerId?: string;
   assignedToId?: string;
   parentTaskId?: string;
@@ -104,6 +107,21 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
   );
 }
 
+// ─── Types for issue/milestone pickers ───────────────────────────────────────
+
+interface IssueSummary {
+  id: string;
+  title: string;
+  status: string;
+}
+
+interface MilestoneSummary {
+  id: string;
+  title: string;
+  dueDate?: string;
+  status: string;
+}
+
 // ─── Create Task Modal ────────────────────────────────────────────────────────
 
 function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUser[] }) {
@@ -115,9 +133,30 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
     assignedToId: '',
     dueDate: '',
     issueId: '',
+    milestoneId: '',
   });
 
-  const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+  const set = (field: string, value: string) =>
+    setForm((f) => ({ ...f, [field]: value }));
+
+  // Load all issues for the picker
+  const { data: issues = [] } = useQuery<IssueSummary[]>({
+    queryKey: ['issues-summary'],
+    queryFn: () => api.get('/issues').then((r) => r.data),
+  });
+
+  // Load action plans (with milestones) when an issue is selected
+  const { data: actionPlans = [] } = useQuery<{ id: string; title: string; milestones: MilestoneSummary[] }[]>({
+    queryKey: ['issue-action-plans', form.issueId],
+    queryFn: () => api.get(`/issues/${form.issueId}/action-plans`).then((r) => r.data),
+    enabled: !!form.issueId,
+  });
+
+  const milestones: MilestoneSummary[] = actionPlans.flatMap((p) => p.milestones ?? []);
+
+  function handleIssueChange(issueId: string) {
+    setForm((f) => ({ ...f, issueId, milestoneId: '' }));
+  }
 
   const create = useMutation({
     mutationFn: (data: any) => api.post('/tasks', data).then((r) => r.data),
@@ -136,9 +175,10 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
       priority: form.priority,
     };
     if (form.description.trim()) payload.description = form.description.trim();
-    if (form.assignedToId) payload.assignedToId = form.assignedToId;
-    if (form.dueDate) payload.dueDate = form.dueDate;
-    if (form.issueId.trim()) payload.issueId = form.issueId.trim();
+    if (form.assignedToId)       payload.assignedToId = form.assignedToId;
+    if (form.dueDate)            payload.dueDate = form.dueDate;
+    if (form.issueId)            payload.issueId = form.issueId;
+    if (form.milestoneId)        payload.milestoneId = form.milestoneId;
     create.mutate(payload);
   }
 
@@ -197,15 +237,41 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
             </select>
           </div>
 
+          {/* Issue picker */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Linked Issue ID <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input
-              className="input font-mono text-sm"
-              placeholder="Paste issue ID to link this task"
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Linked Issue <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <select
+              className="input"
               value={form.issueId}
-              onChange={(e) => set('issueId', e.target.value)}
-            />
+              onChange={(e) => handleIssueChange(e.target.value)}
+            >
+              <option value="">— None —</option>
+              {issues.map((issue) => (
+                <option key={issue.id} value={issue.id}>{issue.title}</option>
+              ))}
+            </select>
           </div>
+
+          {/* Milestone picker — only shown when an issue with milestones is selected */}
+          {form.issueId && milestones.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Milestone <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <select
+                className="input"
+                value={form.milestoneId}
+                onChange={(e) => set('milestoneId', e.target.value)}
+              >
+                <option value="">— No milestone —</option>
+                {milestones.map((m) => (
+                  <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
@@ -229,6 +295,16 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
 
 // ─── Task Detail Panel ────────────────────────────────────────────────────────
 
+interface TaskCommentData {
+  id: string;
+  taskId: string;
+  authorId: string;
+  authorName: string;
+  authorRole?: string;
+  content: string;
+  createdAt: string;
+}
+
 function TaskDetailPanel({
   task,
   users,
@@ -240,12 +316,50 @@ function TaskDetailPanel({
   onClose: () => void;
   onUpdate: (id: string, data: Partial<Task>) => void;
 }) {
+  const { user: currentUser } = useAuth();
+  const qc = useQueryClient();
   const [changingStatus, setChangingStatus] = useState(false);
+  const [commentText, setCommentText] = useState('');
+
+  const deleteTask = useMutation({
+    mutationFn: () => api.delete(`/tasks/${task.id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
+      onClose();
+    },
+  });
 
   const { data: subtasks = [] } = useQuery<Task[]>({
     queryKey: ['subtasks', task.id],
     queryFn: () => api.get(`/tasks/${task.id}/subtasks`).then((r) => r.data),
   });
+
+  const { data: comments = [] } = useQuery<TaskCommentData[]>({
+    queryKey: ['task-comments', task.id],
+    queryFn: () => api.get(`/tasks/${task.id}/comments`).then((r) => r.data),
+  });
+
+  const addComment = useMutation({
+    mutationFn: (content: string) =>
+      api.post(`/tasks/${task.id}/comments`, { content }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-comments', task.id] });
+      setCommentText('');
+    },
+  });
+
+  const deleteComment = useMutation({
+    mutationFn: (commentId: string) =>
+      api.delete(`/tasks/${task.id}/comments/${commentId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-comments', task.id] }),
+  });
+
+  function submitComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    addComment.mutate(commentText.trim());
+  }
 
   const overdue = isOverdue(task);
   const nextStatuses = NEXT_STATUSES[task.status] ?? [];
@@ -264,9 +378,23 @@ function TaskDetailPanel({
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Task</p>
             <h2 className="text-base font-semibold text-gray-900 leading-snug">{task.title}</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-0.5">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-40"
+              disabled={deleteTask.isPending}
+              onClick={() => {
+                if (window.confirm(`Delete "${task.title}"? This cannot be undone.`)) {
+                  deleteTask.mutate();
+                }
+              }}
+            >
+              <Trash2 className="w-3 h-3" />
+              {deleteTask.isPending ? 'Deleting…' : 'Delete'}
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 mt-0.5">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Status row */}
@@ -348,6 +476,16 @@ function TaskDetailPanel({
             </div>
           </div>
 
+          {/* Milestone */}
+          {task.milestoneName && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Milestone
+              </p>
+              <p className="text-sm text-gray-800">{task.milestoneName}</p>
+            </div>
+          )}
+
           {/* Linked issue */}
           {task.issueId && (
             <div>
@@ -398,6 +536,68 @@ function TaskDetailPanel({
               Completed {formatDate(task.completedAt)}
             </p>
           )}
+
+          {/* Comments */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1">
+              <MessageSquare className="w-3 h-3" /> Comments
+              {comments.length > 0 && (
+                <span className="ml-1 text-gray-400 font-normal normal-case">({comments.length})</span>
+              )}
+            </p>
+
+            {/* Comment list */}
+            <div className="space-y-3 mb-3">
+              {comments.length === 0 ? (
+                <p className="text-sm text-gray-400">No comments yet</p>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="group flex gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">
+                      {c.authorName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-semibold text-gray-800">{c.authorName}</span>
+                        {c.authorRole && (
+                          <span className="text-xs text-gray-400">{c.authorRole}</span>
+                        )}
+                        <span className="text-xs text-gray-400 ml-auto flex-shrink-0">{formatDate(c.createdAt)}</span>
+                        {currentUser?.id === c.authorId && (
+                          <button
+                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"
+                            onClick={() => deleteComment.mutate(c.id)}
+                            title="Delete comment"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add comment */}
+            <form onSubmit={submitComment} className="flex gap-2">
+              <input
+                className="input flex-1 text-sm py-1.5"
+                placeholder="Add a comment…"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={!commentText.trim() || addComment.isPending}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
+
         </div>
       </div>
     </div>

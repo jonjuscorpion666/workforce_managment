@@ -276,34 +276,37 @@ function AuditTable({ logs }: { logs: ActivityEntry[] }) {
       <table className="w-full text-sm">
         <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
-            {['Timestamp', 'Entity', 'Entity ID', 'Action', 'Performed By', 'Changes'].map((h) => (
+            {['Timestamp', 'Type', 'Entity', 'Action', 'Performed By', 'Changes'].map((h) => (
               <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {logs.map((log) => {
-            const href = ENTITY_HREF[log.entityType]?.(log.entityId);
+            const href  = ENTITY_HREF[log.entityType]?.(log.entityId);
+            const title = log.entityTitle ?? log.entityId.slice(0, 12) + '…';
+            const name  = log.performedByName?.trim() || (log.performedById ? `…${log.performedById.slice(-8)}` : '—');
             return (
               <tr key={log.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap font-mono">
                   {new Date(log.timestamp).toLocaleString()}
                 </td>
-                <td className="px-4 py-2.5 text-xs font-medium text-gray-700 capitalize">{log.entityType}</td>
-                <td className="px-4 py-2.5 text-xs text-gray-400 font-mono">
+                <td className="px-4 py-2.5 text-xs text-gray-400 capitalize">{log.entityType}</td>
+                <td className="px-4 py-2.5 text-sm font-medium text-gray-800 max-w-xs truncate">
                   {href ? (
-                    <Link href={href} className="hover:text-blue-600 transition-colors">
-                      {log.entityId.slice(0, 12)}…
+                    <Link href={href} className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                      {title}<ExternalLink className="w-3 h-3 flex-shrink-0" />
                     </Link>
                   ) : (
-                    <span>{log.entityId.slice(0, 12)}…</span>
+                    title
                   )}
+                  <div className="text-xs text-gray-300 font-mono mt-0.5">{log.entityId.slice(0, 16)}…</div>
                 </td>
                 <td className="px-4 py-2.5"><ActionBadge action={log.action} /></td>
-                <td className="px-4 py-2.5 text-xs text-gray-600">
-                  {log.performedByName ?? (log.performedById ? `…${log.performedById.slice(-8)}` : '—')}
+                <td className="px-4 py-2.5 text-xs text-gray-700">
+                  <span className="font-medium">{name}</span>
                   {log.performedByRole && (
-                    <span className="text-gray-400 ml-1">({log.performedByRole})</span>
+                    <span className="text-gray-400 ml-1 block">{log.performedByRole}</span>
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-xs">
@@ -393,31 +396,19 @@ export default function AuditPage() {
   const [view,    setView]    = useState<ViewMode>('activity');
   const [filters, setFilters] = useState<Filters>({ entityType: '', action: '', dateFrom: '', dateTo: '' });
 
+  // Both views use the enriched feed so names and titles are always resolved
   const feedParams = new URLSearchParams();
   if (filters.entityType) feedParams.set('entityType', filters.entityType);
   if (filters.action)     feedParams.set('action',     filters.action);
   if (filters.dateFrom)   feedParams.set('dateFrom',   filters.dateFrom);
   if (filters.dateTo)     feedParams.set('dateTo',     `${filters.dateTo}T23:59:59`);
 
-  const { data: feedLogs = [], isLoading: feedLoading } = useQuery<ActivityEntry[]>({
+  const { data: logs = [], isLoading } = useQuery<ActivityEntry[]>({
     queryKey: ['audit-feed', filters],
     queryFn:  () => api.get(`/audit/feed?${feedParams.toString()}`).then((r) => r.data),
-    enabled:  view === 'activity',
   });
 
-  const { data: rawLogs = [], isLoading: rawLoading } = useQuery<ActivityEntry[]>({
-    queryKey: ['audit-raw', filters],
-    queryFn:  () => {
-      const p = new URLSearchParams();
-      if (filters.entityType) p.set('entityType', filters.entityType);
-      if (filters.action)     p.set('action',     filters.action);
-      return api.get(`/audit?${p.toString()}`).then((r) => r.data);
-    },
-    enabled: view === 'audit',
-  });
-
-  const isLoading = view === 'activity' ? feedLoading  : rawLoading;
-  const count     = view === 'activity' ? feedLogs.length : rawLogs.length;
+  const count = logs.length;
 
   return (
     <div className="space-y-6">
@@ -474,10 +465,10 @@ export default function AuditPage() {
           <p className="text-sm">Loading…</p>
         </div>
       ) : view === 'activity' ? (
-        <ActivityFeed logs={feedLogs} />
+        <ActivityFeed logs={logs} />
       ) : (
         <div className="card p-0 overflow-hidden">
-          <AuditTable logs={rawLogs} />
+          <AuditTable logs={logs} />
         </div>
       )}
     </div>
