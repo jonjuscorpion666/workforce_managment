@@ -8,6 +8,8 @@ COPY apps/frontend/package*.json ./apps/frontend/
 
 RUN npm ci --workspace=apps/frontend --include-workspace-root
 
+# Cache-bust: increment to force fresh COPY when layer cache is stale
+ARG CACHEBUST=2
 COPY apps/frontend ./apps/frontend
 
 # Build-time env (Next.js bakes NEXT_PUBLIC_ vars at build time)
