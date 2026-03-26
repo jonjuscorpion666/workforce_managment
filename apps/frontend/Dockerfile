@@ -13,6 +13,7 @@ COPY apps/frontend ./apps/frontend
 # Build-time env (Next.js bakes NEXT_PUBLIC_ vars at build time)
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build --workspace=apps/frontend
 
