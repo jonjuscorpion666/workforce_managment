@@ -77,7 +77,7 @@ function QuestionCard({
         <div className="flex gap-1 ml-auto">
           <button onClick={onMoveUp}   disabled={index === 0}         className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"><ChevronUp   className="w-4 h-4 text-gray-500" /></button>
           <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"><ChevronDown className="w-4 h-4 text-gray-500" /></button>
-          <button onClick={onRemove} className="p-1 rounded hover:bg-red-100 ml-1"><Trash2 className="w-4 h-4 text-red-400" /></button>
+          <button onClick={() => { if (window.confirm('Remove this question?')) onRemove(); }} className="p-1 rounded hover:bg-red-100 ml-1"><Trash2 className="w-4 h-4 text-red-400" /></button>
         </div>
       </div>
       <div className="p-4 space-y-3">
