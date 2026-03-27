@@ -275,7 +275,8 @@ export default function ApprovalsPage() {
           objective={previewSurvey.objective}
           type={previewSurvey.type}
           isAnonymous={previewSurvey.isAnonymous}
-          questions={previewSurvey.questions}
+          questions={previewSurvey.questions ?? []}
+          allowEmptyConfirm
           onClose={() => setPreviewSurvey(null)}
           confirmLabel={previewSurvey.approvalStatus === 'PENDING' ? 'Confirm & Approve' : 'Close Preview'}
           confirmIcon="publish"

@@ -23,6 +23,8 @@ interface SurveyPreviewModalProps {
   confirmLabel: string;
   confirmIcon?: 'publish' | 'submit';
   isPending?: boolean;
+  /** When true, the confirm button is not disabled for empty question lists (e.g. approval flow) */
+  allowEmptyConfirm?: boolean;
 }
 
 function QuestionPreview({ q, index }: { q: Question; index: number }) {
@@ -115,8 +117,9 @@ function QuestionPreview({ q, index }: { q: Question; index: number }) {
 
 export default function SurveyPreviewModal({
   title, description, objective, type, isAnonymous,
-  questions, onClose, onConfirm, confirmLabel, confirmIcon = 'publish', isPending,
+  questions, onClose, onConfirm, confirmLabel, confirmIcon = 'publish', isPending, allowEmptyConfirm = false,
 }: SurveyPreviewModalProps) {
+  const safeQuestions = questions ?? [];
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end">
       {/* Backdrop */}
@@ -159,15 +162,15 @@ export default function SurveyPreviewModal({
                 <strong>Objective:</strong> {objective}
               </div>
             )}
-            <p className="text-xs text-gray-400">{questions.length} question{questions.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-gray-400">{safeQuestions.length} question{safeQuestions.length !== 1 ? 's' : ''}</p>
           </div>
 
           {/* Questions */}
-          {questions.map((q, i) => (
+          {safeQuestions.map((q, i) => (
             <QuestionPreview key={q._id ?? i} q={q} index={i} />
           ))}
 
-          {questions.length === 0 && (
+          {safeQuestions.length === 0 && (
             <div className="text-center py-8 text-gray-400 text-sm">No questions added yet.</div>
           )}
         </div>
@@ -179,7 +182,7 @@ export default function SurveyPreviewModal({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isPending || questions.length === 0 || !title.trim()}
+            disabled={isPending || (!allowEmptyConfirm && safeQuestions.length === 0) || !title.trim()}
             className={`btn-primary flex items-center gap-2 text-sm ${
               confirmIcon === 'publish'
                 ? 'bg-green-600 hover:bg-green-700'
