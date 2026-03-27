@@ -6,9 +6,18 @@ import {
   CheckCircle2, XCircle, Clock, Building2, Target, User,
   ChevronDown, ChevronUp, Eye,
 } from 'lucide-react';
-import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
+
+interface Question {
+  id: string;
+  text: string;
+  helpText?: string;
+  type: string;
+  isRequired?: boolean;
+  options?: string[];
+}
 
 interface Survey {
   id: string;
@@ -16,6 +25,7 @@ interface Survey {
   description?: string;
   objective?: string;
   type: string;
+  isAnonymous?: boolean;
   targetScope: string;
   targetOrgUnitIds: string[];
   createdById: string;
@@ -23,7 +33,7 @@ interface Survey {
   approvalStatus: string;
   rejectionReason?: string;
   createdAt: string;
-  questions: { id: string }[];
+  questions: Question[];
 }
 
 function ApprovalStatusBadge({ status }: { status: string }) {
@@ -40,10 +50,11 @@ function ApprovalStatusBadge({ status }: { status: string }) {
   );
 }
 
-function SurveyCard({ survey, onApprove, onReject, isActing }: {
+function SurveyCard({ survey, onApprove, onReject, onPreview, isActing }: {
   survey: Survey;
   onApprove: () => void;
   onReject: (reason: string) => void;
+  onPreview: () => void;
   isActing: boolean;
 }) {
   const [expanded, setExpanded]     = useState(false);
@@ -80,9 +91,13 @@ function SurveyCard({ survey, onApprove, onReject, isActing }: {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-xs text-gray-400">{survey.questions?.length ?? 0}Q</span>
-            <Link href={`/surveys/${survey.id}`} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-              <Eye className="w-4 h-4" />
-            </Link>
+            <button
+              onClick={onPreview}
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+              title="Preview survey as staff"
+            >
+              <Eye className="w-3.5 h-3.5" /> Preview
+            </button>
             <button onClick={() => setExpanded((v) => !v)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
@@ -129,12 +144,12 @@ function SurveyCard({ survey, onApprove, onReject, isActing }: {
                 <XCircle className="w-4 h-4" /> Request Revisions
               </button>
               <button
-                onClick={onApprove}
+                onClick={onPreview}
                 disabled={isActing}
                 className="flex items-center gap-1.5 text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                {isActing ? 'Approving...' : 'Approve Survey'}
+                <Eye className="w-4 h-4" />
+                Preview & Approve
               </button>
             </>
           ) : (
@@ -166,6 +181,7 @@ function SurveyCard({ survey, onApprove, onReject, isActing }: {
 
 export default function ApprovalsPage() {
   const qc = useQueryClient();
+  const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
 
   const { data: surveys = [], isLoading } = useQuery<Survey[]>({
     queryKey: ['surveys', 'pending'],
@@ -174,7 +190,10 @@ export default function ApprovalsPage() {
 
   const approveMut = useMutation({
     mutationFn: (id: string) => api.post(`/surveys/${id}/approve`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['surveys'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['surveys'] });
+      setPreviewSurvey(null);
+    },
   });
 
   const rejectMut = useMutation({
@@ -221,6 +240,7 @@ export default function ApprovalsPage() {
                   isActing={approveMut.isPending || rejectMut.isPending}
                   onApprove={() => approveMut.mutate(s.id)}
                   onReject={(reason) => rejectMut.mutate({ id: s.id, reason })}
+                  onPreview={() => setPreviewSurvey(s)}
                 />
               ))}
             </div>
@@ -238,12 +258,33 @@ export default function ApprovalsPage() {
                     isActing={false}
                     onApprove={() => {}}
                     onReject={() => {}}
+                    onPreview={() => setPreviewSurvey(s)}
                   />
                 ))}
               </div>
             </div>
           )}
         </>
+      )}
+
+      {/* Preview & approve modal */}
+      {previewSurvey && (
+        <SurveyPreviewModal
+          title={previewSurvey.title}
+          description={previewSurvey.description}
+          objective={previewSurvey.objective}
+          type={previewSurvey.type}
+          isAnonymous={previewSurvey.isAnonymous}
+          questions={previewSurvey.questions}
+          onClose={() => setPreviewSurvey(null)}
+          confirmLabel={previewSurvey.approvalStatus === 'PENDING' ? 'Confirm & Approve' : 'Close Preview'}
+          confirmIcon="publish"
+          isPending={approveMut.isPending}
+          onConfirm={() => {
+            if (previewSurvey.approvalStatus === 'PENDING') approveMut.mutate(previewSurvey.id);
+            else setPreviewSurvey(null);
+          }}
+        />
       )}
     </div>
   );

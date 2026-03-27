@@ -220,10 +220,11 @@ export class SurveysService {
     return this.findOne(id);
   }
 
-  /** Returns all surveys pending SVP review */
+  /** Returns all surveys pending SVP review — includes full question data for preview */
   async getPendingApprovals() {
     return this.surveyRepo.find({
       where: { approvalStatus: ApprovalStatus.PENDING },
+      relations: ['questions'],
       order: { createdAt: 'ASC' },
     });
   }
