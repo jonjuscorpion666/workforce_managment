@@ -5,12 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Megaphone, Plus, Check, Clock, Globe, Building2, LayoutGrid,
   AlertTriangle, Info, CheckSquare, Bell, ChevronRight,
-  BarChart2, Eye, EyeOff, Filter,
+  BarChart2, Eye, EyeOff, Filter, Settings2,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import BulkDeleteBar from '@/components/BulkDeleteBar';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -196,7 +197,21 @@ export default function AnnouncementsPage() {
 
   const isLeadership = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNP') || hasRole('DIRECTOR');
 
-  const [tab, setTab]               = useState<'feed' | 'dashboard'>('feed');
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
+  const [tab, setTab]               = useState<'feed' | 'dashboard' | 'manage'>('feed');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleSelectAll(ids: string[]) {
+    setSelectedIds((prev) => prev.size === ids.length ? new Set() : new Set(ids));
+  }
+
+  const bulkDelete = useMutation({
+    mutationFn: (ids: string[]) => api.post('/announcements/bulk-delete', { ids }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['announcements-all'] }); setSelectedIds(new Set()); },
+  });
   const [filterPriority, setFP]     = useState('');
   const [filterType, setFT]         = useState('');
   const [filterRead, setFR]         = useState('');
@@ -213,6 +228,12 @@ export default function AnnouncementsPage() {
     queryKey: ['announcements-dashboard'],
     queryFn: () => api.get('/announcements/dashboard').then((r) => r.data),
     enabled: tab === 'dashboard' && isLeadership,
+  });
+
+  const { data: allAnnouncements = [] } = useQuery<any[]>({
+    queryKey: ['announcements-all'],
+    queryFn: () => api.get('/announcements').then((r) => r.data),
+    enabled: tab === 'manage' && isSuperAdmin,
   });
 
   const markRead = useMutation({
@@ -272,13 +293,17 @@ export default function AnnouncementsPage() {
         </div>
       )}
 
-      {/* Tabs (leadership only) */}
+      {/* Tabs */}
       {mounted && isLeadership && (
         <div className="flex border-b border-gray-200 gap-1">
-          {([['feed', 'My Feed', Megaphone], ['dashboard', 'Leadership Dashboard', BarChart2]] as const).map(([key, label, Icon]) => (
+          {([
+            ['feed', 'My Feed', Megaphone],
+            ['dashboard', 'Leadership Dashboard', BarChart2],
+            ...(isSuperAdmin ? [['manage', 'Manage All', Settings2]] : []),
+          ] as [string, string, React.ElementType][]).map(([key, label, Icon]) => (
             <button
               key={key}
-              onClick={() => setTab(key)}
+              onClick={() => setTab(key as any)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
                 ${tab === key ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               <Icon className="w-4 h-4" />
@@ -348,6 +373,64 @@ export default function AnnouncementsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Manage tab (SUPER_ADMIN) ── */}
+      {tab === 'manage' && isSuperAdmin && (
+        <div className="space-y-3">
+          <BulkDeleteBar
+            count={selectedIds.size}
+            noun="announcement"
+            isPending={bulkDelete.isPending}
+            onClear={() => setSelectedIds(new Set())}
+            onDelete={() => bulkDelete.mutate(Array.from(selectedIds))}
+          />
+          <div className="card p-0 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="accent-red-600"
+                      checked={allAnnouncements.length > 0 && selectedIds.size === allAnnouncements.length}
+                      onChange={() => toggleSelectAll(allAnnouncements.map((a) => a.id))}
+                    />
+                  </th>
+                  {['Title', 'Type', 'Priority', 'Status', 'Created'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left font-medium text-gray-600">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {allAnnouncements.map((a) => (
+                  <tr key={a.id} className={`hover:bg-gray-50 ${selectedIds.has(a.id) ? 'bg-red-50' : ''}`}>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="accent-red-600"
+                        checked={selectedIds.has(a.id)}
+                        onChange={() => toggleSelect(a.id)}
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">{a.title}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{a.type}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_STYLES[a.priority] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {a.priority}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{a.status}</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(a.createdAt)}</td>
+                  </tr>
+                ))}
+                {allAnnouncements.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No announcements</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ── Dashboard tab ── */}

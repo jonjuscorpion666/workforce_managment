@@ -35,6 +35,13 @@ export class IssuesController {
     return this.issuesService.update(id, body, req.user.id);
   }
 
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk soft-delete issues (SUPER_ADMIN only)' })
+  bulkDelete(@Body() body: { ids: string[] }) {
+    return this.issuesService.bulkSoftDelete(body.ids);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete an issue and all related data' })

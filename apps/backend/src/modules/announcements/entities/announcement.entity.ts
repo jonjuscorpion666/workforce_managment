@@ -1,5 +1,5 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
+  Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn,
 } from 'typeorm';
 
 export enum AnnouncementType {
@@ -97,4 +97,5 @@ export class Announcement {
 
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
+  @DeleteDateColumn({ nullable: true }) deletedAt: Date | null;
 }

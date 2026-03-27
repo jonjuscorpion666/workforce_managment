@@ -1,6 +1,6 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne,
-  CreateDateColumn, UpdateDateColumn,
+  CreateDateColumn, UpdateDateColumn, DeleteDateColumn,
 } from 'typeorm';
 import { Question } from './question.entity';
 import { OrgUnit } from '../../org/entities/org-unit.entity';
@@ -133,4 +133,7 @@ export class Survey {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt: Date | null;
 }

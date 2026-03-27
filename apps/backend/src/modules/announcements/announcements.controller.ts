@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Query, Req, UseGuards, HttpCode, HttpStatus,
+  Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AnnouncementsService } from './announcements.service';
@@ -11,6 +11,15 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @Controller('announcements')
 export class AnnouncementsController {
   constructor(private readonly svc: AnnouncementsService) {}
+
+  // ── Bulk admin ─────────────────────────────────────────────────────────────
+
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk soft-delete announcements (SUPER_ADMIN only)' })
+  bulkDelete(@Body() body: { ids: string[] }) {
+    return this.svc.bulkSoftDelete(body.ids);
+  }
 
   // ── Authoring ──────────────────────────────────────────────────────────────
 

@@ -429,6 +429,12 @@ export class AnnouncementsService {
    *           DEPARTMENT → HOSPITAL
    *           HOSPITAL (already at top)
    */
+  async bulkSoftDelete(ids: string[]) {
+    if (!ids?.length) return { deleted: 0 };
+    await this.repo.softDelete(ids);
+    return { deleted: ids.length };
+  }
+
   private resolveAncestorId(orgUnit: any, level: 'HOSPITAL' | 'DEPARTMENT'): string | null {
     if (!orgUnit) return null;
     let current = orgUnit;

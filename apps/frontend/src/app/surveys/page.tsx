@@ -7,6 +7,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate, getStatusColor } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import BulkDeleteBar from '@/components/BulkDeleteBar';
 
 function ApprovalBadge({ status }: { status?: string }) {
   if (!status || status === 'NOT_REQUIRED') return null;
@@ -28,13 +29,32 @@ function ApprovalBadge({ status }: { status?: string }) {
 export default function SurveysPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { hasRole } = useAuth();
   const isSVP = hasRole('SVP') || hasRole('SUPER_ADMIN');
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
   const qc = useQueryClient();
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(ids: string[]) {
+    setSelectedIds((prev) => prev.size === ids.length ? new Set() : new Set(ids));
+  }
 
   const { data: surveys = [], isLoading } = useQuery({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: (ids: string[]) => api.post('/surveys/bulk-delete', { ids }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['surveys'] }); setSelectedIds(new Set()); },
   });
 
   const saveAsTemplate = useMutation({
@@ -88,6 +108,16 @@ export default function SurveysPage() {
         </div>
       </div>
 
+      {isSuperAdmin && (
+        <BulkDeleteBar
+          count={selectedIds.size}
+          noun="survey"
+          isPending={bulkDelete.isPending}
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={() => bulkDelete.mutate(Array.from(selectedIds))}
+        />
+      )}
+
       {isLoading ? (
         <p className="text-gray-400">Loading...</p>
       ) : (
@@ -95,6 +125,16 @@ export default function SurveysPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                {isSuperAdmin && (
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="accent-red-600"
+                      checked={surveys.length > 0 && selectedIds.size === surveys.length}
+                      onChange={() => toggleSelectAll(surveys.map((s: any) => s.id))}
+                    />
+                  </th>
+                )}
                 {['Title', 'Type', 'Status', 'Approval', 'Target', 'Anonymous', 'Opens', 'Closes', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left font-medium text-gray-600">{h}</th>
                 ))}
@@ -102,7 +142,17 @@ export default function SurveysPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {surveys.map((s: any) => (
-                <tr key={s.id} className="hover:bg-gray-50 cursor-pointer">
+                <tr key={s.id} className={`hover:bg-gray-50 cursor-pointer ${selectedIds.has(s.id) ? 'bg-red-50' : ''}`}>
+                  {isSuperAdmin && (
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="accent-red-600"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-medium text-gray-900">
                     <div>
                       {s.title}
@@ -171,7 +221,7 @@ export default function SurveysPage() {
                 </tr>
               ))}
               {surveys.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No surveys yet</td></tr>
+                <tr><td colSpan={isSuperAdmin ? 10 : 9} className="px-4 py-8 text-center text-gray-400">No surveys yet</td></tr>
               )}
             </tbody>
           </table>

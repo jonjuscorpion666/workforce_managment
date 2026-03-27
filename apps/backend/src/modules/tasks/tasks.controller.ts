@@ -48,6 +48,13 @@ export class TasksController {
     return this.tasksService.getSubtasks(id);
   }
 
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk soft-delete tasks (SUPER_ADMIN only)' })
+  bulkDelete(@Body() body: { ids: string[] }) {
+    return this.tasksService.bulkSoftDelete(body.ids);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a task and its comments/subtasks' })

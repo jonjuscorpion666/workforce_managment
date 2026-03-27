@@ -249,4 +249,10 @@ export class SurveysService {
   async remove(id: string) {
     return this.surveyRepo.delete(id);
   }
+
+  async bulkSoftDelete(ids: string[]) {
+    if (!ids?.length) return { deleted: 0 };
+    await this.surveyRepo.softDelete(ids);
+    return { deleted: ids.length };
+  }
 }

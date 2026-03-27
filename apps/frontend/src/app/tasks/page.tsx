@@ -7,6 +7,7 @@ import {
   ExternalLink, Clock, Calendar, User, Layers, CheckCheck,
   MessageSquare, Send, Trash2,
 } from 'lucide-react';
+import BulkDeleteBar from '@/components/BulkDeleteBar';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -611,11 +612,15 @@ function TaskRow({
   users,
   onSelect,
   onStatusChange,
+  isChecked,
+  onToggleCheck,
 }: {
   task: Task;
   users: AppUser[];
   onSelect: (t: Task) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
+  isChecked?: boolean;
+  onToggleCheck?: (id: string) => void;
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const overdue = isOverdue(task);
@@ -623,9 +628,19 @@ function TaskRow({
 
   return (
     <tr
-      className="hover:bg-gray-50 cursor-pointer group"
+      className={`hover:bg-gray-50 cursor-pointer group ${isChecked ? 'bg-red-50' : ''}`}
       onClick={() => onSelect(task)}
     >
+      {onToggleCheck && (
+        <td className="px-4 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            className="accent-red-600"
+            checked={isChecked ?? false}
+            onChange={() => onToggleCheck(task.id)}
+          />
+        </td>
+      )}
       {/* Title */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
@@ -716,6 +731,8 @@ function StatusGroup({
   onSelect,
   onStatusChange,
   defaultOpen = true,
+  selectedIds,
+  onToggleCheck,
 }: {
   status: TaskStatus;
   tasks: Task[];
@@ -723,6 +740,8 @@ function StatusGroup({
   onSelect: (t: Task) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   defaultOpen?: boolean;
+  selectedIds?: Set<string>;
+  onToggleCheck?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const meta = STATUS_META[status];
@@ -747,6 +766,19 @@ function StatusGroup({
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100">
             <tr className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              {onToggleCheck && (
+                <th className="px-4 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    className="accent-red-600"
+                    checked={tasks.length > 0 && tasks.every((t) => selectedIds?.has(t.id))}
+                    onChange={() => tasks.forEach((t) => {
+                      const allSelected = tasks.every((x) => selectedIds?.has(x.id));
+                      if (allSelected ? selectedIds?.has(t.id) : !selectedIds?.has(t.id)) onToggleCheck(t.id);
+                    })}
+                  />
+                </th>
+              )}
               <th className="px-4 py-2 text-left w-[35%]">Title</th>
               <th className="px-4 py-2 text-left">Status</th>
               <th className="px-4 py-2 text-left">Priority</th>
@@ -763,11 +795,13 @@ function StatusGroup({
                 users={users}
                 onSelect={onSelect}
                 onStatusChange={onStatusChange}
+                isChecked={selectedIds?.has(t.id)}
+                onToggleCheck={onToggleCheck}
               />
             ))}
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-5 text-center text-sm text-gray-400">
+                <td colSpan={onToggleCheck ? 7 : 6} className="px-4 py-5 text-center text-sm text-gray-400">
                   No {meta.label.toLowerCase()} tasks
                 </td>
               </tr>
@@ -783,12 +817,23 @@ function StatusGroup({
 
 export default function TasksPage() {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
 
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterMyTasks, setFilterMyTasks] = useState(false);
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'ALL'>('ALL');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleTaskCheck(id: string) {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  const bulkDelete = useMutation({
+    mutationFn: (ids: string[]) => api.post('/tasks/bulk-delete', { ids }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); setSelectedIds(new Set()); },
+  });
   const [filterPriority, setFilterPriority] = useState<TaskPriority | 'ALL'>('ALL');
   const [filterOverdue, setFilterOverdue] = useState(false);
 
@@ -953,6 +998,16 @@ export default function TasksPage() {
         )}
       </div>
 
+      {isSuperAdmin && (
+        <BulkDeleteBar
+          count={selectedIds.size}
+          noun="task"
+          isPending={bulkDelete.isPending}
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={() => bulkDelete.mutate(Array.from(selectedIds))}
+        />
+      )}
+
       {/* Task groups */}
       {isLoading ? (
         <div className="space-y-3">
@@ -971,6 +1026,8 @@ export default function TasksPage() {
               onSelect={setSelectedTask}
               onStatusChange={(id, s) => handleUpdate(id, { status: s })}
               defaultOpen={status !== 'DONE' && status !== 'CANCELLED'}
+              selectedIds={isSuperAdmin ? selectedIds : undefined}
+              onToggleCheck={isSuperAdmin ? toggleTaskCheck : undefined}
             />
           ))}
         </div>

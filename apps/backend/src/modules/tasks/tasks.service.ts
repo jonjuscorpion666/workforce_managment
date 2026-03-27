@@ -130,4 +130,10 @@ export class TasksService {
     await this.repo.delete({ parentTaskId: id });
     await this.repo.delete(id);
   }
+
+  async bulkSoftDelete(ids: string[]) {
+    if (!ids?.length) return { deleted: 0 };
+    await this.repo.softDelete(ids);
+    return { deleted: ids.length };
+  }
 }

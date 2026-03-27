@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
+import BulkDeleteBar from '@/components/BulkDeleteBar';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -383,8 +385,24 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
 
 export default function IssuesPage() {
   const router = useRouter();
+  const { hasRole } = useAuth();
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
+  const qc = useQueryClient();
   const [showAutoCreate, setShowAutoCreate] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleSelectAll(ids: string[]) {
+    setSelectedIds((prev) => prev.size === ids.length ? new Set() : new Set(ids));
+  }
+
+  const bulkDelete = useMutation({
+    mutationFn: (ids: string[]) => api.post('/issues/bulk-delete', { ids }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['issues'] }); setSelectedIds(new Set()); },
+  });
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -549,6 +567,16 @@ export default function IssuesPage() {
       </div>
 
       {/* Table */}
+      {isSuperAdmin && (
+        <BulkDeleteBar
+          count={selectedIds.size}
+          noun="issue"
+          isPending={bulkDelete.isPending}
+          onClear={() => setSelectedIds(new Set())}
+          onDelete={() => bulkDelete.mutate(Array.from(selectedIds))}
+        />
+      )}
+
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
@@ -561,6 +589,16 @@ export default function IssuesPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  {isSuperAdmin && (
+                    <th className="px-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        className="accent-red-600"
+                        checked={sorted.length > 0 && selectedIds.size === sorted.length}
+                        onChange={() => toggleSelectAll(sorted.map((i) => i.id))}
+                      />
+                    </th>
+                  )}
                   {[
                     { key: 'title', label: 'Title' },
                     { key: 'status', label: 'Status' },
@@ -585,9 +623,19 @@ export default function IssuesPage() {
                 {sorted.map((issue) => (
                   <tr
                     key={issue.id}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className={`hover:bg-gray-50 cursor-pointer ${selectedIds.has(issue.id) ? 'bg-red-50' : ''}`}
                     onClick={() => router.push(`/issues/${issue.id}`)}
                   >
+                    {isSuperAdmin && (
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="accent-red-600"
+                          checked={selectedIds.has(issue.id)}
+                          onChange={() => toggleSelect(issue.id)}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">{issue.title}</td>
                     <td className="px-4 py-3">
                       <span className={`badge ${statusBadgeClass(issue.status)}`}>{labelify(issue.status)}</span>
@@ -606,7 +654,7 @@ export default function IssuesPage() {
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                    <td colSpan={isSuperAdmin ? 9 : 8} className="px-4 py-12 text-center text-gray-400">
                       {isLoading ? 'Loading...' : hasFilters ? 'No issues match your filters' : 'No issues found'}
                     </td>
                   </tr>

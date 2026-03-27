@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, UseGuards,
+  Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SurveysService } from './surveys.service';
@@ -107,6 +107,13 @@ export class SurveysController {
   @ApiOperation({ summary: 'Get survey participation status' })
   participation(@Param('id') id: string) {
     return this.surveysService.getParticipation(id);
+  }
+
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk soft-delete surveys (SUPER_ADMIN only)' })
+  bulkDelete(@Body() body: { ids: string[] }) {
+    return this.surveysService.bulkSoftDelete(body.ids);
   }
 
   @Delete(':id')
