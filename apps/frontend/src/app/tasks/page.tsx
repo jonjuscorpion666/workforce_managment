@@ -311,11 +311,13 @@ function TaskDetailPanel({
   users,
   onClose,
   onUpdate,
+  onEditSaved,
 }: {
   task: Task;
   users: AppUser[];
   onClose: () => void;
   onUpdate: (id: string, data: Partial<Task>) => void;
+  onEditSaved: (updated: Task) => void;
 }) {
   const { user: currentUser } = useAuth();
   const qc = useQueryClient();
@@ -336,7 +338,7 @@ function TaskDetailPanel({
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
-      onUpdate(task.id, updated);
+      onEditSaved(updated);
       setEditing(false);
     },
   });
@@ -1163,6 +1165,9 @@ export default function TasksPage() {
           users={users}
           onClose={() => setSelectedTask(null)}
           onUpdate={handleUpdate}
+          onEditSaved={(updated) =>
+            setSelectedTask((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev))
+          }
         />
       )}
     </div>
