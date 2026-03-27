@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Link2, Check, Clock, CheckCircle2, XCircle, ShieldCheck, BookmarkPlus } from 'lucide-react';
+import { Plus, Link2, Check, Clock, CheckCircle2, XCircle, ShieldCheck, BookmarkPlus, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate, getStatusColor } from '@/lib/utils';
@@ -136,6 +136,14 @@ export default function SurveysPage() {
                   <td className="px-4 py-3 text-gray-500">{s.closesAt ? formatDate(s.closesAt) : '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
+                      {s.status === 'DRAFT' && (
+                        <Link
+                          href={`/surveys/${s.id}/edit`}
+                          className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 font-medium"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Edit
+                        </Link>
+                      )}
                       {s.status === 'ACTIVE' && (
                         <button
                           onClick={() => copyLink(s.id)}
