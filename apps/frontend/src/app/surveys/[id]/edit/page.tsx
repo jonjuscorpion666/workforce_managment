@@ -5,11 +5,12 @@ import { useRouter, useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, GripVertical, ArrowLeft, Send, Save,
-  ChevronDown, ChevronUp, Zap,
+  ChevronDown, ChevronUp, Zap, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,8 @@ export default function EditSurveyPage() {
 
   const needsApproval = !isSVP;
   const isPending     = saveDraft.isPending || saveAndPublish.isPending || saveAndRequestApproval.isPending;
+  const [showPreview, setShowPreview] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'publish' | 'approve' | null>(null);
 
   if (isLoading) return <div className="p-8 text-gray-400">Loading survey...</div>;
   if (survey?.status !== 'DRAFT') {
@@ -268,23 +271,18 @@ export default function EditSurveyPage() {
           >
             <Save className="w-4 h-4" /> Save Draft
           </button>
-          {needsApproval ? (
-            <button
-              disabled={isPending}
-              onClick={() => { if (validate()) saveAndRequestApproval.mutate(buildPayload()); }}
-              className="btn-primary flex items-center gap-2 text-sm"
-            >
-              <Send className="w-4 h-4" /> Submit for Approval
-            </button>
-          ) : (
-            <button
-              disabled={isPending}
-              onClick={() => { if (validate()) saveAndPublish.mutate(buildPayload()); }}
-              className="btn-primary flex items-center gap-2 text-sm bg-green-600 hover:bg-green-700"
-            >
-              <Zap className="w-4 h-4" /> Save & Publish
-            </button>
-          )}
+          <button
+            disabled={isPending}
+            onClick={() => {
+              if (!validate()) return;
+              setPendingAction(needsApproval ? 'approve' : 'publish');
+              setShowPreview(true);
+            }}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <Eye className="w-4 h-4" />
+            {needsApproval ? 'Preview & Submit' : 'Preview & Publish'}
+          </button>
         </div>
       </div>
 
@@ -347,6 +345,26 @@ export default function EditSurveyPage() {
           </button>
         )}
       </div>
+
+      {showPreview && (
+        <SurveyPreviewModal
+          title={title}
+          description={description}
+          objective={objective}
+          type={type}
+          isAnonymous={isAnonymous}
+          questions={questions}
+          onClose={() => setShowPreview(false)}
+          confirmLabel={pendingAction === 'publish' ? 'Confirm & Publish' : 'Confirm & Submit for Approval'}
+          confirmIcon={pendingAction === 'publish' ? 'publish' : 'submit'}
+          isPending={isPending}
+          onConfirm={() => {
+            const payload = buildPayload();
+            if (pendingAction === 'publish') saveAndPublish.mutate(payload);
+            else saveAndRequestApproval.mutate(payload);
+          }}
+        />
+      )}
     </div>
   );
 }

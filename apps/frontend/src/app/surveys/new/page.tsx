@@ -7,8 +7,9 @@ import {
   Plus, Trash2, GripVertical, ArrowLeft, Send, Save,
   ChevronDown, ChevronUp, Globe, Building2, LayoutGrid,
   ShieldCheck, Target, Info, AlertTriangle, Clock, Lock,
-  Users, MessageSquare, Zap, BookmarkPlus,
+  Users, MessageSquare, Zap, BookmarkPlus, Eye,
 } from 'lucide-react';
+import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -396,9 +397,12 @@ export default function NewSurveyPage() {
     return true;
   }
 
+  const [showPreview, setShowPreview] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'publish' | 'approve' | null>(null);
+
   function handleDraft()   { if (!validate()) return; setError(''); saveDraft.mutate(buildPayload()); }
-  function handleApproval(){ if (!validate()) return; setError(''); saveAndRequestApproval.mutate(buildPayload()); }
-  function handlePublish() { if (!validate()) return; setError(''); saveAndPublish.mutate(buildPayload()); }
+  function handleApproval(){ if (!validate()) return; setError(''); setPendingAction('approve'); setShowPreview(true); }
+  function handlePublish() { if (!validate()) return; setError(''); setPendingAction('publish'); setShowPreview(true); }
 
   function addQuestion() {
     if (questions.length >= maxQuestions) return;
@@ -849,18 +853,39 @@ export default function NewSurveyPage() {
 
             {needsApproval ? (
               <button onClick={handleApproval} disabled={isBusy} className="flex items-center gap-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
-                <Clock className="w-4 h-4" />
-                {saveAndRequestApproval.isPending ? 'Submitting...' : isDirector ? 'Submit for Approval' : 'Submit for SVP Approval'}
+                <Eye className="w-4 h-4" />
+                {isDirector ? 'Preview & Submit' : 'Preview & Submit for Approval'}
               </button>
             ) : (
               <button onClick={handlePublish} disabled={isBusy} className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50">
-                <Send className="w-4 h-4" />
-                {saveAndPublish.isPending ? 'Publishing...' : 'Publish Now'}
+                <Eye className="w-4 h-4" />
+                Preview & Publish
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* ── Preview modal ───────────────────────────────────────────────────────── */}
+      {showPreview && (
+        <SurveyPreviewModal
+          title={title}
+          description={description}
+          objective={objective}
+          type={type}
+          isAnonymous={isAnonymous}
+          questions={questions}
+          onClose={() => setShowPreview(false)}
+          confirmLabel={pendingAction === 'publish' ? 'Confirm & Publish' : isDirector ? 'Confirm & Submit for Approval' : 'Confirm & Submit for SVP Approval'}
+          confirmIcon={pendingAction === 'publish' ? 'publish' : 'submit'}
+          isPending={isBusy}
+          onConfirm={() => {
+            const payload = buildPayload();
+            if (pendingAction === 'publish') saveAndPublish.mutate(payload);
+            else saveAndRequestApproval.mutate(payload);
+          }}
+        />
+      )}
 
     </div>
   );
