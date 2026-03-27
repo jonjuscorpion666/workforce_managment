@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Plus, ChevronDown, ChevronRight, Check, Clock, AlertCircle, X,
-  CheckCircle2, CircleDot, Trash2,
+  CheckCircle2, CircleDot, Trash2, Pencil,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -753,10 +753,131 @@ function HistoryLog({ issueId }: { issueId: string }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── Edit Issue Modal ─────────────────────────────────────────────────────────
+
+function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    title:       issue.title,
+    description: issue.description ?? '',
+    severity:    issue.severity,
+    priority:    issue.priority,
+    category:    issue.category ?? '',
+    subcategory: issue.subcategory ?? '',
+    ownerRole:   issue.ownerRole ?? '',
+    dueDate:     issue.dueDate ? issue.dueDate.slice(0, 10) : '',
+  });
+
+  const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const update = useMutation({
+    mutationFn: (data: any) => api.patch(`/issues/${issue.id}`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issue', issue.id] });
+      onClose();
+    },
+  });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    const payload: any = {
+      title:    form.title.trim(),
+      severity: form.severity,
+      priority: form.priority,
+    };
+    payload.description = form.description.trim() || null;
+    payload.category    = form.category.trim() || null;
+    payload.subcategory = form.subcategory.trim() || null;
+    payload.ownerRole   = form.ownerRole || null;
+    payload.dueDate     = form.dueDate || null;
+    update.mutate(payload);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-semibold text-gray-900">Edit Issue</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
+            <input className="input" value={form.title} onChange={(e) => set('title', e.target.value)} autoFocus />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea className="input min-h-[80px] resize-none" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+              <select className="input" value={form.severity} onChange={(e) => set('severity', e.target.value)}>
+                <option value="CRITICAL">Critical</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <select className="input" value={form.priority} onChange={(e) => set('priority', e.target.value)}>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <input className="input" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="e.g. Patient Safety" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
+              <input className="input" value={form.subcategory} onChange={(e) => set('subcategory', e.target.value)} placeholder="Optional" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Owner Role</label>
+              <input className="input" value={form.ownerRole} onChange={(e) => set('ownerRole', e.target.value)} placeholder="e.g. CNO, Director" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+              <input className="input" type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+            </div>
+          </div>
+
+          {update.isError && (
+            <p className="text-sm text-red-600">Save failed. Please try again.</p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={!form.title.trim() || update.isPending}>
+              {update.isPending ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [showAddPlan, setShowAddPlan] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const { data: issue, isLoading, isError } = useQuery<Issue>({
     queryKey: ['issue', id],
@@ -820,6 +941,12 @@ export default function IssueDetailPage() {
             <span className={`badge ${statusBadgeClass(issue.status)}`}>{labelify(issue.status)}</span>
             <span className={`badge ${severityBadgeClass(issue.severity)}`}>{issue.severity}</span>
             <span className={`badge ${levelBadgeClass(issue.issueLevel)}`}>{issue.issueLevel}</span>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 border border-blue-200 hover:bg-blue-50"
+              onClick={() => setShowEdit(true)}
+            >
+              <Pencil className="w-3.5 h-3.5" /> Edit
+            </button>
             <button
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-40"
               disabled={deleteIssue.isPending}
@@ -1011,6 +1138,10 @@ export default function IssueDetailPage() {
 
       {showAddPlan && (
         <AddActionPlanModal issueId={id} onClose={() => setShowAddPlan(false)} />
+      )}
+
+      {showEdit && (
+        <EditIssueModal issue={issue} onClose={() => setShowEdit(false)} />
       )}
     </div>
   );

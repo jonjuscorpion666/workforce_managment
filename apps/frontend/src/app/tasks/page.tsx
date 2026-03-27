@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, X, AlertCircle, ChevronDown, ChevronRight,
   ExternalLink, Clock, Calendar, User, Layers, CheckCheck,
-  MessageSquare, Send, Trash2,
+  MessageSquare, Send, Trash2, Pencil,
 } from 'lucide-react';
 import BulkDeleteBar from '@/components/BulkDeleteBar';
 import Link from 'next/link';
@@ -321,6 +321,39 @@ function TaskDetailPanel({
   const qc = useQueryClient();
   const [changingStatus, setChangingStatus] = useState(false);
   const [commentText, setCommentText] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    title: task.title,
+    description: task.description ?? '',
+    priority: task.priority as string,
+    assignedToId: task.assignedToId ?? '',
+    ownerId: task.ownerId ?? '',
+    dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
+  });
+
+  const updateTask = useMutation({
+    mutationFn: (data: any) => api.patch(`/tasks/${task.id}`, data).then((r) => r.data),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
+      onUpdate(task.id, updated);
+      setEditing(false);
+    },
+  });
+
+  function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editData.title.trim()) return;
+    const payload: any = {
+      title: editData.title.trim(),
+      priority: editData.priority,
+    };
+    payload.description  = editData.description.trim() || null;
+    payload.assignedToId = editData.assignedToId || null;
+    payload.ownerId      = editData.ownerId || null;
+    payload.dueDate      = editData.dueDate || null;
+    updateTask.mutate(payload);
+  }
 
   const deleteTask = useMutation({
     mutationFn: () => api.delete(`/tasks/${task.id}`),
@@ -380,6 +413,14 @@ function TaskDetailPanel({
             <h2 className="text-base font-semibold text-gray-900 leading-snug">{task.title}</h2>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {!editing && (
+              <button
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-600 border border-blue-200 hover:bg-blue-50"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil className="w-3 h-3" /> Edit
+              </button>
+            )}
             <button
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-40"
               disabled={deleteTask.isPending}
@@ -438,6 +479,70 @@ function TaskDetailPanel({
         {/* Body */}
         <div className="flex-1 p-5 space-y-5">
 
+          {/* ── Edit form ── */}
+          {editing ? (
+            <form onSubmit={saveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Title <span className="text-red-500">*</span></label>
+                <input
+                  className="input text-sm"
+                  value={editData.title}
+                  onChange={(e) => setEditData((d) => ({ ...d, title: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
+                <textarea
+                  className="input text-sm min-h-[72px] resize-none"
+                  value={editData.description}
+                  onChange={(e) => setEditData((d) => ({ ...d, description: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Priority</label>
+                  <select className="input text-sm" value={editData.priority} onChange={(e) => setEditData((d) => ({ ...d, priority: e.target.value }))}>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Due Date</label>
+                  <input className="input text-sm" type="date" value={editData.dueDate} onChange={(e) => setEditData((d) => ({ ...d, dueDate: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Assigned To</label>
+                <select className="input text-sm" value={editData.assignedToId} onChange={(e) => setEditData((d) => ({ ...d, assignedToId: e.target.value }))}>
+                  <option value="">— Unassigned —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}{u.jobTitle ? ` — ${u.jobTitle}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Owner</label>
+                <select className="input text-sm" value={editData.ownerId} onChange={(e) => setEditData((d) => ({ ...d, ownerId: e.target.value }))}>
+                  <option value="">— None —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}{u.jobTitle ? ` — ${u.jobTitle}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              {updateTask.isError && (
+                <p className="text-xs text-red-600">Save failed. Please try again.</p>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className="btn-secondary text-sm" onClick={() => setEditing(false)}>Cancel</button>
+                <button type="submit" className="btn-primary text-sm" disabled={!editData.title.trim() || updateTask.isPending}>
+                  {updateTask.isPending ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
           {/* Description */}
           {task.description && (
             <div>
@@ -598,6 +703,9 @@ function TaskDetailPanel({
               </button>
             </form>
           </div>
+
+            </>
+          )}
 
         </div>
       </div>
