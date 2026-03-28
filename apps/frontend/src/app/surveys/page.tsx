@@ -6,6 +6,7 @@ import { Plus, Link2, Check, Clock, CheckCircle2, XCircle, ShieldCheck, Bookmark
 import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate, getStatusColor } from '@/lib/utils';
+import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/auth';
 import BulkDeleteBar from '@/components/BulkDeleteBar';
 
@@ -34,6 +35,7 @@ export default function SurveysPage() {
   const isSVP = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const isSuperAdmin = hasRole('SUPER_ADMIN');
   const qc = useQueryClient();
+  const toast = useToast();
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -54,7 +56,8 @@ export default function SurveysPage() {
 
   const bulkDelete = useMutation({
     mutationFn: (ids: string[]) => api.post('/surveys/bulk-delete', { ids }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['surveys'] }); setSelectedIds(new Set()); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['surveys'] }); setSelectedIds(new Set()); toast.success('Surveys deleted'); },
+    onError: () => toast.error('Failed to delete surveys'),
   });
 
   const saveAsTemplate = useMutation({
@@ -122,7 +125,8 @@ export default function SurveysPage() {
         <p className="text-gray-400">Loading...</p>
       ) : (
         <div className="card p-0 overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 {isSuperAdmin && (
@@ -225,6 +229,7 @@ export default function SurveysPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

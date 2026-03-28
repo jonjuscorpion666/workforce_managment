@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, Eye,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/Toast';
 import { formatDate } from '@/lib/utils';
 import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
 
@@ -181,6 +182,7 @@ function SurveyCard({ survey, onApprove, onReject, onPreview, isActing }: {
 
 export default function ApprovalsPage() {
   const qc = useQueryClient();
+  const toast = useToast();
   const [previewSurvey, setPreviewSurvey] = useState<Survey | null>(null);
 
   const { data: surveys = [], isLoading } = useQuery<Survey[]>({
@@ -192,14 +194,17 @@ export default function ApprovalsPage() {
     mutationFn: (id: string) => api.post(`/surveys/${id}/approve`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['surveys'] });
+      toast.success('Survey approved');
       setPreviewSurvey(null);
     },
+    onError: () => toast.error('Failed to approve survey'),
   });
 
   const rejectMut = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       api.post(`/surveys/${id}/reject`, { reason }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['surveys'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['surveys'] }); toast.success('Revisions requested'); },
+    onError: () => toast.error('Failed to send revision request'),
   });
 
   const pending  = surveys.filter((s) => s.approvalStatus === 'PENDING');

@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { useToast } from '@/components/ui/Toast';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -770,12 +772,17 @@ function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void 
 
   const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
+  const toast = useToast();
+  useEscapeKey(onClose);
+
   const update = useMutation({
     mutationFn: (data: any) => api.patch(`/issues/${issue.id}`, data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['issue', issue.id] });
+      toast.success('Issue updated');
       onClose();
     },
+    onError: () => toast.error('Failed to save issue'),
   });
 
   function submit(e: React.FormEvent) {
@@ -795,8 +802,8 @@ function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-gray-900">Edit Issue</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -891,9 +898,12 @@ export default function IssueDetailPage() {
     enabled: !!id,
   });
 
+  const toast = useToast();
+
   const deleteIssue = useMutation({
     mutationFn: () => api.delete(`/issues/${id}`),
-    onSuccess: () => router.push('/issues'),
+    onSuccess: () => { toast.success('Issue deleted'); router.push('/issues'); },
+    onError: () => toast.error('Failed to delete issue'),
   });
 
   if (isLoading) {
@@ -964,7 +974,7 @@ export default function IssueDetailPage() {
       </div>
 
       {/* Two-column layout */}
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Left: main content (70%) */}
         <div className="flex-1 min-w-0 space-y-6">
 
@@ -1077,7 +1087,7 @@ export default function IssueDetailPage() {
         </div>
 
         {/* Right sidebar (30%) */}
-        <div className="w-80 flex-shrink-0 space-y-4">
+        <div className="w-full lg:w-80 flex-shrink-0 space-y-4">
 
           {/* Status card */}
           <StatusCard issue={issue} />

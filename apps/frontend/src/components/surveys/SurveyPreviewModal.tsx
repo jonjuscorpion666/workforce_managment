@@ -1,6 +1,7 @@
 'use client';
 
 import { X, Eye, CheckCircle2, Send, Zap } from 'lucide-react';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 interface Question {
   _id?: string;
@@ -119,6 +120,7 @@ export default function SurveyPreviewModal({
   title, description, objective, type, isAnonymous,
   questions, onClose, onConfirm, confirmLabel, confirmIcon = 'publish', isPending, allowEmptyConfirm = false,
 }: SurveyPreviewModalProps) {
+  useEscapeKey(onClose);
   const safeQuestions = questions ?? [];
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end">

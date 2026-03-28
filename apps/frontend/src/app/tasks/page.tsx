@@ -12,6 +12,9 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -127,6 +130,7 @@ interface MilestoneSummary {
 
 function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUser[] }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -164,7 +168,11 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
+      toast.success('Task created');
       onClose();
+    },
+    onError: () => {
+      toast.error('Failed to create task');
     },
   });
 
@@ -321,9 +329,11 @@ function TaskDetailPanel({
 }) {
   const { user: currentUser } = useAuth();
   const qc = useQueryClient();
+  const toast = useToast();
   const [changingStatus, setChangingStatus] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [editing, setEditing] = useState(false);
+  useEscapeKey(onClose);
   const [editData, setEditData] = useState({
     title: task.title,
     description: task.description ?? '',
@@ -338,8 +348,12 @@ function TaskDetailPanel({
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
+      toast.success('Task saved');
       onEditSaved(updated);
       setEditing(false);
+    },
+    onError: () => {
+      toast.error('Failed to save task');
     },
   });
 
@@ -362,6 +376,7 @@ function TaskDetailPanel({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
+      toast.success('Task deleted');
       onClose();
     },
   });
@@ -406,7 +421,7 @@ function TaskDetailPanel({
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
 
       {/* panel */}
-      <div className="relative w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-y-auto">
+      <div className="relative w-full sm:max-w-md bg-white shadow-2xl flex flex-col h-full overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-gray-100">
@@ -873,51 +888,53 @@ function StatusGroup({
       </button>
 
       {open && (
-        <table className="w-full text-sm">
-          <thead className="border-b border-gray-100">
-            <tr className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-              {onToggleCheck && (
-                <th className="px-4 py-2 w-8">
-                  <input
-                    type="checkbox"
-                    className="accent-red-600"
-                    checked={tasks.length > 0 && tasks.every((t) => selectedIds?.has(t.id))}
-                    onChange={() => tasks.forEach((t) => {
-                      const allSelected = tasks.every((x) => selectedIds?.has(x.id));
-                      if (allSelected ? selectedIds?.has(t.id) : !selectedIds?.has(t.id)) onToggleCheck(t.id);
-                    })}
-                  />
-                </th>
-              )}
-              <th className="px-4 py-2 text-left w-[35%]">Title</th>
-              <th className="px-4 py-2 text-left">Status</th>
-              <th className="px-4 py-2 text-left">Priority</th>
-              <th className="px-4 py-2 text-left">Assigned To</th>
-              <th className="px-4 py-2 text-left">Due Date</th>
-              <th className="px-4 py-2 text-left">Issue</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {tasks.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                users={users}
-                onSelect={onSelect}
-                onStatusChange={onStatusChange}
-                isChecked={selectedIds?.has(t.id)}
-                onToggleCheck={onToggleCheck}
-              />
-            ))}
-            {tasks.length === 0 && (
-              <tr>
-                <td colSpan={onToggleCheck ? 7 : 6} className="px-4 py-5 text-center text-sm text-gray-400">
-                  No {meta.label.toLowerCase()} tasks
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-gray-100">
+              <tr className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                {onToggleCheck && (
+                  <th className="px-4 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      className="accent-red-600"
+                      checked={tasks.length > 0 && tasks.every((t) => selectedIds?.has(t.id))}
+                      onChange={() => tasks.forEach((t) => {
+                        const allSelected = tasks.every((x) => selectedIds?.has(x.id));
+                        if (allSelected ? selectedIds?.has(t.id) : !selectedIds?.has(t.id)) onToggleCheck(t.id);
+                      })}
+                    />
+                  </th>
+                )}
+                <th className="px-4 py-2 text-left w-[35%]">Title</th>
+                <th className="px-4 py-2 text-left">Status</th>
+                <th className="px-4 py-2 text-left">Priority</th>
+                <th className="px-4 py-2 text-left">Assigned To</th>
+                <th className="px-4 py-2 text-left">Due Date</th>
+                <th className="px-4 py-2 text-left">Issue</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {tasks.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  users={users}
+                  onSelect={onSelect}
+                  onStatusChange={onStatusChange}
+                  isChecked={selectedIds?.has(t.id)}
+                  onToggleCheck={onToggleCheck}
+                />
+              ))}
+              {tasks.length === 0 && (
+                <tr>
+                  <td colSpan={onToggleCheck ? 7 : 6} className="px-4 py-5 text-center text-sm text-gray-400">
+                    No {meta.label.toLowerCase()} tasks
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -928,6 +945,7 @@ function StatusGroup({
 export default function TasksPage() {
   const qc = useQueryClient();
   const { user, hasRole } = useAuth();
+  const toast = useToast();
   const isSuperAdmin = hasRole('SUPER_ADMIN');
 
   const [showCreate, setShowCreate] = useState(false);
@@ -942,7 +960,11 @@ export default function TasksPage() {
 
   const bulkDelete = useMutation({
     mutationFn: (ids: string[]) => api.post('/tasks/bulk-delete', { ids }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); setSelectedIds(new Set()); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      setSelectedIds(new Set());
+      toast.success('Tasks deleted');
+    },
   });
   const [filterPriority, setFilterPriority] = useState<TaskPriority | 'ALL'>('ALL');
   const [filterOverdue, setFilterOverdue] = useState(false);
@@ -968,8 +990,12 @@ export default function TasksPage() {
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['tasks-overdue'] });
+      toast.success('Task updated');
       // keep detail panel in sync
       setSelectedTask((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+    },
+    onError: () => {
+      toast.error('Failed to update task');
     },
   });
 
@@ -1120,9 +1146,12 @@ export default function TasksPage() {
 
       {/* Task groups */}
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="card h-24 animate-pulse bg-gray-100" />
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+              <Skeleton className="h-4 w-48 mb-2" />
+              <Skeleton className="h-3 w-32" />
+            </div>
           ))}
         </div>
       ) : (
