@@ -195,10 +195,10 @@ function QuestionCard({
           <button
             type="button"
             onClick={() => setShowAdvanced((v) => !v)}
-            className="w-full flex items-center gap-1.5 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="w-full flex items-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
           >
             {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            Advanced options
+            Advanced options — dimension, source &amp; follow-up
             {hasAdvancedConfig && (
               <span className="ml-1 bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-semibold">configured</span>
             )}
