@@ -54,6 +54,18 @@ export class Question {
   @Column({ nullable: true })
   dimension: string;
 
+  /** Source framework: GALLUP_Q12 | UWES | HEALTHCARE | CUSTOM */
+  @Column({ nullable: true })
+  source: string;
+
+  /** When a numeric answer is ≤ this value, a follow-up textarea is shown */
+  @Column({ nullable: true, type: 'int' })
+  followUpThreshold: number;
+
+  /** Prompt shown above the follow-up textarea */
+  @Column({ nullable: true, type: 'text' })
+  followUpPrompt: string;
+
   @CreateDateColumn()
   createdAt: Date;
 }

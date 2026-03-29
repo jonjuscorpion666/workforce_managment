@@ -15,6 +15,9 @@ interface Question {
   options?: string[];
   isRequired: boolean;
   orderIndex: number;
+  dimension?: string;
+  followUpThreshold?: number | null;
+  followUpPrompt?: string;
 }
 
 interface Survey {
@@ -70,16 +73,22 @@ function NPSRow({ value, onChange }: { value: AnswerValue; onChange: (v: number)
   );
 }
 
-function QuestionCard({ question, index, value, onChange }: {
+function QuestionCard({ question, index, value, onChange, followUpText, onFollowUpChange }: {
   question: Question; index: number; value: AnswerValue; onChange: (v: AnswerValue) => void;
+  followUpText?: string; onFollowUpChange?: (text: string) => void;
 }) {
+  const isAnswered = value !== null && value !== undefined && value !== '';
+  const isNumeric = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING'].includes(question.type);
+  const threshold = question.followUpThreshold;
+  const showFollowUp = isNumeric && threshold != null && typeof value === 'number' && value <= threshold;
+
   return (
     <div className={`bg-white rounded-xl border-2 transition-colors p-5
-      ${value !== null && value !== undefined && value !== '' ? 'border-blue-200' : 'border-gray-200'}`}>
+      ${isAnswered ? 'border-blue-200' : 'border-gray-200'}`}>
       <div className="flex gap-3">
         <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold
-          ${value !== null && value !== undefined && value !== '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-          {value !== null && value !== undefined && value !== '' ? '✓' : index + 1}
+          ${isAnswered ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          {isAnswered ? '✓' : index + 1}
         </span>
         <div className="flex-1">
           <p className="font-medium text-gray-900">
@@ -140,6 +149,22 @@ function QuestionCard({ question, index, value, onChange }: {
               onChange={(e) => onChange(e.target.value)}
             />
           )}
+
+          {/* Option C: inline follow-up after a low score */}
+          {showFollowUp && (
+            <div className="mt-4 border-t border-orange-100 pt-3">
+              <p className="text-xs font-medium text-orange-700 mb-2">
+                {question.followUpPrompt || 'Could you tell us more about your experience?'}
+              </p>
+              <textarea
+                rows={3}
+                className="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none bg-orange-50 placeholder-orange-300"
+                placeholder="Optional — your response is anonymous..."
+                value={followUpText || ''}
+                onChange={(e) => onFollowUpChange?.(e.target.value)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -153,13 +178,14 @@ export default function NurseSurveyPage() {
   const router = useRouter();
   const { nurse, isAuthenticated, accessToken } = useNurseAuth();
 
-  const [survey, setSurvey]       = useState<Survey | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
-  const [answers, setAnswers]     = useState<Record<string, AnswerValue>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [validErr, setValidErr]   = useState('');
+  const [survey, setSurvey]           = useState<Survey | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [answers, setAnswers]         = useState<Record<string, AnswerValue>>({});
+  const [followUpTexts, setFollowUpTexts] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting]   = useState(false);
+  const [submitted, setSubmitted]     = useState(false);
+  const [validErr, setValidErr]       = useState('');
 
   // Guard
   useEffect(() => {
@@ -180,6 +206,10 @@ export default function NurseSurveyPage() {
   function setAnswer(questionId: string, value: AnswerValue) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
     setValidErr('');
+  }
+
+  function setFollowUp(questionId: string, text: string) {
+    setFollowUpTexts((prev) => ({ ...prev, [questionId]: text }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -205,6 +235,7 @@ export default function NurseSurveyPage() {
           questionId,
           value: typeof value === 'number' ? value : Array.isArray(value) ? value : undefined,
           text: typeof value === 'string' ? value : undefined,
+          followUpText: followUpTexts[questionId] || undefined,
         })),
       });
       setSubmitted(true);
@@ -299,6 +330,8 @@ export default function NurseSurveyPage() {
               index={i}
               value={answers[q.id] ?? null}
               onChange={(v) => setAnswer(q.id, v)}
+              followUpText={followUpTexts[q.id]}
+              onFollowUpChange={(text) => setFollowUp(q.id, text)}
             />
           ))}
 

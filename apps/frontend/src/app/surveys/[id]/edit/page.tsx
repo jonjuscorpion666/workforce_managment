@@ -22,7 +22,34 @@ interface QuestionDraft {
   type: string;
   isRequired: boolean;
   options: string[];
+  dimension?: string;
+  source?: string;
+  followUpThreshold?: number | null;
+  followUpPrompt?: string;
 }
+
+const DIMENSIONS = [
+  { value: 'ROLE_CLARITY',    label: 'Role Clarity',         group: 'Core' },
+  { value: 'MANAGER_SUPPORT', label: 'Manager Support',      group: 'Core' },
+  { value: 'RECOGNITION',     label: 'Recognition',          group: 'Core' },
+  { value: 'GROWTH',          label: 'Growth & Development', group: 'Core' },
+  { value: 'TEAM_COLLAB',     label: 'Team Collaboration',   group: 'Core' },
+  { value: 'ENGAGEMENT',      label: 'Engagement & Energy',  group: 'Core' },
+  { value: 'MEANINGFUL_WORK', label: 'Meaningful Work',      group: 'Core' },
+  { value: 'STAFFING',        label: 'Staffing & Resources', group: 'Operational' },
+  { value: 'SCHEDULING',      label: 'Scheduling',           group: 'Operational' },
+  { value: 'WORKLOAD',        label: 'Workload',             group: 'Operational' },
+  { value: 'COMMUNICATION',   label: 'Communication',        group: 'Operational' },
+  { value: 'LEADERSHIP',      label: 'Leadership',           group: 'Operational' },
+  { value: 'PATIENT_CARE',    label: 'Patient Care Quality', group: 'Operational' },
+] as const;
+
+const SOURCES = [
+  { value: 'CUSTOM',     label: 'Custom' },
+  { value: 'GALLUP_Q12', label: 'Gallup Q12' },
+  { value: 'UWES',       label: 'UWES' },
+  { value: 'HEALTHCARE', label: 'Healthcare' },
+] as const;
 
 const ALL_QUESTION_TYPES = [
   { value: 'LIKERT_5',        label: 'Likert Scale (1–5)' },
@@ -47,6 +74,7 @@ function makeQuestion(): QuestionDraft {
   return {
     _id: Math.random().toString(36).slice(2),
     text: '', helpText: '', type: 'LIKERT_5', isRequired: true, options: [],
+    dimension: '', source: 'CUSTOM', followUpThreshold: null, followUpPrompt: '',
   };
 }
 
@@ -61,6 +89,10 @@ function QuestionCard({
   allowedTypes: readonly { value: string; label: string }[];
 }) {
   const [optionInput, setOptionInput] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const isNumeric = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING'].includes(q.type);
+  const maxThreshold = q.type === 'NPS' ? 6 : q.type === 'LIKERT_10' ? 5 : 3;
+  const hasAdvancedConfig = !!(q.dimension || q.followUpThreshold != null);
 
   function addOption() {
     const val = optionInput.trim();
@@ -74,6 +106,16 @@ function QuestionCard({
       <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
         <GripVertical className="w-4 h-4 text-gray-300" />
         <span className="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">Q{index + 1}</span>
+        {q.dimension && (
+          <span className="text-[10px] font-medium bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full hidden sm:inline">
+            {DIMENSIONS.find((d) => d.value === q.dimension)?.label ?? q.dimension}
+          </span>
+        )}
+        {q.followUpThreshold != null && (
+          <span className="text-[10px] font-medium bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full hidden sm:inline">
+            Follow-up ≤{q.followUpThreshold}
+          </span>
+        )}
         <div className="flex gap-1 ml-auto">
           <button onClick={onMoveUp}   disabled={index === 0}         className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"><ChevronUp   className="w-4 h-4 text-gray-500" /></button>
           <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"><ChevronDown className="w-4 h-4 text-gray-500" /></button>
@@ -84,7 +126,7 @@ function QuestionCard({
         <input className="input text-sm font-medium" placeholder="Question text *" value={q.text} onChange={(e) => onChange({ ...q, text: e.target.value })} />
         <input className="input text-sm text-gray-500" placeholder="Help text (optional)" value={q.helpText} onChange={(e) => onChange({ ...q, helpText: e.target.value })} />
         <div className="flex items-center gap-3 flex-wrap">
-          <select className="input text-sm flex-1 min-w-[180px]" value={q.type} onChange={(e) => onChange({ ...q, type: e.target.value, options: [] })}>
+          <select className="input text-sm flex-1 min-w-[180px]" value={q.type} onChange={(e) => onChange({ ...q, type: e.target.value, options: [], followUpThreshold: null })}>
             {allowedTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
@@ -111,6 +153,105 @@ function QuestionCard({
             </div>
           </div>
         )}
+
+        {/* ── Advanced options ── */}
+        <div className="border-t border-gray-100 pt-1">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="w-full flex items-center gap-1.5 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            Advanced options
+            {hasAdvancedConfig && (
+              <span className="ml-1 bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-semibold">configured</span>
+            )}
+          </button>
+
+          {showAdvanced && (
+            <div className="space-y-3 pt-2 pb-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Dimension</label>
+                  <select
+                    className="input text-xs"
+                    value={q.dimension || ''}
+                    onChange={(e) => onChange({ ...q, dimension: e.target.value })}
+                  >
+                    <option value="">— None —</option>
+                    <optgroup label="Core (Gallup/UWES)">
+                      {DIMENSIONS.filter((d) => d.group === 'Core').map((d) => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Operational (Healthcare)">
+                      {DIMENSIONS.filter((d) => d.group === 'Operational').map((d) => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
+                  <select
+                    className="input text-xs"
+                    value={q.source || 'CUSTOM'}
+                    onChange={(e) => onChange({ ...q, source: e.target.value })}
+                  >
+                    {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {isNumeric && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="accent-orange-500"
+                      checked={q.followUpThreshold != null}
+                      onChange={(e) => onChange({
+                        ...q,
+                        followUpThreshold: e.target.checked ? Math.min(2, maxThreshold) : null,
+                        followUpPrompt: e.target.checked ? (q.followUpPrompt || '') : '',
+                      })}
+                    />
+                    <span className="font-medium text-orange-700">Enable follow-up for low scores</span>
+                  </label>
+                  {q.followUpThreshold != null && (
+                    <div className="pl-5 space-y-2 bg-orange-50 border border-orange-100 rounded-lg p-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Show follow-up when score ≤ <span className="text-orange-600 font-bold text-sm">{q.followUpThreshold}</span>
+                        </label>
+                        <input
+                          type="range"
+                          min={1}
+                          max={maxThreshold}
+                          value={q.followUpThreshold}
+                          onChange={(e) => onChange({ ...q, followUpThreshold: Number(e.target.value) })}
+                          className="w-full accent-orange-500"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                          <span>1 (very low)</span><span>{maxThreshold}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Follow-up prompt</label>
+                        <input
+                          className="input text-xs"
+                          placeholder="Tell us more about your experience..."
+                          value={q.followUpPrompt || ''}
+                          onChange={(e) => onChange({ ...q, followUpPrompt: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -169,6 +310,10 @@ export default function EditSurveyPage() {
             type: q.type ?? 'LIKERT_5',
             isRequired: q.isRequired ?? true,
             options: q.options ?? [],
+            dimension: q.dimension ?? '',
+            source: q.source ?? 'CUSTOM',
+            followUpThreshold: q.followUpThreshold ?? null,
+            followUpPrompt: q.followUpPrompt ?? '',
           }))
       );
     }
@@ -201,6 +346,10 @@ export default function EditSurveyPage() {
       questions: questions.map((q, i) => ({
         text: q.text, helpText: q.helpText, type: q.type,
         isRequired: q.isRequired, options: q.options, orderIndex: i,
+        dimension: q.dimension || undefined,
+        source: q.source || undefined,
+        followUpThreshold: q.followUpThreshold ?? undefined,
+        followUpPrompt: q.followUpPrompt || undefined,
       })),
     };
   }
