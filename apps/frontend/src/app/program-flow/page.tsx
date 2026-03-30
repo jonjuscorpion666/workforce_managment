@@ -8,6 +8,7 @@ import {
   Activity, BarChart3, ClipboardCheck, Settings,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -965,11 +966,21 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
 export default function ProgramFlowPage() {
   const qc = useQueryClient();
+  const { hasRole } = useAuth();
+  const isCNO = hasRole('CNP');
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
   const [showCreateCycle, setShowCreateCycle] = useState(false);
   const [editingStage, setEditingStage] = useState<any | null>(null);
   const [showSlaConfig, setShowSlaConfig] = useState(false);
   const [drawerInfo, setDrawerInfo] = useState<any | null>(null);
+
+  // CNO: fetch profile to scope to their hospital
+  const { data: profile } = useQuery<any>({
+    queryKey: ['profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+    enabled: isCNO,
+  });
+  const cnoHospitalId = isCNO ? profile?.hospital?.id : null;
 
   const { data: cyclesData } = useQuery({
     queryKey: ['program-flow-cycles'],
@@ -1132,15 +1143,17 @@ export default function ProgramFlowPage() {
                         </td>
                       </tr>
                     ) : (
-                      (pipeline.hospitals ?? []).map((hospital: any) => (
-                        <HospitalRow
-                          key={hospital.hospitalId}
-                          hospital={hospital}
-                          cycleId={activeCycleId}
-                          onEdit={setEditingStage}
-                          onDrillDown={setDrawerInfo}
-                        />
-                      ))
+                      (pipeline.hospitals ?? [])
+                        .filter((h: any) => !cnoHospitalId || h.hospitalId === cnoHospitalId)
+                        .map((hospital: any) => (
+                          <HospitalRow
+                            key={hospital.hospitalId}
+                            hospital={hospital}
+                            cycleId={activeCycleId}
+                            onEdit={setEditingStage}
+                            onDrillDown={setDrawerInfo}
+                          />
+                        ))
                     )}
                   </tbody>
                 </table>
