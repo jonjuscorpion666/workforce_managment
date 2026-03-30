@@ -9,6 +9,7 @@ import {
   Flag, Filter,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -446,7 +447,9 @@ function CasesList() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SpeakUpPage() {
-  const [tab, setTab] = useState<'submit' | 'cases'>('submit');
+  const { hasRole } = useAuth();
+  const viewOnly = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNP');
+  const [tab, setTab] = useState<'submit' | 'cases'>(viewOnly ? 'cases' : 'submit');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -459,33 +462,37 @@ export default function SpeakUpPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Speak Up</h1>
-              <p className="text-xs text-gray-500">Safe escalation · bypasses your manager</p>
+              <p className="text-xs text-gray-500">
+                {viewOnly ? 'Viewing submitted cases' : 'Safe escalation · bypasses your manager'}
+              </p>
             </div>
           </div>
-          {/* Tab switcher */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setTab('submit')}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                tab === 'submit' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" /> Submit
-            </button>
-            <button
-              onClick={() => setTab('cases')}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                tab === 'cases' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" /> Cases
-            </button>
-          </div>
+          {/* Tab switcher — Submit tab hidden for SVP / CNO */}
+          {!viewOnly && (
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setTab('submit')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  tab === 'submit' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5" /> Submit
+              </button>
+              <button
+                onClick={() => setTab('cases')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  tab === 'cases' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" /> Cases
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto p-6">
-        {tab === 'submit' ? <SubmitForm /> : <CasesList />}
+        {tab === 'submit' && !viewOnly ? <SubmitForm /> : <CasesList />}
       </div>
     </div>
   );
