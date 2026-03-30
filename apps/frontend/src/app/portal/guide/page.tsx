@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, ClipboardList, AlertTriangle, CheckSquare,
   Megaphone, MessageCircle, ShieldCheck, ChevronDown, ChevronUp,
-  CheckCircle2, Clock, BookOpen,
+  CheckCircle2, BookOpen, BarChart2, MessageSquare,
 } from 'lucide-react';
 
 interface GuideSection {
@@ -20,6 +20,40 @@ interface GuideSection {
 
 const SECTIONS: GuideSection[] = [
   {
+    id: 'navigation',
+    icon: BookOpen,
+    color: 'bg-slate-600',
+    title: 'Getting Around the Portal',
+    subtitle: 'Six tabs at the bottom give you instant access to every feature.',
+    steps: [
+      {
+        heading: 'Home',
+        body: 'Your starting point — shows a quick summary (surveys, updates, open issues), any critical announcements, available surveys to complete, and the Speak Up form.',
+      },
+      {
+        heading: 'Updates',
+        body: 'All hospital announcements in one place. Unread items show a blue dot. The tab badge shows how many unread or pending-acknowledgement notices you have.',
+      },
+      {
+        heading: 'Issues',
+        body: 'Department problems raised from survey feedback. Tap any issue card to read the full details and leave a comment for your team.',
+      },
+      {
+        heading: 'Tasks',
+        body: 'Action items your department is working through. Tap a task card to see due dates, who it\'s assigned to, and join the comment thread.',
+      },
+      {
+        heading: 'Insights',
+        body: 'Analytics showing how your department is performing — dimension scores, ranking against other departments, hospital comparisons, and your trend over time.',
+      },
+      {
+        heading: 'Guide',
+        body: 'This help page. Return here any time you need a reminder of how a feature works.',
+      },
+    ],
+    tip: 'Red badge numbers on the tab icons tell you at a glance how many items need your attention.',
+  },
+  {
     id: 'surveys',
     icon: ClipboardList,
     color: 'bg-blue-600',
@@ -28,7 +62,7 @@ const SECTIONS: GuideSection[] = [
     steps: [
       {
         heading: 'Find an active survey',
-        body: 'On the portal home screen, scroll to "Available Surveys". Each card shows the survey title, number of questions, and closing date. Tap a survey card to open it.',
+        body: 'On the Home tab, scroll to "Available Surveys". Each card shows the survey title, number of questions, and closing date. Tap a survey card to open it.',
       },
       {
         heading: 'Answer each question',
@@ -43,7 +77,7 @@ const SECTIONS: GuideSection[] = [
         body: 'Once all required questions are answered, tap "Submit Anonymous Response" at the bottom. You\'ll see a green confirmation screen. Your name is never stored with your answers.',
       },
     ],
-    tip: 'Your progress bar at the top tracks answered vs total questions. You can scroll back and change an answer before submitting.',
+    tip: 'The progress bar at the top tracks answered vs total questions. You can scroll back and change an answer before submitting.',
   },
   {
     id: 'announcements',
@@ -53,8 +87,8 @@ const SECTIONS: GuideSection[] = [
     subtitle: 'Stay informed about hospital updates, policy changes, and urgent notices.',
     steps: [
       {
-        heading: 'Find announcements',
-        body: 'Scroll to the "Announcements" section on the portal home. Unread announcements show a blue dot on the left. Critical announcements appear with a red border and are expanded automatically.',
+        heading: 'Open the Updates tab',
+        body: 'Tap "Updates" in the bottom navigation. Unread announcements show a blue dot on the left. Critical announcements appear with a red border. The tab badge shows the total count of unread + pending acknowledgements.',
       },
       {
         heading: 'Read a full announcement',
@@ -69,55 +103,97 @@ const SECTIONS: GuideSection[] = [
         body: 'If an acknowledgement has a due date, it is shown in the expanded panel. Please acknowledge before the deadline — your manager is notified of pending acknowledgements.',
       },
     ],
-    tip: 'The "Pending Ack" counter in your stats row shows how many announcements are waiting for your acknowledgement.',
+    tip: 'The Updates tab badge counts both unread messages and outstanding acknowledgements so you never miss anything important.',
   },
   {
     id: 'issues',
     icon: AlertTriangle,
     color: 'bg-orange-500',
-    title: 'How to View Department Issues',
-    subtitle: 'See what problems leadership is actively working on based on your feedback.',
+    title: 'How to View & Comment on Issues',
+    subtitle: 'See what problems leadership is working on — and add your voice.',
     steps: [
       {
-        heading: 'Find department issues',
-        body: 'Scroll to the "Department Issues" section. Issues here were created from survey responses (including yours) or raised directly by your manager or director.',
+        heading: 'Open the Issues tab',
+        body: 'Tap "Issues" in the bottom navigation. Issues here were created from survey responses (including yours) or raised directly by your manager or director. The tab badge shows how many are currently open.',
+      },
+      {
+        heading: 'Tap a card to expand it',
+        body: 'Each issue card shows a severity badge (CRITICAL, HIGH, MEDIUM, LOW) and a status. Tap the card to expand it and see the full description, assigned owner, target date, and any resolution notes.',
       },
       {
         heading: 'Read the status',
-        body: 'Each issue shows a severity badge (CRITICAL, HIGH, MEDIUM, LOW) and a status: OPEN means newly raised, IN PROGRESS means someone is actively working on it, ACTION PLANNED means a resolution plan is in place, BLOCKED means progress is stalled.',
+        body: 'OPEN = newly raised. IN PROGRESS = someone is actively working on it. ACTION PLANNED = a resolution plan is in place. BLOCKED = progress is stalled (a red "Blocked reason" box will explain why).',
       },
       {
-        heading: 'What this means for you',
-        body: 'Issues are read-only for nurses — you cannot edit them. Their purpose is transparency: you can see that your feedback was heard and that leadership is taking action. If a critical issue stays BLOCKED, consider raising a Speak Up submission.',
+        heading: 'Add a comment',
+        body: 'Inside any expanded issue you\'ll find a Comments section. Type your message in the text box and tap the blue send button (or press Enter). Your comment — with your name and timestamp — is visible to all team members and leadership.',
       },
       {
-        heading: 'No issues shown?',
-        body: 'If the section shows "No open issues," that\'s a positive sign — either there are no current problems or all raised issues have been resolved.',
+        heading: 'Read comments by others',
+        body: 'All existing comments appear above the input box, oldest first. Comments show the author\'s name and when they were posted. Use this thread to share context, ask questions, or provide updates.',
       },
     ],
-    tip: 'The orange "Open Issues" count in your stats row updates in real time as issues are resolved.',
+    tip: 'If a critical issue stays BLOCKED for a long time, consider also raising a Speak Up so it reaches HR or the CNO directly.',
   },
   {
     id: 'tasks',
     icon: CheckSquare,
     color: 'bg-indigo-500',
-    title: 'How to View Department Tasks',
-    subtitle: 'Track the action items your department is working through.',
+    title: 'How to View & Comment on Tasks',
+    subtitle: 'Track action items and keep the conversation going.',
     steps: [
       {
-        heading: 'Find department tasks',
-        body: 'Scroll to "Department Tasks" on the portal home. Tasks are specific action items — for example, "Review ICU staffing ratios for March" — created by your director or manager as follow-through from survey insights.',
+        heading: 'Open the Tasks tab',
+        body: 'Tap "Tasks" in the bottom navigation. Tasks are specific action items — for example, "Review ICU staffing ratios for March" — created by your director or manager as follow-through from survey insights.',
       },
       {
-        heading: 'Read the status and due date',
-        body: 'Each task card shows a status (TODO, IN PROGRESS, REVIEW) and a due date. Tasks marked "Overdue" in red have passed their due date — if you are concerned, raise it via Speak Up.',
+        heading: 'Tap a card to expand it',
+        body: 'Each task card shows its status (TODO, IN PROGRESS, REVIEW), priority, and due date. Tasks with a red "Overdue" badge have passed their due date. Tap the card to expand and see the full description, who it\'s assigned to, and any notes.',
       },
       {
-        heading: 'Tasks are read-only',
-        body: 'As a nurse, you can view tasks but not edit or assign them. They are here so you can see what concrete steps are being taken as a result of survey data.',
+        heading: 'Add a comment',
+        body: 'Inside the expanded task you\'ll find a Comments section. Type your message and tap the blue send button. Your comment is visible to the assignee and leadership — useful for flagging blockers or providing context.',
+      },
+      {
+        heading: 'Read comments by others',
+        body: 'All comments appear oldest-first. The author name and timestamp are shown on each message. Use the thread to ask questions, share updates, or note if something is blocking progress.',
       },
     ],
-    tip: 'If you feel an important task is missing or not being actioned, use the Speak Up feature to flag it confidentially.',
+    tip: 'If you feel an important task is missing or not being actioned, use Speak Up to flag it confidentially alongside your comment.',
+  },
+  {
+    id: 'insights',
+    icon: BarChart2,
+    color: 'bg-teal-600',
+    title: 'How to Use the Insights Tab',
+    subtitle: 'See how your department performs and how your hospital compares.',
+    steps: [
+      {
+        heading: 'Open the Insights tab',
+        body: 'Tap "Insights" in the bottom navigation. Data loads the first time you open the tab. All scores are calculated from anonymous survey responses — no individual data is shown.',
+      },
+      {
+        heading: 'Overall engagement score',
+        body: 'The first card shows your department\'s overall engagement score as a percentage, colour-coded green (≥70%), amber (50–70%), or red (<50%). It also shows your department\'s rank among all departments — e.g. #3 of 12.',
+      },
+      {
+        heading: 'Dimension breakdown',
+        body: 'Below the summary, each of the 10 engagement dimensions (Advocacy, Workload & Wellbeing, Recognition, etc.) is shown as a horizontal bar. Your department\'s bar appears highlighted in blue; the grey bar below each shows the hospital average for comparison.',
+      },
+      {
+        heading: 'Department rankings',
+        body: 'A ranked list of all departments in the system shows where each sits. Your department is highlighted with a blue border. Green scores (≥70%) are healthy, amber needs attention, red needs urgent action.',
+      },
+      {
+        heading: 'Hospital comparison',
+        body: 'If your system includes more than one hospital, a ranked list shows each hospital\'s average engagement score. Your hospital is highlighted. This lets you see how your site compares system-wide.',
+      },
+      {
+        heading: 'Your department trend',
+        body: 'The bottom section shows your department\'s average engagement score for each of the last 6 months as a bar timeline. A rising bar means things are improving; a falling bar is a signal to act.',
+      },
+    ],
+    tip: 'Insights data refreshes when you close and reopen the tab. If scores look unexpected, check that surveys are actively running in your department.',
   },
   {
     id: 'speakup',
@@ -128,7 +204,7 @@ const SECTIONS: GuideSection[] = [
     steps: [
       {
         heading: 'Open the Speak Up form',
-        body: 'Scroll to the "Speak Up" section at the bottom of the portal. Tap the card to expand the form. You can also find it in the portal stats row.',
+        body: 'On the Home tab, scroll to the "Speak Up" card at the bottom and tap it to expand the form.',
       },
       {
         heading: 'Choose a category',
@@ -148,6 +224,28 @@ const SECTIONS: GuideSection[] = [
       },
     ],
     tip: 'ANONYMOUS mode means your identity is never recorded. Use CONFIDENTIAL if you want leadership to be able to follow up with you directly.',
+  },
+  {
+    id: 'comments',
+    icon: MessageSquare,
+    color: 'bg-cyan-600',
+    title: 'How Comments Work',
+    subtitle: 'Comments on issues and tasks are visible to your whole department team.',
+    steps: [
+      {
+        heading: 'Who can see your comments',
+        body: 'Comments on issues and tasks are visible to all nurses in the department as well as the managers, directors, and leadership assigned to that item. They are not anonymous — your name appears on every comment you post.',
+      },
+      {
+        heading: 'What to use comments for',
+        body: 'Use comments to add context ("this also happened during night shifts"), ask questions ("has anyone spoken to the charge nurse?"), or flag blockers ("we can\'t move forward until the equipment arrives"). Keep comments professional and factual.',
+      },
+      {
+        heading: 'Difference between comments and Speak Up',
+        body: 'Comments are attached to a specific issue or task and are visible to everyone with access to that item. Speak Up is a private, routed submission that goes directly to Director, CNO, or HR and is not attached to any specific issue.',
+      },
+    ],
+    tip: 'If your concern is sensitive or personal, use Speak Up instead of a comment — comments are not private.',
   },
   {
     id: 'privacy',
@@ -173,11 +271,15 @@ const SECTIONS: GuideSection[] = [
         body: 'In CONFIDENTIAL mode, your identity is stored in a secure, encrypted field that is hidden from your direct manager. Only HR and the escalation recipient can see who submitted the concern.',
       },
       {
+        heading: 'Comments',
+        body: 'Comments you post on issues and tasks are always linked to your name. They are not anonymous. Do not share sensitive personal information in a comment — use Speak Up for that.',
+      },
+      {
         heading: 'Acknowledgements',
-        body: 'When you acknowledge an announcement, your acknowledgement is recorded so your manager can confirm all team members have received important notices. This is the only action that records your identity by design.',
+        body: 'When you acknowledge an announcement, your acknowledgement is recorded so your manager can confirm all team members have received important notices. This is the only survey-style action that records your identity by design.',
       },
     ],
-    tip: 'If you have any concerns about privacy, raise them via an Anonymous Speak Up submission to HR.',
+    tip: 'If you have any concerns about how your data is handled, raise them via an Anonymous Speak Up submission to HR.',
   },
 ];
 
@@ -252,7 +354,7 @@ export default function NurseGuidePage() {
             <BookOpen className="w-5 h-5 text-blue-600" />
             <div>
               <p className="font-semibold text-gray-900 text-sm">Nurse Guide</p>
-              <p className="text-xs text-gray-500">How to use the portal</p>
+              <p className="text-xs text-gray-500">How to use every feature</p>
             </div>
           </div>
         </div>
@@ -271,8 +373,8 @@ export default function NurseGuidePage() {
             </div>
           </div>
           <p className="text-sm text-blue-100 leading-relaxed">
-            This guide walks you through every feature available to you as a nurse.
-            Tap any section to expand the step-by-step instructions.
+            The portal has six tabs at the bottom: <span className="font-semibold text-white">Home, Updates, Issues, Tasks, Insights,</span> and <span className="font-semibold text-white">Guide</span>.
+            Tap any section below to expand the step-by-step instructions.
           </p>
         </div>
 
