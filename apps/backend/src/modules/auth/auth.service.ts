@@ -56,6 +56,39 @@ export class AuthService {
     return { success: true };
   }
 
+  async getProfile(userId: string) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['roles', 'orgUnit', 'orgUnit.parent', 'orgUnit.parent.parent', 'reportsTo'],
+    });
+    if (!user) throw new UnauthorizedException();
+
+    // Walk up the org tree to find hospital and department
+    let hospital: { id: string; name: string } | null = null;
+    let department: { id: string; name: string } | null = null;
+    let node = user.orgUnit as any;
+    while (node) {
+      if (node.level === 'HOSPITAL') hospital = { id: node.id, name: node.name };
+      if (node.level === 'DEPARTMENT') department = { id: node.id, name: node.name };
+      node = node.parent ?? null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      jobTitle: (user as any).jobTitle ?? null,
+      employeeId: (user as any).employeeId ?? null,
+      orgUnit: user.orgUnit ? { id: user.orgUnit.id, name: user.orgUnit.name, level: (user.orgUnit as any).level } : null,
+      department,
+      hospital,
+      manager: user.reportsTo
+        ? { id: user.reportsTo.id, firstName: user.reportsTo.firstName, lastName: user.reportsTo.lastName, jobTitle: (user.reportsTo as any).jobTitle ?? null }
+        : null,
+    };
+  }
+
   async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.userRepo.findOne({ where: { email } });
     if (user && (await bcrypt.compare(password, user.password))) return user;

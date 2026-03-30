@@ -849,6 +849,13 @@ export default function NursePortalPage() {
     enabled: isAuthenticated,
   });
 
+  const { data: profile } = useQuery<any>({
+    queryKey: ['nurse-profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+    enabled: isAuthenticated,
+    staleTime: 10 * 60_000,
+  });
+
   const { data: heatmap, isLoading: heatmapLoading } = useQuery<any>({
     queryKey: ['nurse-heatmap'],
     queryFn: () => api.get('/analytics/heatmap').then((r) => r.data),
@@ -946,6 +953,55 @@ export default function NursePortalPage() {
                   {nurse?.orgUnit?.name ?? 'Your hospital'} · Here&apos;s your overview
                 </p>
               </div>
+
+              {/* Profile card — hospital / department / manager */}
+              {profile && (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-blue-500" />
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Your Profile</p>
+                  </div>
+                  <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                    {profile.hospital && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Hospital</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">{profile.hospital.name}</p>
+                      </div>
+                    )}
+                    {(profile.department ?? profile.orgUnit) && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Department</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {profile.department?.name ?? profile.orgUnit?.name}
+                        </p>
+                      </div>
+                    )}
+                    {profile.jobTitle && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Job Title</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">{profile.jobTitle}</p>
+                      </div>
+                    )}
+                    {profile.manager && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Manager</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {profile.manager.firstName} {profile.manager.lastName}
+                        </p>
+                        {profile.manager.jobTitle && (
+                          <p className="text-xs text-gray-400 truncate">{profile.manager.jobTitle}</p>
+                        )}
+                      </div>
+                    )}
+                    {profile.employeeId && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Employee ID</p>
+                        <p className="text-sm font-medium text-gray-800">{profile.employeeId}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Summary cards */}
               <div className="grid grid-cols-3 gap-3">

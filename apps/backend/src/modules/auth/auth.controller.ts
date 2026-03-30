@@ -37,6 +37,14 @@ export class AuthController {
     return req.user;
   }
 
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get full user profile with org hierarchy and manager' })
+  profile(@Req() req: any) {
+    return this.authService.getProfile(req.user.id);
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
