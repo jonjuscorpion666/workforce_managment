@@ -12,14 +12,15 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import api from '@/lib/api';
 
+// roles: if set, item is only shown to users with one of those roles (or SUPER_ADMIN always sees all)
 const navItems = [
   { label: 'Dashboard',     href: '/dashboard',     icon: LayoutDashboard, exact: true },
   { label: 'Surveys',       href: '/surveys',        icon: ClipboardList },
   { label: 'Issues',        href: '/issues',         icon: AlertTriangle },
   { label: 'Tasks',         href: '/tasks',          icon: CheckSquare },
   { label: 'Analytics',     href: '/analytics',      icon: BarChart2, exact: true },
-  { label: 'SVP Dashboard', href: '/analytics/svp',  icon: PieChart, indent: true },
-  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2, indent: true },
+  { label: 'SVP Dashboard', href: '/analytics/svp',  icon: PieChart,  indent: true, roles: ['SVP', 'SUPER_ADMIN'] },
+  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2, indent: true, roles: ['CNP', 'SUPER_ADMIN'] },
   { label: 'Program Flow',  href: '/program-flow',   icon: GitBranch },
   { label: 'Escalations',   href: '/escalations',    icon: ArrowUpCircle },
   { label: 'Announcements', href: '/announcements',  icon: Megaphone },
@@ -68,7 +69,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ label, href, icon: Icon, exact, indent }: any) => {
+        {navItems.filter(({ roles }: any) =>
+          !roles || roles.some((r: string) => hasRole(r))
+        ).map(({ label, href, icon: Icon, exact, indent }: any) => {
           const active = exact ? pathname === href : pathname.startsWith(href);
           const badge = badges[href];
           return (
