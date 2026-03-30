@@ -180,14 +180,14 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
   const { hasRole } = useAuth();
   const isDirector = hasRole('DIRECTOR');
 
-  // For Directors: fetch profile to lock hospital
+  // Always fetch profile — needed to auto-populate hospital for Directors
   const { data: profile } = useQuery<any>({
     queryKey: ['profile'],
     queryFn: () => api.get('/auth/profile').then((r) => r.data),
-    enabled: isDirector,
   });
 
-  const lockedHospitalName = isDirector ? (profile?.hospital?.name ?? '') : '';
+  const hospitalName = profile?.hospital?.name ?? '';
+  const lockHospital = isDirector && !!hospitalName;
 
   const [form, setForm] = useState({
     title: '',
@@ -207,12 +207,12 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
     statusNote: '',
   });
 
-  // Auto-populate hospital once profile loads for Directors
+  // Auto-populate hospital once profile loads
   useEffect(() => {
-    if (isDirector && lockedHospitalName) {
-      setForm((f) => ({ ...f, hospital: lockedHospitalName }));
+    if (hospitalName) {
+      setForm((f) => ({ ...f, hospital: hospitalName }));
     }
-  }, [isDirector, lockedHospitalName]);
+  }, [hospitalName]);
 
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
     queryKey: ['org-units'],
@@ -332,11 +332,11 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Hospital {isDirector && <span className="text-xs text-gray-400 font-normal">(auto-assigned)</span>}
+                Hospital {lockHospital && <span className="text-xs text-gray-400 font-normal">(auto-assigned)</span>}
               </label>
-              {isDirector ? (
+              {lockHospital ? (
                 <div className="input bg-gray-50 text-gray-600 cursor-not-allowed select-none flex items-center gap-2">
-                  <span className="flex-1 truncate">{form.hospital || '—'}</span>
+                  <span className="flex-1 truncate">{form.hospital}</span>
                   <span className="text-xs text-gray-400">🔒</span>
                 </div>
               ) : hospitals.length > 0 ? (
