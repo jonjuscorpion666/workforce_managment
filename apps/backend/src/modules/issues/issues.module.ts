@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Issue } from './entities/issue.entity';
+import { IssueComment } from './entities/issue-comment.entity';
 import { IssueHistory } from './entities/issue-history.entity';
 import { ActionPlan, ActionPlanMilestone } from './entities/action-plan.entity';
 import { IssuesController } from './issues.controller';
@@ -15,7 +16,7 @@ import { TaskComment } from '../tasks/entities/task-comment.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Issue, IssueHistory, ActionPlan, ActionPlanMilestone, Response, OrgUnit, User, Config, Task, TaskComment]),
+    TypeOrmModule.forFeature([Issue, IssueComment, IssueHistory, ActionPlan, ActionPlanMilestone, Response, OrgUnit, User, Config, Task, TaskComment]),
     AuditModule,
   ],
   controllers: [IssuesController],

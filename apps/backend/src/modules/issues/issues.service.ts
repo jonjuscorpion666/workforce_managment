@@ -1,12 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not } from 'typeorm';
 import { Issue, IssueStatus, IssueSeverity, IssuePriority, IssueSource } from './entities/issue.entity';
+import { IssueComment } from './entities/issue-comment.entity';
 import { IssueHistory } from './entities/issue-history.entity';
 import { ActionPlan, ActionPlanMilestone, ActionPlanStatus, MilestoneStatus } from './entities/action-plan.entity';
 import { AuditService } from '../audit/audit.service';
 import { Response } from '../responses/entities/response.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
+import { User } from '../auth/entities/user.entity';
 import { Config } from '../admin/entities/config.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { TaskComment } from '../tasks/entities/task-comment.entity';
@@ -57,6 +59,8 @@ export class IssuesService {
     @InjectRepository(Config)       private readonly configRepo:      Repository<Config>,
     @InjectRepository(Task)         private readonly taskRepo:         Repository<Task>,
     @InjectRepository(TaskComment)  private readonly taskCommentRepo:  Repository<TaskComment>,
+    @InjectRepository(IssueComment) private readonly issueCommentRepo: Repository<IssueComment>,
+    @InjectRepository(User)         private readonly userRepo:         Repository<User>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -441,5 +445,46 @@ export class IssuesService {
     if (!ids?.length) return { deleted: 0 };
     await this.repo.softDelete(ids);
     return { deleted: ids.length };
+  }
+
+  // ─── Issue Comments ──────────────────────────────────────────────────────────
+
+  async getComments(issueId: string) {
+    await this.findOne(issueId);
+    const comments = await this.issueCommentRepo.find({
+      where: { issueId },
+      order: { createdAt: 'ASC' },
+    });
+    const authorIds = [...new Set(comments.map((c) => c.authorId))];
+    const authors = authorIds.length
+      ? await this.userRepo.find({ where: { id: In(authorIds) } })
+      : [];
+    const authorMap = new Map(authors.map((u) => [u.id, u]));
+    return comments.map((c) => {
+      const u = authorMap.get(c.authorId);
+      return {
+        ...c,
+        authorName: u ? `${u.firstName} ${u.lastName}` : 'Unknown',
+      };
+    });
+  }
+
+  async addComment(issueId: string, content: string, authorId: string) {
+    await this.findOne(issueId);
+    const comment = await this.issueCommentRepo.save(
+      this.issueCommentRepo.create({ issueId, authorId, content }),
+    );
+    const author = await this.userRepo.findOne({ where: { id: authorId } });
+    return {
+      ...comment,
+      authorName: author ? `${author.firstName} ${author.lastName}` : 'Unknown',
+    };
+  }
+
+  async deleteComment(issueId: string, commentId: string, requesterId: string) {
+    const comment = await this.issueCommentRepo.findOne({ where: { id: commentId, issueId } });
+    if (!comment) throw new NotFoundException(`Comment not found`);
+    if (comment.authorId !== requesterId) throw new ForbiddenException(`Cannot delete another user's comment`);
+    await this.issueCommentRepo.remove(comment);
   }
 }

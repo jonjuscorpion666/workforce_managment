@@ -109,4 +109,23 @@ export class IssuesController {
   deleteMilestone(@Param('milestoneId') milestoneId: string) {
     return this.issuesService.deleteMilestone(milestoneId);
   }
+
+  @Get(':id/comments')
+  @ApiOperation({ summary: 'Get comments on an issue' })
+  getComments(@Param('id') id: string) {
+    return this.issuesService.getComments(id);
+  }
+
+  @Post(':id/comments')
+  @ApiOperation({ summary: 'Add a comment to an issue' })
+  addComment(@Param('id') id: string, @Body() body: { content: string }, @Req() req: any) {
+    return this.issuesService.addComment(id, body.content, req.user.id);
+  }
+
+  @Delete(':id/comments/:commentId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a comment (author only)' })
+  deleteComment(@Param('id') id: string, @Param('commentId') commentId: string, @Req() req: any) {
+    return this.issuesService.deleteComment(id, commentId, req.user.id);
+  }
 }

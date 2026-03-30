@@ -7,7 +7,7 @@ import {
   ClipboardList, CheckCircle2, Clock, LogOut, ChevronRight, ShieldCheck,
   Megaphone, AlertTriangle, Bell, Check, Globe, Building2, LayoutGrid,
   ChevronDown, MessageCircle, CheckSquare, TrendingUp, BookOpen,
-  LayoutDashboard,
+  LayoutDashboard, Send, User,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -151,6 +151,88 @@ function AnnouncementCard({ ann, onMarkRead, onAcknowledge }: {
   );
 }
 
+// ─── Comments section (shared by Issue and Task cards) ───────────────────────
+
+function CommentsSection({ endpoint }: { endpoint: string }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState('');
+
+  const { data: comments = [], isLoading } = useQuery<any[]>({
+    queryKey: ['comments', endpoint],
+    queryFn: () => api.get(endpoint).then((r) => r.data),
+    staleTime: 30_000,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () => api.post(endpoint, { content: text.trim() }),
+    onSuccess: () => {
+      setText('');
+      qc.invalidateQueries({ queryKey: ['comments', endpoint] });
+    },
+  });
+
+  return (
+    <div className="border-t border-gray-100 pt-3 mt-1 space-y-3">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        Comments {comments.length > 0 && `(${comments.length})`}
+      </p>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />)}
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No comments yet — be the first.</p>
+      ) : (
+        <div className="space-y-2">
+          {comments.map((c: any) => (
+            <div key={c.id} className="flex gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+              </div>
+              <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-semibold text-gray-800">{c.authorName ?? 'Team member'}</span>
+                  <span className="text-[10px] text-gray-400">{formatDate(c.createdAt)}</span>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">{c.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex gap-2 items-end">
+        <textarea
+          rows={2}
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white placeholder-gray-400"
+          placeholder="Add a comment…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && text.trim()) {
+              e.preventDefault();
+              addMutation.mutate();
+            }
+          }}
+        />
+        <button
+          type="button"
+          disabled={!text.trim() || addMutation.isPending}
+          onClick={() => addMutation.mutate()}
+          className="w-9 h-9 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
+        >
+          <Send className="w-4 h-4" />
+        </button>
+      </div>
+      {addMutation.isError && (
+        <p className="text-xs text-red-500">Failed to post comment. Try again.</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Issue detail card ───────────────────────────────────────────────────────
 
 function IssueCard({ issue }: { issue: any }) {
@@ -238,6 +320,7 @@ function IssueCard({ issue }: { issue: any }) {
               <p className="text-sm text-green-700">{issue.resolutionNotes}</p>
             </div>
           )}
+          <CommentsSection endpoint={`/issues/${issue.id}/comments`} />
         </div>
       )}
     </div>
@@ -321,6 +404,7 @@ function TaskCard({ task }: { task: any }) {
               <p className="text-sm text-gray-700">{task.notes}</p>
             </div>
           )}
+          <CommentsSection endpoint={`/tasks/${task.id}/comments`} />
         </div>
       )}
     </div>
