@@ -151,6 +151,182 @@ function AnnouncementCard({ ann, onMarkRead, onAcknowledge }: {
   );
 }
 
+// ─── Issue detail card ───────────────────────────────────────────────────────
+
+function IssueCard({ issue }: { issue: any }) {
+  const [open, setOpen] = useState(false);
+  const severityColor =
+    issue.severity === 'CRITICAL' ? 'bg-red-100 text-red-700 border border-red-200' :
+    issue.severity === 'HIGH'     ? 'bg-orange-100 text-orange-700' :
+    issue.severity === 'MEDIUM'   ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500';
+  const statusColor =
+    issue.status === 'IN_PROGRESS'     ? 'bg-indigo-100 text-indigo-700' :
+    issue.status === 'ACTION_PLANNED'  ? 'bg-purple-100 text-purple-700' :
+    issue.status === 'BLOCKED'         ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600';
+  const dotColor =
+    issue.severity === 'CRITICAL' ? 'bg-red-500' :
+    issue.severity === 'HIGH'     ? 'bg-orange-400' :
+    issue.severity === 'MEDIUM'   ? 'bg-blue-400' : 'bg-gray-300';
+
+  return (
+    <div className={`bg-white rounded-xl border shadow-sm overflow-hidden ${
+      issue.severity === 'CRITICAL' ? 'border-red-200' : 'border-gray-200'
+    }`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-start gap-3 p-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap gap-1.5 mb-1">
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${severityColor}`}>{issue.severity}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>{issue.status.replace(/_/g, ' ')}</span>
+          </div>
+          <p className="text-sm font-medium text-gray-900">{issue.title}</p>
+          {issue.category && (
+            <p className="text-xs text-gray-400 mt-0.5">{issue.category}{issue.subcategory ? ` · ${issue.subcategory}` : ''}</p>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 mt-1 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+          {issue.description && (
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{issue.description}</p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {issue.orgUnit?.name && (
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Department</p>
+                <p className="text-sm text-gray-800">{issue.orgUnit.name}</p>
+              </div>
+            )}
+            {(issue.assignee || issue.assignedTo) && (
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Assigned to</p>
+                <p className="text-sm text-gray-800">
+                  {issue.assignee?.firstName
+                    ? `${issue.assignee.firstName} ${issue.assignee.lastName}`
+                    : issue.assignedTo ?? '—'}
+                </p>
+              </div>
+            )}
+            {issue.targetDate && (
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Target date</p>
+                <p className="text-sm text-gray-800">{formatDate(issue.targetDate)}</p>
+              </div>
+            )}
+            {issue.createdAt && (
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Raised</p>
+                <p className="text-sm text-gray-800">{formatDate(issue.createdAt)}</p>
+              </div>
+            )}
+          </div>
+          {issue.status === 'BLOCKED' && issue.blockedReason && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-red-700 mb-0.5">Blocked reason</p>
+              <p className="text-sm text-red-700">{issue.blockedReason}</p>
+            </div>
+          )}
+          {issue.resolutionNotes && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-green-700 mb-0.5">Resolution notes</p>
+              <p className="text-sm text-green-700">{issue.resolutionNotes}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Task detail card ─────────────────────────────────────────────────────────
+
+function TaskCard({ task }: { task: any }) {
+  const [open, setOpen] = useState(false);
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+  const statusColor =
+    task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+    task.status === 'TODO'        ? 'bg-gray-100 text-gray-600' :
+    task.status === 'REVIEW'      ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500';
+  const priorityColor =
+    task.priority === 'CRITICAL' || task.priority === 'HIGH' ? 'text-orange-500' : 'text-indigo-400';
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-start gap-3 p-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <TrendingUp className={`w-4 h-4 flex-shrink-0 mt-0.5 ${priorityColor}`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap gap-1.5 mb-1">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>
+              {task.status?.replace(/_/g, ' ')}
+            </span>
+            {isOverdue && (
+              <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                <Clock className="w-2.5 h-2.5" /> Overdue
+              </span>
+            )}
+            {task.priority && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                task.priority === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                task.priority === 'HIGH'     ? 'bg-orange-100 text-orange-700' :
+                task.priority === 'MEDIUM'   ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+              }`}>{task.priority}</span>
+            )}
+          </div>
+          <p className="text-sm font-medium text-gray-900">{task.title}</p>
+          {task.dueDate && (
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Due {formatDate(task.dueDate)}
+            </p>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 mt-1 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+          {task.description && (
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{task.description}</p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {(task.assignee || task.assignedTo) && (
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Assigned to</p>
+                <p className="text-sm text-gray-800">
+                  {task.assignee?.firstName
+                    ? `${task.assignee.firstName} ${task.assignee.lastName}`
+                    : task.assignedTo ?? '—'}
+                </p>
+              </div>
+            )}
+            {task.createdAt && (
+              <div>
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Created</p>
+                <p className="text-sm text-gray-800">{formatDate(task.createdAt)}</p>
+              </div>
+            )}
+          </div>
+          {task.notes && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-gray-600 mb-0.5">Notes</p>
+              <p className="text-sm text-gray-700">{task.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Speak Up inline form ────────────────────────────────────────────────────
 
 const SPEAK_UP_CATEGORIES = [
@@ -592,33 +768,7 @@ export default function NursePortalPage() {
               ) : (
                 <div className="space-y-2">
                   {deptIssues.map((issue: any) => (
-                    <div key={issue.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${
-                          issue.severity === 'CRITICAL' ? 'bg-red-500' :
-                          issue.severity === 'HIGH' ? 'bg-orange-400' :
-                          issue.severity === 'MEDIUM' ? 'bg-blue-400' : 'bg-gray-300'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap gap-1.5 mb-1">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                              issue.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
-                              issue.severity === 'HIGH' ? 'bg-orange-100 text-orange-700' :
-                              issue.severity === 'MEDIUM' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-                            }`}>{issue.severity}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              issue.status === 'IN_PROGRESS' ? 'bg-indigo-100 text-indigo-700' :
-                              issue.status === 'ACTION_PLANNED' ? 'bg-purple-100 text-purple-700' :
-                              issue.status === 'BLOCKED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                            }`}>{issue.status.replace(/_/g, ' ')}</span>
-                          </div>
-                          <p className="text-sm font-medium text-gray-900">{issue.title}</p>
-                          {issue.category && (
-                            <p className="text-xs text-gray-400 mt-0.5">{issue.category}{issue.subcategory ? ` · ${issue.subcategory}` : ''}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <IssueCard key={issue.id} issue={issue} />
                   ))}
                 </div>
               )}
@@ -646,32 +796,7 @@ export default function NursePortalPage() {
               ) : (
                 <div className="space-y-2">
                   {deptTasks.map((task: any) => (
-                    <div key={task.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                      <div className="flex items-start gap-3">
-                        <TrendingUp className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                          task.priority === 'HIGH' || task.priority === 'CRITICAL' ? 'text-orange-500' : 'text-indigo-400'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap gap-1.5 mb-1">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                              task.status === 'TODO' ? 'bg-gray-100 text-gray-600' : 'bg-purple-100 text-purple-700'
-                            }`}>{task.status?.replace(/_/g, ' ')}</span>
-                            {task.dueDate && new Date(task.dueDate) < new Date() && (
-                              <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
-                                <Clock className="w-2.5 h-2.5" /> Overdue
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-medium text-gray-900">{task.title}</p>
-                          {task.dueDate && (
-                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> Due {formatDate(task.dueDate)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <TaskCard key={task.id} task={task} />
                   ))}
                 </div>
               )}
