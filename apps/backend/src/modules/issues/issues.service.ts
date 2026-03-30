@@ -64,8 +64,22 @@ export class IssuesService {
     private readonly auditService: AuditService,
   ) {}
 
+  private async resolveHospitalId(userId: string): Promise<string | null> {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['orgUnit'] });
+    if (!user?.orgUnit) return null;
+    // Walk up the org tree to find the HOSPITAL ancestor
+    let unit: any = await this.orgUnitRepo.findOne({ where: { id: user.orgUnit.id }, relations: ['parent'] });
+    while (unit) {
+      if (unit.level === 'HOSPITAL') return unit.id;
+      unit = unit.parent ? await this.orgUnitRepo.findOne({ where: { id: unit.parent.id }, relations: ['parent'] }) : null;
+    }
+    return null;
+  }
+
   async create(data: any, createdById: string) {
-    const issue = this.repo.create({ ...data, createdById });
+    const hospitalId = data.hospitalId ?? await this.resolveHospitalId(createdById);
+    const orgUnitId  = data.orgUnitId  ?? (await this.userRepo.findOne({ where: { id: createdById }, relations: ['orgUnit'] }))?.orgUnit?.id ?? null;
+    const issue = this.repo.create({ ...data, createdById, hospitalId: hospitalId ?? undefined, orgUnitId: orgUnitId ?? undefined });
     const saved = await this.repo.save(issue) as unknown as Issue;
     await this.auditService.log('issues', saved.id, 'CREATE', createdById, null, saved, saved.title);
     return saved;
@@ -78,6 +92,7 @@ export class IssuesService {
 
     if (query.status) qb.andWhere('i.status = :status', { status: query.status });
     if (query.orgUnitId) qb.andWhere('i.orgUnitId = :orgUnitId', { orgUnitId: query.orgUnitId });
+    if (query.hospitalId) qb.andWhere('i.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
     if (query.severity) qb.andWhere('i.severity = :severity', { severity: query.severity });
     if (query.ownerId) qb.andWhere('i.ownerId = :ownerId', { ownerId: query.ownerId });
 

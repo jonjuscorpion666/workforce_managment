@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import {
   AlertTriangle, CheckSquare, ClipboardList, ArrowUpCircle,
   ShieldCheck, Clock, TrendingUp, Users, MessageCircle,
-  Building2, CheckCircle2, Zap, BarChart2, Eye,
+  Building2, CheckCircle2, Zap, BarChart2, Eye, UserCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -138,6 +138,10 @@ function CNOView({ user }: { user: any }) {
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
   });
+  const { data: profile } = useQuery<any>({
+    queryKey: ['profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+  });
 
   if (isLoading) return <p className="text-gray-400 text-sm">Loading...</p>;
 
@@ -150,8 +154,36 @@ function CNOView({ user }: { user: any }) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
-        <p className="text-gray-500 mt-1">{user?.orgUnit?.name ?? 'Your hospital'} — nurse engagement overview</p>
+        <p className="text-gray-500 mt-1">{profile?.hospital?.name ?? user?.orgUnit?.name ?? 'Your hospital'} — nurse engagement overview</p>
       </div>
+
+      {/* Profile + manager card */}
+      {profile && (
+        <div className="card flex flex-wrap gap-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <UserCircle2 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900">{profile.firstName} {profile.lastName}</p>
+              <p className="text-xs text-gray-500">{profile.jobTitle ?? 'CNO'}{profile.hospital ? ` · ${profile.hospital.name}` : ''}</p>
+            </div>
+          </div>
+          {profile.manager && (
+            <div className="border-l border-gray-200 pl-6 min-w-0">
+              <p className="text-xs text-gray-400 font-medium mb-0.5">Reports to</p>
+              <p className="text-sm font-semibold text-gray-800">{profile.manager.firstName} {profile.manager.lastName}</p>
+              {profile.manager.jobTitle && <p className="text-xs text-gray-500">{profile.manager.jobTitle}</p>}
+            </div>
+          )}
+          {profile.department && (
+            <div className="border-l border-gray-200 pl-6 min-w-0">
+              <p className="text-xs text-gray-400 font-medium mb-0.5">Department</p>
+              <p className="text-sm font-semibold text-gray-800">{profile.department.name}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard label="Draft Surveys"   value={draft.length}   icon={ClipboardList}  color="bg-gray-500"   href="/surveys" />
@@ -206,47 +238,88 @@ function CNOView({ user }: { user: any }) {
 // ── Director view ─────────────────────────────────────────────────────────────
 
 function DirectorView({ user }: { user: any }) {
+  // 1. Fetch full profile to get hospitalId
+  const { data: profile, isLoading: profileLoading } = useQuery<any>({
+    queryKey: ['profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+  });
+
+  const hospitalId = profile?.hospital?.id;
+
+  // 2. All queries scoped to this director's hospital
+  const { data: issues = [], isLoading: issuesLoading } = useQuery<any[]>({
+    queryKey: ['director-issues', hospitalId],
+    queryFn: () => api.get('/issues', { params: { hospitalId } }).then((r) => r.data),
+    enabled: !!hospitalId,
+  });
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
+    queryKey: ['director-tasks', hospitalId],
+    queryFn: () => api.get('/tasks', { params: { hospitalId } }).then((r) => r.data),
+    enabled: !!hospitalId,
+  });
   const { data: surveys = [], isLoading: surveysLoading } = useQuery<any[]>({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
   });
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
-    queryKey: ['tasks'],
-    queryFn: () => api.get('/tasks').then((r) => r.data),
+  const { data: heatmap } = useQuery<any>({
+    queryKey: ['director-heatmap', hospitalId],
+    queryFn: () => api.get('/analytics/heatmap').then((r) => r.data),
+    enabled: !!hospitalId,
+    staleTime: 5 * 60_000,
+  });
+  const { data: lowUnits } = useQuery<any>({
+    queryKey: ['director-low-units', hospitalId],
+    queryFn: () => api.get('/analytics/low-units').then((r) => r.data),
+    enabled: !!hospitalId,
+    staleTime: 5 * 60_000,
   });
 
-  if (surveysLoading || tasksLoading) return <p className="text-gray-400 text-sm">Loading...</p>;
+  if (profileLoading || surveysLoading) return <p className="text-gray-400 text-sm">Loading...</p>;
 
   const activeSurveys = surveys.filter((s) => s.status === 'ACTIVE');
   const draftSurveys  = surveys.filter((s) => s.status === 'DRAFT');
-  const overdue = tasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE');
+  const openIssues    = issues.filter((i) => !['RESOLVED', 'CLOSED'].includes(i.status));
+  const overdueTasks  = tasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE');
+
+  // Analytics: filter heatmap units to this hospital only
+  const hospitalUnits: any[] = (heatmap?.units ?? []).filter((u: any) => {
+    const match = (lowUnits?.units ?? []).find((lu: any) => lu.orgUnitId === u.orgUnitId);
+    return match ? match.hospitalId === hospitalId : true;
+  });
+  const deptRanking: any[] = ((lowUnits?.units ?? []) as any[])
+    .filter((u) => u.hospitalId === hospitalId)
+    .sort((a, b) => b.overallFavorable - a.overallFavorable);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
-        <p className="text-gray-500 mt-1">{user?.orgUnit?.name ?? 'Your department'} — team pulse overview</p>
+        <p className="text-gray-500 mt-1">
+          {profile?.hospital?.name ?? user?.orgUnit?.name ?? 'Your hospital'} — hospital overview
+        </p>
       </div>
 
+      {/* Metrics scoped to hospital */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard label="Active Surveys"  value={activeSurveys.length} icon={Zap}          color="bg-green-500"  href="/surveys" />
-        <MetricCard label="Draft Surveys"   value={draftSurveys.length}  icon={ClipboardList} color="bg-gray-500"   href="/surveys" />
-        <MetricCard label="Total Tasks"     value={tasks.length}         icon={CheckSquare}   color="bg-blue-500"   href="/tasks" />
-        <MetricCard label="Overdue Tasks"   value={overdue.length}       icon={Clock}         color="bg-orange-500" href="/tasks" />
+        <MetricCard label="Open Issues"     value={openIssues.length}    icon={AlertTriangle} color="bg-red-500"    href="/issues" />
+        <MetricCard label="Active Tasks"    value={tasks.length}         icon={CheckSquare}   color="bg-blue-500"   href="/tasks" />
+        <MetricCard label="Overdue Tasks"   value={overdueTasks.length}  icon={Clock}         color="bg-orange-500" href="/tasks" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Surveys */}
         <div className="card">
-          <SectionHeader title="Department Surveys" action={<Link href="/surveys/new" className="text-xs text-blue-600 font-medium">+ New →</Link>} />
+          <SectionHeader title="Hospital Surveys" action={<Link href="/surveys/new" className="text-xs text-blue-600 font-medium">+ New →</Link>} />
           {surveys.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-gray-400 text-sm mb-3">No surveys yet</p>
-              <Link href="/surveys/new" className="btn-primary text-sm">Create your first pulse</Link>
+              <Link href="/surveys/new" className="btn-primary text-sm">Create first pulse</Link>
             </div>
           ) : (
             <ul className="space-y-2">
-              {surveys.slice(0, 4).map((s: any) => (
-                <li key={s.id} className="flex items-center justify-between py-1.5">
+              {surveys.slice(0, 5).map((s: any) => (
+                <li key={s.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
                   <span className="text-sm text-gray-700 truncate flex-1">{s.title}</span>
                   <span className={`flex-shrink-0 ml-2 text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : s.status === 'DRAFT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>{s.status}</span>
                 </li>
@@ -255,13 +328,32 @@ function DirectorView({ user }: { user: any }) {
           )}
         </div>
 
+        {/* Open issues */}
         <div className="card">
-          <SectionHeader title="Overdue Tasks" action={<Link href="/tasks" className="text-xs text-blue-600 font-medium">View all →</Link>} />
-          {overdue.length === 0 ? (
-            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> No overdue tasks</p>
+          <SectionHeader title="Open Issues" action={<Link href="/issues" className="text-xs text-blue-600 font-medium">View all →</Link>} />
+          {issuesLoading ? <p className="text-gray-400 text-sm">Loading…</p> : openIssues.length === 0 ? (
+            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> No open issues</p>
           ) : (
             <ul className="space-y-2">
-              {overdue.slice(0, 5).map((t: any) => (
+              {openIssues.slice(0, 5).map((i: any) => (
+                <li key={i.id} className="flex items-center gap-2 py-1 border-b border-gray-50 last:border-0">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${i.severity === 'CRITICAL' ? 'bg-red-500' : i.severity === 'HIGH' ? 'bg-orange-400' : 'bg-blue-400'}`} />
+                  <span className="text-sm text-gray-700 truncate flex-1">{i.title}</span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">{i.status?.replace(/_/g, ' ')}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Overdue tasks */}
+        <div className="card">
+          <SectionHeader title="Overdue Tasks" action={<Link href="/tasks" className="text-xs text-blue-600 font-medium">View all →</Link>} />
+          {tasksLoading ? <p className="text-gray-400 text-sm">Loading…</p> : overdueTasks.length === 0 ? (
+            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> All caught up</p>
+          ) : (
+            <ul className="space-y-2">
+              {overdueTasks.slice(0, 5).map((t: any) => (
                 <li key={t.id} className="text-sm text-gray-700 truncate flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />{t.title}
                 </li>
@@ -269,12 +361,35 @@ function DirectorView({ user }: { user: any }) {
             </ul>
           )}
         </div>
+
+        {/* Department engagement ranking for this hospital */}
+        {deptRanking.length > 0 && (
+          <div className="card">
+            <SectionHeader title="Dept Engagement Ranking" />
+            <ul className="space-y-2">
+              {deptRanking.slice(0, 6).map((u: any, i: number) => {
+                const score = u.overallFavorable;
+                const color = score >= 70 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-400' : 'bg-red-400';
+                return (
+                  <li key={u.orgUnitId} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
+                    <span className="text-sm text-gray-700 truncate flex-1">{u.orgUnitName}</span>
+                    <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${color} rounded-full`} style={{ width: `${score}%` }} />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-600 w-9 text-right">{score}%</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 flex-wrap">
         <Link href="/surveys/new" className="btn-primary flex items-center gap-2 text-sm"><ClipboardList className="w-4 h-4" /> New Pulse Survey</Link>
         <Link href="/tasks" className="btn-secondary flex items-center gap-2 text-sm"><CheckSquare className="w-4 h-4" /> View Tasks</Link>
-        <Link href="/issues" className="btn-secondary flex items-center gap-2 text-sm"><AlertTriangle className="w-4 h-4" /> Raise Issue</Link>
+        <Link href="/issues" className="btn-secondary flex items-center gap-2 text-sm"><AlertTriangle className="w-4 h-4" /> View Issues</Link>
       </div>
     </div>
   );

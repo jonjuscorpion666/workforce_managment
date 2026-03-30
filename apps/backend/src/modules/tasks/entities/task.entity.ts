@@ -72,6 +72,9 @@ export class Task {
   orgUnitId: string;
 
   @Column({ nullable: true })
+  hospitalId: string;
+
+  @Column({ nullable: true })
   createdById: string;
 
   @CreateDateColumn()

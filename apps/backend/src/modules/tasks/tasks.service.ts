@@ -4,6 +4,7 @@ import { Repository, LessThan, In } from 'typeorm';
 import { Task, TaskStatus } from './entities/task.entity';
 import { TaskComment } from './entities/task-comment.entity';
 import { ActionPlanMilestone } from '../issues/entities/action-plan.entity';
+import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 
@@ -13,6 +14,7 @@ export class TasksService {
     @InjectRepository(Task) private readonly repo: Repository<Task>,
     @InjectRepository(TaskComment) private readonly commentRepo: Repository<TaskComment>,
     @InjectRepository(ActionPlanMilestone) private readonly milestoneRepo: Repository<ActionPlanMilestone>,
+    @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly auditService: AuditService,
   ) {}
@@ -25,8 +27,26 @@ export class TasksService {
     return tasks.map((t) => ({ ...t, milestoneName: t.milestoneId ? (map.get(t.milestoneId) ?? null) : null }));
   }
 
+  private async resolveHospitalOrgUnitId(userId: string): Promise<{ orgUnitId: string | null; hospitalId: string | null }> {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['orgUnit'] });
+    const orgUnitId = user?.orgUnit?.id ?? null;
+    if (!orgUnitId) return { orgUnitId: null, hospitalId: null };
+    let unit: any = await this.orgUnitRepo.findOne({ where: { id: orgUnitId }, relations: ['parent'] });
+    while (unit) {
+      if (unit.level === 'HOSPITAL') return { orgUnitId, hospitalId: unit.id };
+      unit = unit.parent ? await this.orgUnitRepo.findOne({ where: { id: unit.parent.id }, relations: ['parent'] }) : null;
+    }
+    return { orgUnitId, hospitalId: null };
+  }
+
   async create(data: any, createdById: string) {
-    const task = this.repo.create({ ...data, createdById });
+    let { orgUnitId, hospitalId } = await this.resolveHospitalOrgUnitId(createdById);
+    const task = this.repo.create({
+      ...data,
+      createdById,
+      orgUnitId: data.orgUnitId ?? orgUnitId ?? undefined,
+      hospitalId: data.hospitalId ?? hospitalId ?? undefined,
+    });
     const saved = await this.repo.save(task) as unknown as Task;
     await this.auditService.log('tasks', saved.id, 'CREATE', createdById, null, saved, saved.title);
     return saved;
@@ -42,6 +62,7 @@ export class TasksService {
     if (query.issueId) qb.andWhere('t.issueId = :issueId', { issueId: query.issueId });
     if (query.status) qb.andWhere('t.status = :status', { status: query.status });
     if (query.orgUnitId) qb.andWhere('t.orgUnitId = :orgUnitId', { orgUnitId: query.orgUnitId });
+    if (query.hospitalId) qb.andWhere('t.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
 
     const tasks = await qb.getMany();
     return this.enrichWithMilestone(tasks);
