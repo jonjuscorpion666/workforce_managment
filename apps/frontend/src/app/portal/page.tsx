@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ClipboardList, CheckCircle2, Clock, LogOut, ChevronRight, ShieldCheck,
   Megaphone, AlertTriangle, Bell, Check, Globe, Building2, LayoutGrid,
-  ChevronDown, MessageCircle,
+  ChevronDown, MessageCircle, CheckSquare, TrendingUp, BookOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -346,6 +346,18 @@ export default function NursePortalPage() {
     enabled: isAuthenticated,
   });
 
+  const { data: allIssues = [] } = useQuery<any[]>({
+    queryKey: ['nurse-dept-issues'],
+    queryFn: () => api.get('/issues').then((r) => r.data),
+    enabled: isAuthenticated,
+  });
+
+  const { data: allTasks = [] } = useQuery<any[]>({
+    queryKey: ['nurse-dept-tasks'],
+    queryFn: () => api.get('/tasks').then((r) => r.data),
+    enabled: isAuthenticated,
+  });
+
   const markRead = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['nurse-announcements'] }),
@@ -362,6 +374,15 @@ export default function NursePortalPage() {
   const unreadCount      = feed.filter((a) => !a.isRead).length;
   const pendingAckCount  = feed.filter((a) => a.requiresAcknowledgement && !a.isAcknowledged).length;
   const criticalUnacked  = feed.filter((a) => a.priority === 'CRITICAL' && a.requiresAcknowledgement && !a.isAcknowledged);
+
+  const myOrgUnitId = nurse?.orgUnit?.id;
+  const OPEN_STATUSES = new Set(['OPEN', 'ACTION_PLANNED', 'IN_PROGRESS', 'BLOCKED', 'AWAITING_VALIDATION', 'REOPENED']);
+  const deptIssues = allIssues
+    .filter((i) => OPEN_STATUSES.has(i.status))
+    .filter((i) => !myOrgUnitId || !i.orgUnit || i.orgUnit?.id === myOrgUnitId);
+  const deptTasks = allTasks
+    .filter((t) => t.status !== 'DONE' && t.status !== 'CANCELLED')
+    .filter((t) => !myOrgUnitId || !t.orgUnitId || t.orgUnitId === myOrgUnitId);
 
   function handleLogout() {
     logout();
@@ -382,21 +403,38 @@ export default function NursePortalPage() {
               <p className="text-xs text-gray-500">Welcome, {nurse?.firstName} {nurse?.lastName}</p>
             </div>
           </div>
-          <button onClick={handleLogout}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-            <LogOut className="w-4 h-4" /> Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            <Link href="/portal/guide" className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+              <BookOpen className="w-4 h-4" /> Guide
+            </Link>
+            <button onClick={handleLogout}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
         {/* Stats row */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
             <p className="text-3xl font-bold text-blue-600">{activeSurveys.length}</p>
             <p className="text-xs text-gray-500 mt-1">Surveys</p>
           </div>
+          <div className={`rounded-xl border p-4 text-center shadow-sm ${deptIssues.length > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200'}`}>
+            <p className={`text-3xl font-bold ${deptIssues.length > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{deptIssues.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Open Issues</p>
+          </div>
+          <div className={`rounded-xl border p-4 text-center shadow-sm ${deptTasks.length > 0 ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200'}`}>
+            <p className={`text-3xl font-bold ${deptTasks.length > 0 ? 'text-indigo-600' : 'text-gray-400'}`}>{deptTasks.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Active Tasks</p>
+          </div>
+        </div>
+
+        {/* Second stats row */}
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm relative">
             <p className="text-3xl font-bold text-indigo-600">{feed.length}</p>
             {unreadCount > 0 && (
@@ -539,6 +577,125 @@ export default function NursePortalPage() {
               </Link>
             ))}
           </div>
+        </section>
+
+        {/* ── Department Issues ── */}
+        <section>
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className="w-5 h-5 text-orange-500" />
+            <h2 className="text-lg font-bold text-gray-900">Department Issues</h2>
+            {deptIssues.length > 0 && (
+              <span className="text-xs bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">
+                {deptIssues.length} open
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mb-3">
+            Issues identified from survey feedback in your department — your responses help drive these improvements.
+          </p>
+
+          {deptIssues.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
+              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+              <p className="text-gray-500 font-medium text-sm">No open issues in your department</p>
+              <p className="text-gray-400 text-xs mt-1">Great news — keep the feedback coming through surveys.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {deptIssues.slice(0, 5).map((issue: any) => (
+                <div key={issue.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
+                      issue.severity === 'CRITICAL' ? 'bg-red-500' :
+                      issue.severity === 'HIGH'     ? 'bg-orange-400' :
+                      issue.severity === 'MEDIUM'   ? 'bg-blue-400' : 'bg-gray-300'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-1.5 mb-1">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          issue.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                          issue.severity === 'HIGH'     ? 'bg-orange-100 text-orange-700' :
+                          issue.severity === 'MEDIUM'   ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                        }`}>{issue.severity}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          issue.status === 'IN_PROGRESS'     ? 'bg-indigo-100 text-indigo-700' :
+                          issue.status === 'ACTION_PLANNED'  ? 'bg-purple-100 text-purple-700' :
+                          issue.status === 'BLOCKED'         ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{issue.status.replace(/_/g, ' ')}</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{issue.title}</p>
+                      {issue.category && (
+                        <p className="text-xs text-gray-400 mt-0.5">{issue.category}{issue.subcategory ? ` · ${issue.subcategory}` : ''}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {deptIssues.length > 5 && (
+                <p className="text-xs text-center text-gray-400 pt-1">+{deptIssues.length - 5} more issues being tracked</p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ── Department Tasks ── */}
+        <section>
+          <div className="flex items-center gap-2 mb-1">
+            <CheckSquare className="w-5 h-5 text-indigo-500" />
+            <h2 className="text-lg font-bold text-gray-900">Department Tasks</h2>
+            {deptTasks.length > 0 && (
+              <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+                {deptTasks.length} active
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mb-3">
+            Action items your department leadership is working through based on survey insights.
+          </p>
+
+          {deptTasks.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
+              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+              <p className="text-gray-500 font-medium text-sm">No active tasks in your department</p>
+              <p className="text-gray-400 text-xs mt-1">Tasks created from survey insights will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {deptTasks.slice(0, 5).map((task: any) => (
+                <div key={task.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                  <div className="flex items-start gap-3">
+                    <TrendingUp className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                      task.priority === 'HIGH' || task.priority === 'CRITICAL' ? 'text-orange-500' : 'text-indigo-400'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-1.5 mb-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                          task.status === 'TODO'        ? 'bg-gray-100 text-gray-600' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>{task.status?.replace(/_/g, ' ')}</span>
+                        {task.dueDate && new Date(task.dueDate) < new Date() && (
+                          <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" /> Overdue
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{task.title}</p>
+                      {task.dueDate && (
+                        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> Due {formatDate(task.dueDate)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {deptTasks.length > 5 && (
+                <p className="text-xs text-center text-gray-400 pt-1">+{deptTasks.length - 5} more tasks in progress</p>
+              )}
+            </div>
+          )}
         </section>
 
         {/* ── Speak Up ── */}
