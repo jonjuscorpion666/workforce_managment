@@ -588,12 +588,14 @@ function AddHospitalModal({ onClose }: { onClose: () => void }) {
 
 // ─── Add Unit/Department modal ─────────────────────────────────────────────
 
-function AddUnitModal({ hospitals, onClose }: { hospitals: any[]; onClose: () => void }) {
+function AddUnitModal({ hospitals, lockedHospitalId = '', lockedHospitalName = '', onClose }: {
+  hospitals: any[]; lockedHospitalId?: string; lockedHospitalName?: string; onClose: () => void;
+}) {
   const qc = useQueryClient();
   const [name, setName]         = useState('');
   const [code, setCode]         = useState('');
   const [level, setLevel]       = useState<'DEPARTMENT' | 'UNIT'>('DEPARTMENT');
-  const [parentId, setParentId] = useState('');
+  const [parentId, setParentId] = useState(lockedHospitalId);
   const [error, setError]       = useState('');
 
   const create = useMutation({
@@ -622,10 +624,17 @@ function AddUnitModal({ hospitals, onClose }: { hospitals: any[]; onClose: () =>
         <input className="input" placeholder="e.g. CC-01" value={code} onChange={(e) => setCode(e.target.value)} />
       </Field>
       <Field label="Parent Hospital" required>
-        <select className="input text-sm" value={parentId} onChange={(e) => setParentId(e.target.value)}>
-          <option value="">— Select hospital —</option>
-          {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-        </select>
+        {lockedHospitalId ? (
+          <div className="input bg-gray-50 text-gray-600 cursor-not-allowed select-none flex items-center justify-between">
+            <span>{lockedHospitalName || lockedHospitalId}</span>
+            <span className="text-xs text-gray-400">🔒</span>
+          </div>
+        ) : (
+          <select className="input text-sm" value={parentId} onChange={(e) => setParentId(e.target.value)}>
+            <option value="">— Select hospital —</option>
+            {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+          </select>
+        )}
       </Field>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-3 pt-2">
@@ -956,6 +965,16 @@ export default function AdminPage() {
     queryFn: () => api.get('/org/units').then((r) => r.data),
   });
 
+  // CNO: fetch profile to lock hospital on dept/unit creation
+  const isCNO = hasRole('CNP');
+  const { data: profile } = useQuery<any>({
+    queryKey: ['profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+    enabled: isCNO,
+  });
+  const cnoHospitalId   = isCNO ? (profile?.hospital?.id   ?? '') : '';
+  const cnoHospitalName = isCNO ? (profile?.hospital?.name ?? '') : '';
+
   const cnoUsers   = users.filter((u) => u.roles?.some((r: any) => r.name === 'CNP'));
   const hospitals  = orgUnits.filter((u) => u.level === 'HOSPITAL');
   const childUnits = orgUnits.filter((u) => u.level === 'DEPARTMENT' || u.level === 'UNIT');
@@ -995,7 +1014,14 @@ export default function AdminPage() {
     <div className="space-y-6">
       {/* Modals */}
       {modal === 'hospital' && <AddHospitalModal onClose={() => setModal(null)} />}
-      {modal === 'unit'     && <AddUnitModal hospitals={hospitals} onClose={() => setModal(null)} />}
+      {modal === 'unit'     && (
+        <AddUnitModal
+          hospitals={hospitals}
+          lockedHospitalId={cnoHospitalId}
+          lockedHospitalName={cnoHospitalName}
+          onClose={() => setModal(null)}
+        />
+      )}
       {modal === 'role'     && <AddRoleModal onClose={() => setModal(null)} />}
       {modal === 'user'     && (
         <UserModal
