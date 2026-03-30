@@ -643,14 +643,23 @@ function AddHospitalModal({ onClose }: { onClose: () => void }) {
 
 // ─── Add Unit/Department modal ─────────────────────────────────────────────
 
-function AddUnitModal({ hospitals, lockedHospitalId = '', lockedHospitalName = '', onClose }: {
-  hospitals: any[]; lockedHospitalId?: string; lockedHospitalName?: string; onClose: () => void;
+function AddUnitModal({
+  hospitals,
+  lockedHospitalId = '', lockedHospitalName = '',
+  lockedDeptId = '', lockedDeptName = '',
+  onClose,
+}: {
+  hospitals: any[];
+  lockedHospitalId?: string; lockedHospitalName?: string;
+  lockedDeptId?: string; lockedDeptName?: string;
+  onClose: () => void;
 }) {
   const qc = useQueryClient();
   const [name, setName]         = useState('');
   const [code, setCode]         = useState('');
-  const [level, setLevel]       = useState<'DEPARTMENT' | 'UNIT'>('DEPARTMENT');
-  const [parentId, setParentId] = useState(lockedHospitalId);
+  // Directors are locked to UNIT level; CNO defaults to DEPARTMENT
+  const [level, setLevel]       = useState<'DEPARTMENT' | 'UNIT'>(lockedDeptId ? 'UNIT' : 'DEPARTMENT');
+  const [parentId, setParentId] = useState(lockedDeptId || lockedHospitalId);
   const [error, setError]       = useState('');
 
   const create = useMutation({
@@ -659,29 +668,36 @@ function AddUnitModal({ hospitals, lockedHospitalId = '', lockedHospitalName = '
     onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to create unit'),
   });
 
+  const lockedParentId   = lockedDeptId   || lockedHospitalId;
+  const lockedParentName = lockedDeptName || lockedHospitalName;
+  const parentLabel      = lockedDeptId ? 'Parent Department' : 'Parent Hospital';
+
   return (
-    <Modal title="Add Department / Unit" onClose={onClose}>
-      <Field label="Level">
-        <div className="flex gap-3">
-          {(['DEPARTMENT', 'UNIT'] as const).map((l) => (
-            <button key={l} type="button" onClick={() => setLevel(l)}
-              className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-all
-                ${level === l ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
-              {l === 'DEPARTMENT' ? 'Department' : 'Unit / Team'}
-            </button>
-          ))}
-        </div>
-      </Field>
+    <Modal title={lockedDeptId ? 'Add Unit' : 'Add Department / Unit'} onClose={onClose}>
+      {/* Level toggle — hidden for Directors (locked to UNIT) */}
+      {!lockedDeptId && (
+        <Field label="Level">
+          <div className="flex gap-3">
+            {(['DEPARTMENT', 'UNIT'] as const).map((l) => (
+              <button key={l} type="button" onClick={() => setLevel(l)}
+                className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-all
+                  ${level === l ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>
+                {l === 'DEPARTMENT' ? 'Department' : 'Unit / Team'}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
       <Field label="Name" required>
         <input className="input" placeholder={level === 'DEPARTMENT' ? 'e.g. Critical Care' : 'e.g. ICU Night Shift'} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
       <Field label="Code">
         <input className="input" placeholder="e.g. CC-01" value={code} onChange={(e) => setCode(e.target.value)} />
       </Field>
-      <Field label="Parent Hospital" required>
-        {lockedHospitalId ? (
+      <Field label={parentLabel} required>
+        {lockedParentId ? (
           <div className="input bg-gray-50 text-gray-600 cursor-not-allowed select-none flex items-center justify-between">
-            <span>{lockedHospitalName || lockedHospitalId}</span>
+            <span>{lockedParentName || lockedParentId}</span>
             <span className="text-xs text-gray-400">🔒</span>
           </div>
         ) : (
@@ -697,7 +713,7 @@ function AddUnitModal({ hospitals, lockedHospitalId = '', lockedHospitalName = '
         <button
           onClick={() => {
             if (!name.trim()) { setError('Name is required'); return; }
-            if (!parentId)    { setError('Parent hospital is required'); return; }
+            if (!parentId)    { setError(`${parentLabel} is required`); return; }
             setError(''); create.mutate();
           }}
           disabled={create.isPending}
@@ -1021,15 +1037,21 @@ export default function AdminPage() {
     queryFn: () => api.get('/org/units').then((r) => r.data),
   });
 
-  // CNO: fetch profile to lock hospital on dept/unit creation
-  const isCNO = hasRole('CNP');
+  // CNO / Director: fetch profile to scope views and lock fields
+  const isCNO      = hasRole('CNP');
+  const isDirector = hasRole('DIRECTOR');
   const { data: profile } = useQuery<any>({
     queryKey: ['profile'],
     queryFn: () => api.get('/auth/profile').then((r) => r.data),
-    enabled: isCNO,
+    enabled: isCNO || isDirector,
   });
   const cnoHospitalId   = isCNO ? (profile?.hospital?.id   ?? '') : '';
   const cnoHospitalName = isCNO ? (profile?.hospital?.name ?? '') : '';
+
+  const directorHospitalId   = isDirector ? (profile?.hospital?.id     ?? '') : '';
+  const directorHospitalName = isDirector ? (profile?.hospital?.name   ?? '') : '';
+  const directorDeptId       = isDirector ? (profile?.department?.id   ?? '') : '';
+  const directorDeptName     = isDirector ? (profile?.department?.name ?? '') : '';
 
   const cnoUsers   = users.filter((u) => u.roles?.some((r: any) => r.name === 'CNP'));
   const hospitals  = orgUnits.filter((u) => u.level === 'HOSPITAL');
@@ -1045,6 +1067,15 @@ export default function AdminPage() {
     return [...direct, ...grandchildren];
   }
 
+  // Resolve the department ancestor for a user's orgUnit
+  function userDeptId(u: any): string | null {
+    const ou = u.orgUnit;
+    if (!ou) return null;
+    if (ou.level === 'DEPARTMENT') return ou.id;
+    if (ou.level === 'UNIT') return ou.parent?.id ?? null; // parent should be DEPARTMENT
+    return null;
+  }
+
   // Resolve the hospital ancestor for a user's orgUnit (walks up max 2 levels)
   function userHospitalId(u: any): string | null {
     const ou = u.orgUnit;
@@ -1055,11 +1086,13 @@ export default function AdminPage() {
     return null;
   }
 
-  // Filtered users list — CNO sees only users in their hospital
+  // Filtered users list — CNO scoped to hospital, Director scoped to department
   const filteredUsers = users.filter((u) => {
     if (isCNO && cnoHospitalId) {
-      const hId = userHospitalId(u);
-      if (hId !== cnoHospitalId) return false;
+      if (userHospitalId(u) !== cnoHospitalId) return false;
+    }
+    if (isDirector && directorDeptId) {
+      if (userDeptId(u) !== directorDeptId) return false;
     }
     const q = userSearch.toLowerCase();
     const matchesSearch = !q
@@ -1087,23 +1120,29 @@ export default function AdminPage() {
       {modal === 'unit'     && (
         <AddUnitModal
           hospitals={hospitals}
-          lockedHospitalId={cnoHospitalId}
-          lockedHospitalName={cnoHospitalName}
+          lockedHospitalId={isCNO ? cnoHospitalId : isDirector ? directorHospitalId : ''}
+          lockedHospitalName={isCNO ? cnoHospitalName : isDirector ? directorHospitalName : ''}
+          lockedDeptId={isDirector ? directorDeptId : ''}
+          lockedDeptName={isDirector ? directorDeptName : ''}
           onClose={() => setModal(null)}
         />
       )}
       {modal === 'role'     && <AddRoleModal onClose={() => setModal(null)} />}
       {modal === 'user'     && (
         <UserModal
-          roles={hasRole('CNP')
-            ? roles.filter((r: any) => ['DIRECTOR', 'MANAGER', 'NURSE', 'PCT'].includes(r.name))
-            : roles}
+          roles={
+            isCNO
+              ? roles.filter((r: any) => ['DIRECTOR', 'MANAGER', 'NURSE', 'PCT'].includes(r.name))
+              : isDirector
+                ? roles.filter((r: any) => ['MANAGER', 'NURSE', 'PCT'].includes(r.name))
+                : roles
+          }
           orgUnits={orgUnits}
           allUsers={users}
           editUser={editUser}
           onClose={closeUserModal}
-          lockedHospitalId={isCNO ? cnoHospitalId : ''}
-          lockedHospitalName={isCNO ? cnoHospitalName : ''}
+          lockedHospitalId={isCNO ? cnoHospitalId : isDirector ? directorHospitalId : ''}
+          lockedHospitalName={isCNO ? cnoHospitalName : isDirector ? directorHospitalName : ''}
         />
       )}
       {modal === 'bulk'     && <BulkUploadModal onClose={() => setModal(null)} />}
@@ -1119,7 +1158,7 @@ export default function AdminPage() {
           {tab === 'hospitals' && (
             <>
               <button onClick={() => setModal('unit')} className="btn-secondary text-sm flex items-center gap-2">
-                <Layers className="w-4 h-4" /> Add Dept / Unit
+                <Layers className="w-4 h-4" /> {isDirector ? 'Add Unit' : 'Add Dept / Unit'}
               </button>
               {canCreateHospital && (
                 <button onClick={() => setModal('hospital')} className="btn-primary text-sm flex items-center gap-2">
@@ -1148,40 +1187,75 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 gap-1">
-        {TABS.filter(({ key }) => key !== 'config' || canAccessConfig).map(({ key, label, icon: Icon }) => (
+        {TABS.filter(({ key }) => {
+          if (key === 'config' && !canAccessConfig) return false;
+          if (key === 'roles'  && isDirector)       return false;
+          return true;
+        }).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
               ${tab === key ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             <Icon className="w-4 h-4" />
             {label}
-            {key === 'users'     && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{isCNO && cnoHospitalId ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length : users.length}</span>}
-            {key === 'hospitals' && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{isCNO && cnoHospitalId ? 1 : hospitals.length}</span>}
+            {key === 'users' && (
+              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                {isDirector && directorDeptId
+                  ? users.filter((u: any) => userDeptId(u) === directorDeptId).length
+                  : isCNO && cnoHospitalId
+                    ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length
+                    : users.length}
+              </span>
+            )}
+            {key === 'hospitals' && (
+              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                {(isCNO && cnoHospitalId) || (isDirector && directorHospitalId) ? 1 : hospitals.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {/* ── Hospital Directory ── */}
       {tab === 'hospitals' && (() => {
-        // CNO sees only their own hospital; SVP/Admin see all
-        const visibleHospitals = isCNO && cnoHospitalId
+        const visibleHospitals = (isCNO && cnoHospitalId)
           ? hospitals.filter((h) => h.id === cnoHospitalId)
-          : hospitals;
-        const visibleUnitsCount = isCNO && cnoHospitalId
+          : (isDirector && directorHospitalId)
+            ? hospitals.filter((h) => h.id === directorHospitalId)
+            : hospitals;
+
+        // Director sees only units under their own department
+        function getVisibleUnits(hospitalId: string) {
+          if (isDirector && directorDeptId) {
+            const dept = childUnits.find((u) => u.id === directorDeptId);
+            if (!dept) return [];
+            const units = childUnits.filter((u) => u.parentId === directorDeptId);
+            return [dept, ...units];
+          }
+          return getUnits(hospitalId);
+        }
+
+        const visibleUnitsCount = (isCNO && cnoHospitalId)
           ? getUnits(cnoHospitalId).length
-          : childUnits.length;
+          : (isDirector && directorDeptId)
+            ? childUnits.filter((u) => u.parentId === directorDeptId).length // child units of their dept
+            : childUnits.length;
 
         return (
           <div className="space-y-4">
-            {/* Stats — simplified for CNO */}
-            {isCNO ? (
+            {/* Stats strip */}
+            {(isCNO || isDirector) ? (
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-blue-50 rounded-xl px-5 py-4">
-                  <p className="text-xs text-gray-500 mb-1">Your Hospital</p>
-                  <p className="text-base font-bold text-blue-700 truncate">{cnoHospitalName || '—'}</p>
+                  <p className="text-xs text-gray-500 mb-1">{isDirector ? 'Your Hospital' : 'Your Hospital'}</p>
+                  <p className="text-base font-bold text-blue-700 truncate">
+                    {isDirector ? (directorHospitalName || '—') : (cnoHospitalName || '—')}
+                  </p>
                 </div>
                 <div className="bg-gray-50 rounded-xl px-5 py-4">
-                  <p className="text-xs text-gray-500 mb-1">Dept / Units</p>
-                  <p className="text-2xl font-bold text-gray-700">{visibleUnitsCount}</p>
+                  <p className="text-xs text-gray-500 mb-1">{isDirector ? 'Your Department' : 'Dept / Units'}</p>
+                  {isDirector
+                    ? <p className="text-base font-bold text-gray-700 truncate">{directorDeptName || '—'}</p>
+                    : <p className="text-2xl font-bold text-gray-700">{visibleUnitsCount}</p>}
                 </div>
               </div>
             ) : (
@@ -1206,12 +1280,12 @@ export default function AdminPage() {
 
             {visibleHospitals.length === 0 ? (
               <div className="text-center py-12 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
-                {isCNO ? 'Your hospital is not configured yet.' : 'No hospitals yet — click "Add Hospital" to get started.'}
+                {isCNO ? 'Your hospital is not configured yet.' : isDirector ? 'Your department is not configured yet.' : 'No hospitals yet — click "Add Hospital" to get started.'}
               </div>
             ) : (
               <div className="space-y-3">
                 {visibleHospitals.sort((a, b) => a.name.localeCompare(b.name)).map((h) => (
-                  <HospitalRow key={h.id} hospital={h} cno={getCno(h.id)} units={getUnits(h.id)} />
+                  <HospitalRow key={h.id} hospital={h} cno={getCno(h.id)} units={getVisibleUnits(h.id)} />
                 ))}
               </div>
             )}
@@ -1296,7 +1370,15 @@ export default function AdminPage() {
             </table>
           </div>
 
-          <p className="text-xs text-gray-400">{filteredUsers.length} of {isCNO && cnoHospitalId ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length : users.length} users</p>
+          <p className="text-xs text-gray-400">
+            {filteredUsers.length} of {
+              isDirector && directorDeptId
+                ? users.filter((u: any) => userDeptId(u) === directorDeptId).length
+                : isCNO && cnoHospitalId
+                  ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length
+                  : users.length
+            } users
+          </p>
         </div>
       )}
 
