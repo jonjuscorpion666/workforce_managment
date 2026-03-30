@@ -1083,45 +1083,69 @@ export default function AdminPage() {
             <Icon className="w-4 h-4" />
             {label}
             {key === 'users'     && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{users.length}</span>}
-            {key === 'hospitals' && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{hospitals.length}</span>}
+            {key === 'hospitals' && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{isCNO && cnoHospitalId ? 1 : hospitals.length}</span>}
           </button>
         ))}
       </div>
 
       {/* ── Hospital Directory ── */}
-      {tab === 'hospitals' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Hospitals',     value: hospitals.length,  color: 'text-blue-700',  bg: 'bg-blue-50' },
-              { label: 'CNOs assigned', value: cnoUsers.filter((u) => u.orgUnit).length, color: 'text-amber-700', bg: 'bg-amber-50' },
-              { label: 'Dept / Units',  value: childUnits.length, color: 'text-gray-700',  bg: 'bg-gray-50' },
-            ].map(({ label, value, color, bg }) => (
-              <div key={label} className={`${bg} rounded-xl px-5 py-4`}>
-                <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      {tab === 'hospitals' && (() => {
+        // CNO sees only their own hospital; SVP/Admin see all
+        const visibleHospitals = isCNO && cnoHospitalId
+          ? hospitals.filter((h) => h.id === cnoHospitalId)
+          : hospitals;
+        const visibleUnitsCount = isCNO && cnoHospitalId
+          ? getUnits(cnoHospitalId).length
+          : childUnits.length;
+
+        return (
+          <div className="space-y-4">
+            {/* Stats — simplified for CNO */}
+            {isCNO ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-blue-50 rounded-xl px-5 py-4">
+                  <p className="text-xs text-gray-500 mb-1">Your Hospital</p>
+                  <p className="text-base font-bold text-blue-700 truncate">{cnoHospitalName || '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl px-5 py-4">
+                  <p className="text-xs text-gray-500 mb-1">Dept / Units</p>
+                  <p className="text-2xl font-bold text-gray-700">{visibleUnitsCount}</p>
+                </div>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Hospitals',     value: hospitals.length,  color: 'text-blue-700',  bg: 'bg-blue-50' },
+                  { label: 'CNOs assigned', value: cnoUsers.filter((u) => u.orgUnit).length, color: 'text-amber-700', bg: 'bg-amber-50' },
+                  { label: 'Dept / Units',  value: childUnits.length, color: 'text-gray-700',  bg: 'bg-gray-50' },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} className={`${bg} rounded-xl px-5 py-4`}>
+                    <p className="text-xs text-gray-500 mb-1">{label}</p>
+                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
-          <div className="flex items-center gap-4 text-xs text-gray-400">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Department</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Unit</span>
-          </div>
+            <div className="flex items-center gap-4 text-xs text-gray-400">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Department</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Unit</span>
+            </div>
 
-          {hospitals.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
-              No hospitals yet — click "Add Hospital" to get started.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {hospitals.sort((a, b) => a.name.localeCompare(b.name)).map((h) => (
-                <HospitalRow key={h.id} hospital={h} cno={getCno(h.id)} units={getUnits(h.id)} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+            {visibleHospitals.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
+                {isCNO ? 'Your hospital is not configured yet.' : 'No hospitals yet — click "Add Hospital" to get started.'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleHospitals.sort((a, b) => a.name.localeCompare(b.name)).map((h) => (
+                  <HospitalRow key={h.id} hospital={h} cno={getCno(h.id)} units={getUnits(h.id)} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Users ── */}
       {tab === 'users' && (
