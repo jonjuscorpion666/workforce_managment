@@ -497,28 +497,81 @@ function BulkUploadModal({ onClose }: { onClose: () => void }) {
 
 function AddHospitalModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
-  const [name, setName]         = useState('');
-  const [code, setCode]         = useState('');
-  const [location, setLocation] = useState('');
-  const [error, setError]       = useState('');
+  const [name,        setName]        = useState('');
+  const [code,        setCode]        = useState('');
+  const [address,     setAddress]     = useState('');
+  const [city,        setCity]        = useState('');
+  const [state,       setState]       = useState('');
+  const [zipCode,     setZipCode]     = useState('');
+  const [phone,       setPhone]       = useState('');
+  const [website,     setWebsite]     = useState('');
+  const [bedCapacity, setBedCapacity] = useState('');
+  const [timezone,    setTimezone]    = useState('');
+  const [error,       setError]       = useState('');
 
   const create = useMutation({
-    mutationFn: () => api.post('/org/units', { name: name.trim(), code: code.trim(), location: location.trim(), level: 'HOSPITAL' }),
+    mutationFn: () => api.post('/org/units', {
+      name: name.trim(),
+      code: code.trim() || undefined,
+      address: address.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim() || undefined,
+      zipCode: zipCode.trim() || undefined,
+      location: [city.trim(), state.trim()].filter(Boolean).join(', ') || undefined,
+      phone: phone.trim() || undefined,
+      website: website.trim() || undefined,
+      bedCapacity: bedCapacity ? Number(bedCapacity) : undefined,
+      timezone: timezone.trim() || undefined,
+      level: 'HOSPITAL',
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['org-units'] }); onClose(); },
     onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to create hospital'),
   });
 
   return (
     <Modal title="Add Hospital" onClose={onClose}>
+      {/* Basic info */}
       <Field label="Hospital Name" required>
         <input className="input" placeholder="e.g. Franciscan Health Olympia Fields" value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Code">
-        <input className="input" placeholder="e.g. FH-OLYMPIA" value={code} onChange={(e) => setCode(e.target.value)} />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Code">
+          <input className="input" placeholder="e.g. FH-OLYMPIA" value={code} onChange={(e) => setCode(e.target.value)} />
+        </Field>
+        <Field label="Bed Capacity">
+          <input type="number" min="0" className="input" placeholder="e.g. 250" value={bedCapacity} onChange={(e) => setBedCapacity(e.target.value)} />
+        </Field>
+      </div>
+
+      {/* Address */}
+      <Field label="Street Address">
+        <input className="input" placeholder="e.g. 20201 S Crawford Ave" value={address} onChange={(e) => setAddress(e.target.value)} />
       </Field>
-      <Field label="Location">
-        <input className="input" placeholder="e.g. Olympia Fields, IL" value={location} onChange={(e) => setLocation(e.target.value)} />
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="City">
+          <input className="input" placeholder="Olympia Fields" value={city} onChange={(e) => setCity(e.target.value)} />
+        </Field>
+        <Field label="State">
+          <input className="input" placeholder="IL" value={state} onChange={(e) => setState(e.target.value)} />
+        </Field>
+        <Field label="ZIP Code">
+          <input className="input" placeholder="60461" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
+        </Field>
+      </div>
+
+      {/* Contact */}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Phone">
+          <input className="input" placeholder="e.g. (708) 747-4000" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        <Field label="Website">
+          <input className="input" placeholder="e.g. franciscanhealth.org" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Timezone">
+        <input className="input" placeholder="e.g. America/Chicago" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
       </Field>
+
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-3 pt-2">
         <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
@@ -946,7 +999,9 @@ export default function AdminPage() {
       {modal === 'role'     && <AddRoleModal onClose={() => setModal(null)} />}
       {modal === 'user'     && (
         <UserModal
-          roles={roles}
+          roles={hasRole('CNP')
+            ? roles.filter((r: any) => ['DIRECTOR', 'MANAGER', 'NURSE'].includes(r.name))
+            : roles}
           orgUnits={orgUnits}
           allUsers={users}
           editUser={editUser}

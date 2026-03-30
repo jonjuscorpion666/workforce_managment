@@ -41,6 +41,27 @@ export class OrgUnit {
   location: string;
 
   @Column({ nullable: true })
+  address: string;
+
+  @Column({ nullable: true })
+  city: string;
+
+  @Column({ nullable: true })
+  state: string;
+
+  @Column({ nullable: true })
+  zipCode: string;
+
+  @Column({ nullable: true })
+  phone: string;
+
+  @Column({ nullable: true })
+  website: string;
+
+  @Column({ nullable: true, type: 'int' })
+  bedCapacity: number;
+
+  @Column({ nullable: true })
   timezone: string;
 
   @CreateDateColumn()
