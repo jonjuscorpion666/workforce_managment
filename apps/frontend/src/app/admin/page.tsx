@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Users, Shield, Building2, LayoutGrid, ChevronDown,
@@ -874,6 +875,8 @@ function ConfigTab({ config }: { config: any[] }) {
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const { hasRole } = useAuth();
+  const canCreateHospital = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const [tab,       setTab]       = useState<Tab>('hospitals');
   const [modal,     setModal]     = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | null>(null);
   const [editUser,  setEditUser]  = useState<any>(null);
@@ -965,9 +968,11 @@ export default function AdminPage() {
               <button onClick={() => setModal('unit')} className="btn-secondary text-sm flex items-center gap-2">
                 <Layers className="w-4 h-4" /> Add Dept / Unit
               </button>
-              <button onClick={() => setModal('hospital')} className="btn-primary text-sm flex items-center gap-2">
-                <Building className="w-4 h-4" /> Add Hospital
-              </button>
+              {canCreateHospital && (
+                <button onClick={() => setModal('hospital')} className="btn-primary text-sm flex items-center gap-2">
+                  <Building className="w-4 h-4" /> Add Hospital
+                </button>
+              )}
             </>
           )}
           {tab === 'users' && (
@@ -980,7 +985,7 @@ export default function AdminPage() {
               </button>
             </>
           )}
-          {tab === 'roles' && (
+          {tab === 'roles' && canCreateHospital && (
             <button onClick={() => setModal('role')} className="btn-primary text-sm flex items-center gap-2">
               <Plus className="w-4 h-4" /> Add Role
             </button>
