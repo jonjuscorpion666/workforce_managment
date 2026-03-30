@@ -7,14 +7,14 @@ import {
   ClipboardList, CheckCircle2, Clock, LogOut, ChevronRight, ShieldCheck,
   Megaphone, AlertTriangle, Bell, Check, Globe, Building2, LayoutGrid,
   ChevronDown, MessageCircle, CheckSquare, TrendingUp, BookOpen,
-  LayoutDashboard, Send, User,
+  LayoutDashboard, Send, User, BarChart2,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useNurseAuth } from '@/lib/nurse-auth';
 import { formatDate } from '@/lib/utils';
 
-type Tab = 'home' | 'updates' | 'issues' | 'tasks' | 'guide';
+type Tab = 'home' | 'updates' | 'issues' | 'tasks' | 'analytics' | 'guide';
 
 // ─── Style maps ─────────────────────────────────────────────────────────────
 
@@ -411,6 +411,236 @@ function TaskCard({ task }: { task: any }) {
   );
 }
 
+// ─── Analytics tab ───────────────────────────────────────────────────────────
+
+const SCORE_DIMS = [
+  'Advocacy', 'Organizational Pride', 'Workload & Wellbeing', 'Meaningful Work',
+  'Recognition', 'Leadership Comms', 'Psychological Safety', 'Manager Feedback',
+  'Professional Growth', 'Overall Experience',
+];
+
+function scoreColor(n: number) {
+  if (n >= 70) return { bar: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' };
+  if (n >= 50) return { bar: 'bg-amber-400',   text: 'text-amber-700',   bg: 'bg-amber-50' };
+  return           { bar: 'bg-red-400',        text: 'text-red-700',     bg: 'bg-red-50' };
+}
+
+function ScoreBar({ label, score, highlight }: { label: string; score: number; highlight?: boolean }) {
+  const c = scoreColor(score);
+  return (
+    <div className={`rounded-xl p-3 ${highlight ? 'ring-2 ring-blue-400' : ''} bg-white border border-gray-100`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-xs font-medium ${highlight ? 'text-blue-700' : 'text-gray-700'} truncate pr-2`}>{label}</span>
+        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} flex-shrink-0`}>{score}%</span>
+      </div>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full ${c.bar} rounded-full transition-all`} style={{ width: `${score}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsTab({ myOrgUnit, heatmap, lowUnits, trends, loading }: {
+  myOrgUnit: any;
+  heatmap: any;
+  lowUnits: any;
+  trends: any;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 h-20 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  // ── My department scores from heatmap ─────────────────────────────────────
+  const myUnit = heatmap?.units?.find((u: any) => u.orgUnitId === myOrgUnit?.id);
+  const myScores: Record<string, number> = myUnit?.scores ?? {};
+
+  // ── Avg scores across all departments (for comparison) ────────────────────
+  const allUnits: any[] = heatmap?.units ?? [];
+  const avgScores: Record<string, number> = {};
+  if (allUnits.length > 0) {
+    for (const dim of SCORE_DIMS) {
+      const vals = allUnits.map((u) => u.scores?.[dim] ?? 0).filter((v) => v > 0);
+      avgScores[dim] = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+    }
+  }
+
+  // ── Department ranking: overall favorable from low-units ──────────────────
+  const deptRanking: any[] = (lowUnits?.units ?? []).sort((a: any, b: any) => b.overallFavorable - a.overallFavorable);
+  const myRank = deptRanking.findIndex((u: any) => u.orgUnitId === myOrgUnit?.id) + 1;
+  const myLowUnit = deptRanking.find((u: any) => u.orgUnitId === myOrgUnit?.id);
+
+  // ── Hospital comparison: group by hospitalId, average overallFavorable ────
+  const hospitalMap = new Map<string, { name: string; scores: number[] }>();
+  for (const u of deptRanking) {
+    if (!u.hospitalId) continue;
+    if (!hospitalMap.has(u.hospitalId)) hospitalMap.set(u.hospitalId, { name: u.hospitalName, scores: [] });
+    if (u.overallFavorable > 0) hospitalMap.get(u.hospitalId)!.scores.push(u.overallFavorable);
+  }
+  const hospitals = Array.from(hospitalMap.entries())
+    .map(([id, { name, scores }]) => ({
+      id, name,
+      avg: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+    }))
+    .sort((a, b) => b.avg - a.avg);
+  const myHospitalId = myLowUnit?.hospitalId;
+
+  // ── Trend cycles ──────────────────────────────────────────────────────────
+  const cycles: any[] = trends?.cycles?.slice(-6) ?? [];
+
+  const noData = !myUnit && allUnits.length === 0;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-base font-bold text-gray-900">Department Insights</h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {myOrgUnit?.name ?? 'Your department'} · how you compare across the hospital system
+        </p>
+      </div>
+
+      {noData && (
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+          <BarChart2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm font-medium">No analytics data yet</p>
+          <p className="text-gray-400 text-xs mt-1">Data will appear once surveys have been completed.</p>
+        </div>
+      )}
+
+      {/* ── My dept overall score ── */}
+      {myLowUnit && (
+        <div className={`rounded-2xl p-4 ${scoreColor(myLowUnit.overallFavorable).bg} border border-gray-100`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-600">Overall Engagement Score</p>
+              <p className="text-3xl font-bold text-gray-900 mt-0.5">{myLowUnit.overallFavorable}%</p>
+              <p className="text-xs text-gray-500 mt-0.5">{myOrgUnit?.name ?? 'Your dept'}</p>
+            </div>
+            <div className="text-right">
+              {myRank > 0 && (
+                <>
+                  <p className="text-xs text-gray-400">Dept rank</p>
+                  <p className="text-2xl font-bold text-gray-700">#{myRank}</p>
+                  <p className="text-xs text-gray-400">of {deptRanking.length}</p>
+                </>
+              )}
+            </div>
+          </div>
+          {myLowUnit.lowestDimension && (
+            <div className="mt-3 bg-white/60 rounded-xl px-3 py-2">
+              <p className="text-xs text-gray-500">
+                Lowest area: <span className="font-semibold text-gray-700">{myLowUnit.lowestDimension}</span>
+                {' '}— <span className={scoreColor(myLowUnit.lowestScore).text}>{myLowUnit.lowestScore}%</span>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Dimension breakdown vs hospital avg ── */}
+      {myUnit && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-800">Dimension Breakdown</p>
+          <p className="text-xs text-gray-400 mb-2">Your dept (highlighted) vs hospital average</p>
+          {SCORE_DIMS.filter((d) => (myScores[d] ?? 0) > 0 || (avgScores[d] ?? 0) > 0).map((dim) => {
+            const mine = myScores[dim] ?? 0;
+            const avg  = avgScores[dim] ?? 0;
+            return (
+              <div key={dim} className="space-y-1">
+                <ScoreBar label={`${dim} (you)`} score={mine} highlight />
+                {avg > 0 && (
+                  <ScoreBar label={`${dim} (avg)`} score={avg} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Department ranking ── */}
+      {deptRanking.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-gray-800 mb-2">Department Rankings</p>
+          <div className="space-y-2">
+            {deptRanking.map((u: any, i: number) => {
+              const isMe = u.orgUnitId === myOrgUnit?.id;
+              const c = scoreColor(u.overallFavorable);
+              return (
+                <div key={u.orgUnitId} className={`flex items-center gap-3 bg-white rounded-xl border px-4 py-3 ${isMe ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200'}`}>
+                  <span className={`text-sm font-bold w-6 text-center ${isMe ? 'text-blue-600' : 'text-gray-400'}`}>
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isMe ? 'text-blue-700' : 'text-gray-800'}`}>
+                      {u.orgUnitName ?? '—'}{isMe ? ' (You)' : ''}
+                    </p>
+                    {u.hospitalName && <p className="text-xs text-gray-400 truncate">{u.hospitalName}</p>}
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.bg} ${c.text} flex-shrink-0`}>
+                    {u.overallFavorable}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Hospital vs hospital ── */}
+      {hospitals.length > 1 && (
+        <div>
+          <p className="text-sm font-semibold text-gray-800 mb-2">Hospital Comparison</p>
+          <div className="space-y-2">
+            {hospitals.map((h, i) => {
+              const isMe = h.id === myHospitalId;
+              const c = scoreColor(h.avg);
+              return (
+                <div key={h.id} className={`flex items-center gap-3 bg-white rounded-xl border px-4 py-3 ${isMe ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200'}`}>
+                  <span className={`text-sm font-bold w-6 text-center ${isMe ? 'text-blue-600' : 'text-gray-400'}`}>{i + 1}</span>
+                  <p className={`flex-1 text-sm font-medium truncate ${isMe ? 'text-blue-700' : 'text-gray-800'}`}>
+                    {h.name}{isMe ? ' (Your hospital)' : ''}
+                  </p>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${c.bg} ${c.text}`}>{h.avg}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Trend over time ── */}
+      {cycles.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-gray-800 mb-2">Your Department Trend</p>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+            {cycles.map((c: any) => {
+              const dims = c.dimensions ?? {};
+              const vals = Object.values(dims) as number[];
+              const overall = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+              const col = scoreColor(overall);
+              return (
+                <div key={c.period} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400 w-16 flex-shrink-0">{c.period}</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full ${col.bar} rounded-full transition-all`} style={{ width: `${overall}%` }} />
+                  </div>
+                  <span className={`text-xs font-bold ${col.text} w-10 text-right flex-shrink-0`}>{overall}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Speak Up inline form ────────────────────────────────────────────────────
 
 const SPEAK_UP_CATEGORIES = [
@@ -619,6 +849,27 @@ export default function NursePortalPage() {
     enabled: isAuthenticated,
   });
 
+  const { data: heatmap, isLoading: heatmapLoading } = useQuery<any>({
+    queryKey: ['nurse-heatmap'],
+    queryFn: () => api.get('/analytics/heatmap').then((r) => r.data),
+    enabled: isAuthenticated && tab === 'analytics',
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: lowUnits, isLoading: lowUnitsLoading } = useQuery<any>({
+    queryKey: ['nurse-low-units'],
+    queryFn: () => api.get('/analytics/low-units').then((r) => r.data),
+    enabled: isAuthenticated && tab === 'analytics',
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: trends, isLoading: trendsLoading } = useQuery<any>({
+    queryKey: ['nurse-trends', nurse?.orgUnit?.id],
+    queryFn: () => api.get('/analytics/trends', { params: { orgUnitId: nurse?.orgUnit?.id } }).then((r) => r.data),
+    enabled: isAuthenticated && tab === 'analytics' && !!nurse?.orgUnit?.id,
+    staleTime: 5 * 60_000,
+  });
+
   const markRead = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['nurse-announcements'] }),
@@ -645,11 +896,12 @@ export default function NursePortalPage() {
     .filter((t) => !myOrgUnitId || !t.orgUnitId || t.orgUnitId === myOrgUnitId);
 
   const TABS = [
-    { id: 'home'    as Tab, label: 'Home',    Icon: LayoutDashboard, badge: 0 },
-    { id: 'updates' as Tab, label: 'Updates', Icon: Megaphone,       badge: unreadCount + pendingAckCount },
-    { id: 'issues'  as Tab, label: 'Issues',  Icon: AlertTriangle,   badge: deptIssues.length },
-    { id: 'tasks'   as Tab, label: 'Tasks',   Icon: CheckSquare,     badge: deptTasks.length },
-    { id: 'guide'   as Tab, label: 'Guide',   Icon: BookOpen,        badge: 0 },
+    { id: 'home'      as Tab, label: 'Home',      Icon: LayoutDashboard, badge: 0 },
+    { id: 'updates'   as Tab, label: 'Updates',   Icon: Megaphone,       badge: unreadCount + pendingAckCount },
+    { id: 'issues'    as Tab, label: 'Issues',    Icon: AlertTriangle,   badge: deptIssues.length },
+    { id: 'tasks'     as Tab, label: 'Tasks',     Icon: CheckSquare,     badge: deptTasks.length },
+    { id: 'analytics' as Tab, label: 'Insights',  Icon: BarChart2,       badge: 0 },
+    { id: 'guide'     as Tab, label: 'Guide',     Icon: BookOpen,        badge: 0 },
   ];
 
   function handleLogout() { logout(); router.push('/portal/login'); }
@@ -885,6 +1137,17 @@ export default function NursePortalPage() {
                 </div>
               )}
             </section>
+          )}
+
+          {/* ── ANALYTICS TAB ── */}
+          {tab === 'analytics' && (
+            <AnalyticsTab
+              myOrgUnit={nurse?.orgUnit ?? null}
+              heatmap={heatmap}
+              lowUnits={lowUnits}
+              trends={trends}
+              loading={heatmapLoading || lowUnitsLoading || trendsLoading}
+            />
           )}
 
           {/* ── GUIDE TAB ── */}
