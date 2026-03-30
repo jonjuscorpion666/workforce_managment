@@ -56,12 +56,15 @@ function Field({ label, required, hint, children }: { label: string; required?: 
 
 function UserModal({
   roles, orgUnits, allUsers, editUser, onClose,
+  lockedHospitalId = '', lockedHospitalName = '',
 }: {
   roles: any[];
   orgUnits: any[];
   allUsers: any[];
   editUser?: any;
   onClose: () => void;
+  lockedHospitalId?: string;
+  lockedHospitalName?: string;
 }) {
   const qc = useQueryClient();
   const isEdit = !!editUser;
@@ -73,7 +76,7 @@ function UserModal({
   const [jobTitle,    setJobTitle]    = useState(editUser?.jobTitle    ?? '');
   const [employeeId,  setEmployeeId]  = useState(editUser?.employeeId  ?? '');
   const [roleName,    setRoleName]    = useState(editUser?.roles?.[0]?.name ?? '');
-  const [orgUnitId,   setOrgUnitId]   = useState(editUser?.orgUnit?.id ?? '');
+  const [orgUnitId,   setOrgUnitId]   = useState(editUser?.orgUnit?.id ?? (lockedHospitalId || ''));
   const [reportsToId, setReportsToId] = useState(editUser?.reportsTo?.id ?? '');
   const [status,      setStatus]      = useState(editUser?.status ?? 'ACTIVE');
   const [error,       setError]       = useState('');
@@ -83,8 +86,20 @@ function UserModal({
   const departments = orgUnits.filter((u) => u.level === 'DEPARTMENT');
   const units       = orgUnits.filter((u) => u.level === 'UNIT');
 
+  // When locked to a hospital, filter org units to only that hospital's subtree
+  const isLocked = !!lockedHospitalId;
+  function isUnderHospital(unit: any): boolean {
+    if (unit.level === 'HOSPITAL') return unit.id === lockedHospitalId;
+    if (unit.level === 'DEPARTMENT') return unit.parentId === lockedHospitalId;
+    // UNIT — check its parent department
+    const dept = departments.find((d) => d.id === unit.parentId);
+    return dept?.parentId === lockedHospitalId;
+  }
+  const visibleHospitals   = isLocked ? hospitals.filter((h) => h.id === lockedHospitalId) : hospitals;
+  const visibleDepartments = isLocked ? departments.filter(isUnderHospital) : departments;
+  const visibleUnits       = isLocked ? units.filter(isUnderHospital) : units;
+
   function getLabel(unit: any) {
-    // Find hospital ancestor
     const dept = departments.find((d) => d.id === unit.parentId);
     const hosp = dept
       ? hospitals.find((h) => h.id === dept.parentId)
@@ -92,6 +107,24 @@ function UserModal({
     const parts = [hosp?.name, dept?.name, unit.name].filter(Boolean);
     return parts.join(' › ');
   }
+
+  // Hierarchy-based manager filter when locked to a hospital
+  const managerRoleForRole: Record<string, string[]> = {
+    DIRECTOR: ['CNP'],
+    MANAGER:  ['DIRECTOR'],
+    NURSE:    ['MANAGER'],
+    PCT:      ['MANAGER'],
+  };
+  const allowedManagerRoles = isLocked && roleName ? (managerRoleForRole[roleName] ?? []) : [];
+  const filteredManagers = isLocked && allowedManagerRoles.length > 0
+    ? allUsers.filter((u) => {
+        const uRole = u.roles?.[0]?.name ?? '';
+        if (!allowedManagerRoles.includes(uRole)) return false;
+        // must belong to same hospital subtree
+        if (!u.orgUnit) return uRole === 'CNP'; // CNO may not have an orgUnit set
+        return isUnderHospital(u.orgUnit) || u.orgUnit?.id === lockedHospitalId || uRole === 'CNP';
+      })
+    : allUsers.filter((u) => u.id !== editUser?.id);
 
   const save = useMutation({
     mutationFn: () => {
@@ -164,36 +197,58 @@ function UserModal({
 
       {/* Org unit */}
       <Field label="Assign to Org Unit" hint="Select the hospital, department, or unit this user belongs to.">
-        <select className="input text-sm" value={orgUnitId} onChange={(e) => setOrgUnitId(e.target.value)}>
-          <option value="">— None —</option>
-          <optgroup label="Hospitals">
-            {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-          </optgroup>
-          {departments.length > 0 && (
-            <optgroup label="Departments">
-              {departments.map((d) => <option key={d.id} value={d.id}>{getLabel(d)}</option>)}
+        {isLocked ? (
+          <div>
+            <select className="input text-sm" value={orgUnitId} onChange={(e) => setOrgUnitId(e.target.value)}>
+              <optgroup label="Hospital">
+                {visibleHospitals.map((h) => <option key={h.id} value={h.id}>{h.name} 🔒</option>)}
+              </optgroup>
+              {visibleDepartments.length > 0 && (
+                <optgroup label="Departments">
+                  {visibleDepartments.map((d) => <option key={d.id} value={d.id}>{getLabel(d)}</option>)}
+                </optgroup>
+              )}
+              {visibleUnits.length > 0 && (
+                <optgroup label="Units / Teams">
+                  {visibleUnits.map((u) => <option key={u.id} value={u.id}>{getLabel(u)}</option>)}
+                </optgroup>
+              )}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Org units scoped to {lockedHospitalName}</p>
+          </div>
+        ) : (
+          <select className="input text-sm" value={orgUnitId} onChange={(e) => setOrgUnitId(e.target.value)}>
+            <option value="">— None —</option>
+            <optgroup label="Hospitals">
+              {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
             </optgroup>
-          )}
-          {units.length > 0 && (
-            <optgroup label="Units / Teams">
-              {units.map((u) => <option key={u.id} value={u.id}>{getLabel(u)}</option>)}
-            </optgroup>
-          )}
-        </select>
+            {departments.length > 0 && (
+              <optgroup label="Departments">
+                {departments.map((d) => <option key={d.id} value={d.id}>{getLabel(d)}</option>)}
+              </optgroup>
+            )}
+            {units.length > 0 && (
+              <optgroup label="Units / Teams">
+                {units.map((u) => <option key={u.id} value={u.id}>{getLabel(u)}</option>)}
+              </optgroup>
+            )}
+          </select>
+        )}
       </Field>
 
       {/* Immediate manager */}
-      <Field label="Immediate Manager" hint="Who does this person report to?">
+      <Field label="Immediate Manager" hint={isLocked && allowedManagerRoles.length ? `Filtered to ${allowedManagerRoles.join('/')} role(s)` : 'Who does this person report to?'}>
         <select className="input text-sm" value={reportsToId} onChange={(e) => setReportsToId(e.target.value)}>
           <option value="">— None —</option>
-          {allUsers
-            .filter((u) => u.id !== editUser?.id) // can't report to themselves
-            .map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.firstName} {u.lastName} ({u.roles?.[0]?.name ?? 'No role'})
-              </option>
-            ))}
+          {filteredManagers.map((u: any) => (
+            <option key={u.id} value={u.id}>
+              {u.firstName} {u.lastName} ({u.roles?.[0]?.name ?? 'No role'})
+            </option>
+          ))}
         </select>
+        {isLocked && allowedManagerRoles.length > 0 && filteredManagers.length === 0 && (
+          <p className="text-xs text-amber-500 mt-1">No {allowedManagerRoles.join('/')} users found for this hospital yet.</p>
+        )}
       </Field>
 
       {/* Job title + employee ID */}
@@ -939,6 +994,7 @@ function ConfigTab({ config }: { config: any[] }) {
 export default function AdminPage() {
   const { hasRole } = useAuth();
   const canCreateHospital = hasRole('SVP') || hasRole('SUPER_ADMIN');
+  const canAccessConfig   = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const [tab,       setTab]       = useState<Tab>('hospitals');
   const [modal,     setModal]     = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | null>(null);
   const [editUser,  setEditUser]  = useState<any>(null);
@@ -989,8 +1045,22 @@ export default function AdminPage() {
     return [...direct, ...grandchildren];
   }
 
-  // Filtered users list
+  // Resolve the hospital ancestor for a user's orgUnit (walks up max 2 levels)
+  function userHospitalId(u: any): string | null {
+    const ou = u.orgUnit;
+    if (!ou) return null;
+    if (ou.level === 'HOSPITAL') return ou.id;
+    if (ou.level === 'DEPARTMENT') return ou.parent?.id ?? null;
+    if (ou.level === 'UNIT') return ou.parent?.parent?.id ?? ou.parent?.id ?? null;
+    return null;
+  }
+
+  // Filtered users list — CNO sees only users in their hospital
   const filteredUsers = users.filter((u) => {
+    if (isCNO && cnoHospitalId) {
+      const hId = userHospitalId(u);
+      if (hId !== cnoHospitalId) return false;
+    }
     const q = userSearch.toLowerCase();
     const matchesSearch = !q
       || `${u.firstName} ${u.lastName}`.toLowerCase().includes(q)
@@ -1026,12 +1096,14 @@ export default function AdminPage() {
       {modal === 'user'     && (
         <UserModal
           roles={hasRole('CNP')
-            ? roles.filter((r: any) => ['DIRECTOR', 'MANAGER', 'NURSE'].includes(r.name))
+            ? roles.filter((r: any) => ['DIRECTOR', 'MANAGER', 'NURSE', 'PCT'].includes(r.name))
             : roles}
           orgUnits={orgUnits}
           allUsers={users}
           editUser={editUser}
           onClose={closeUserModal}
+          lockedHospitalId={isCNO ? cnoHospitalId : ''}
+          lockedHospitalName={isCNO ? cnoHospitalName : ''}
         />
       )}
       {modal === 'bulk'     && <BulkUploadModal onClose={() => setModal(null)} />}
@@ -1076,13 +1148,13 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 gap-1">
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {TABS.filter(({ key }) => key !== 'config' || canAccessConfig).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
               ${tab === key ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             <Icon className="w-4 h-4" />
             {label}
-            {key === 'users'     && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{users.length}</span>}
+            {key === 'users'     && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{isCNO && cnoHospitalId ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length : users.length}</span>}
             {key === 'hospitals' && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{isCNO && cnoHospitalId ? 1 : hospitals.length}</span>}
           </button>
         ))}
@@ -1224,7 +1296,7 @@ export default function AdminPage() {
             </table>
           </div>
 
-          <p className="text-xs text-gray-400">{filteredUsers.length} of {users.length} users</p>
+          <p className="text-xs text-gray-400">{filteredUsers.length} of {isCNO && cnoHospitalId ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length : users.length} users</p>
         </div>
       )}
 
@@ -1250,7 +1322,14 @@ export default function AdminPage() {
       )}
 
       {/* ── Config ── */}
-      {tab === 'config' && <ConfigTab config={config} />}
+      {tab === 'config' && canAccessConfig && <ConfigTab config={config} />}
+      {tab === 'config' && !canAccessConfig && (
+        <div className="card text-center py-16 text-gray-400">
+          <Settings className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium text-gray-500">Access Restricted</p>
+          <p className="text-sm mt-1">Platform config is only accessible to SVP and Super Admins.</p>
+        </div>
+      )}
     </div>
   );
 }

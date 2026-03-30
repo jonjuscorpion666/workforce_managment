@@ -11,6 +11,7 @@ export enum SystemRole {
   DIRECTOR     = 'DIRECTOR',      // Director — reports to CNP
   MANAGER      = 'MANAGER',       // Manager — reports to Director
   NURSE        = 'NURSE',         // Nurse — reports to Manager
+  PCT          = 'PCT',           // Patient Care Technician — same level as Nurse
   HR_ANALYST   = 'HR_ANALYST',    // HR / analytics access
   READ_ONLY    = 'READ_ONLY',     // View-only
 }

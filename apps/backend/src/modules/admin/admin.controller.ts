@@ -1,7 +1,15 @@
-import { Controller, Get, Post, Patch, Param, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+
+const CONFIG_ALLOWED_ROLES = ['SVP', 'SUPER_ADMIN'];
+function assertConfigAccess(req: any) {
+  const roles: string[] = req.user?.roles ?? [];
+  if (!roles.some((r) => CONFIG_ALLOWED_ROLES.includes(r))) {
+    throw new ForbiddenException('Platform config is restricted to SVP and Super Admins.');
+  }
+}
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -12,14 +20,23 @@ export class AdminController {
 
   @Post('config')
   @ApiOperation({ summary: 'Set platform config value' })
-  setConfig(@Body() body: any, @Req() req: any) { return this.svc.setConfig(body, req.user.id); }
+  setConfig(@Body() body: any, @Req() req: any) {
+    assertConfigAccess(req);
+    return this.svc.setConfig(body, req.user.id);
+  }
 
   @Get('config')
   @ApiOperation({ summary: 'Get all config values' })
-  getConfig() { return this.svc.getAllConfig(); }
+  getConfig(@Req() req: any) {
+    assertConfigAccess(req);
+    return this.svc.getAllConfig();
+  }
 
   @Get('config/:key')
-  getConfigByKey(@Param('key') key: string) { return this.svc.getConfig(key); }
+  getConfigByKey(@Param('key') key: string, @Req() req: any) {
+    assertConfigAccess(req);
+    return this.svc.getConfig(key);
+  }
 
   @Get('roles')
   @ApiOperation({ summary: 'List all roles' })

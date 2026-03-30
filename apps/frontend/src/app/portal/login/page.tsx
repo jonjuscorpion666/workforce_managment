@@ -126,6 +126,7 @@ export default function NurseLoginPage() {
               { name: 'Emily Carter',   email: 'nurse1@hospital.com', role: 'Nurse' },
               { name: 'Marcus Williams',email: 'nurse2@hospital.com', role: 'Nurse' },
               { name: 'Priya Sharma',   email: 'nurse3@hospital.com', role: 'Nurse' },
+              { name: 'Jordan Hayes',   email: 'pct1@hospital.com',   role: 'PCT'   },
             ].map((u) => (
               <button
                 key={u.email}

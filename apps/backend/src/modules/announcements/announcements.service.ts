@@ -58,7 +58,7 @@ export class AnnouncementsService {
     }
 
     // STAFF cannot create at all
-    if (role === 'NURSE' || role === 'STAFF') {
+    if (role === 'NURSE' || role === 'PCT' || role === 'STAFF') {
       throw new ForbiddenException('Staff cannot create announcements.');
     }
 

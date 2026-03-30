@@ -16,6 +16,7 @@ export async function seedDemoUsers(dataSource: DataSource) {
     { email: 'nurse1@hospital.com',   password: 'Password123!', firstName: 'Emily',  lastName: 'Carter',    role: 'NURSE',      jobTitle: 'Registered Nurse', employeeId: 'EMP001' },
     { email: 'nurse2@hospital.com',   password: 'Password123!', firstName: 'Marcus', lastName: 'Williams',  role: 'NURSE',      jobTitle: 'Registered Nurse', employeeId: 'EMP002' },
     { email: 'nurse3@hospital.com',   password: 'Password123!', firstName: 'Priya',  lastName: 'Sharma',    role: 'NURSE',      jobTitle: 'Registered Nurse', employeeId: 'EMP003' },
+    { email: 'pct1@hospital.com',    password: 'Password123!', firstName: 'Jordan', lastName: 'Hayes',     role: 'PCT',        jobTitle: 'Patient Care Technician', employeeId: 'EMP004' },
     { email: 'hr@hospital.com',       password: 'Password123!', firstName: 'Tanya',  lastName: 'Brooks',    role: 'HR_ANALYST', jobTitle: 'HR Analyst' },
     { email: 'admin@hospital.com',    password: 'Password123!', firstName: 'System', lastName: 'Admin',     role: 'SUPER_ADMIN',jobTitle: 'Platform Admin', isSuperAdmin: true },
   ];

@@ -31,7 +31,7 @@ export const useNurseAuth = create<NurseAuthState>()(
       login: async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password });
         const roles: string[] = data.user?.roles?.map((r: any) => r.name) ?? [];
-        const nurseRoles = ['NURSE', 'STAFF'];
+        const nurseRoles = ['NURSE', 'PCT', 'STAFF'];
         if (!roles.some((r) => nurseRoles.includes(r))) {
           throw new Error('Access denied. This portal is for nurses and staff only.');
         }

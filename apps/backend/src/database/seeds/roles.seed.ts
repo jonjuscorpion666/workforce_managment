@@ -9,6 +9,7 @@
  *   DIRECTOR     — Director; reports to CNP, manages a department
  *   MANAGER      — Manager; reports to Director, oversees a unit
  *   NURSE        — Nurse; reports to Manager
+ *   PCT          — Patient Care Technician; same level as Nurse
  *   HR_ANALYST   — cross-cutting analytics & survey management
  *   READ_ONLY    — view dashboards only
  */
@@ -156,6 +157,17 @@ const ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
     'announcements:read',
   ],
 
+  [SystemRole.PCT]: [
+    'surveys:read',
+    'responses:submit',
+    'issues:read',
+    'tasks:read',
+    'dashboard:read',
+    'speakup:submit',
+    'meetings:read',
+    'announcements:read',
+  ],
+
   [SystemRole.HR_ANALYST]: [
     'surveys:create', 'surveys:read', 'surveys:update', 'surveys:publish',
     'responses:read',
@@ -190,6 +202,7 @@ const ROLE_META: Record<SystemRole, { description: string }> = {
   [SystemRole.DIRECTOR]:    { description: 'Director — reports to CNP; manages a department and oversees Managers' },
   [SystemRole.MANAGER]:     { description: 'Manager — reports to Director; manages a unit and oversees Nurses' },
   [SystemRole.NURSE]:       { description: 'Nurse — reports to Manager; participates in surveys and can raise speak-up cases' },
+  [SystemRole.PCT]:         { description: 'Patient Care Technician — same level as Nurse; participates in surveys and can raise speak-up cases' },
   [SystemRole.HR_ANALYST]:  { description: 'HR Analyst — analytics, survey management, and speak-up case handling' },
   [SystemRole.READ_ONLY]:   { description: 'Read-only access — view dashboards and announcements only' },
 };
@@ -240,7 +253,8 @@ export async function seedRoles(dataSource: DataSource) {
   console.log('      ├── VP       (reports to CNP)');
   console.log('      └── DIRECTOR (reports to CNP)');
   console.log('          └── MANAGER  (reports to DIRECTOR)');
-  console.log('              └── NURSE    (reports to MANAGER)');
+  console.log('              ├── NURSE    (reports to MANAGER)');
+  console.log('              └── PCT      (Patient Care Technician — same level as NURSE)');
   console.log('  HR_ANALYST  (cross-cutting)');
   console.log('  READ_ONLY   (view only)');
 }
