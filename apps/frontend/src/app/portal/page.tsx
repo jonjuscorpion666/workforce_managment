@@ -1,18 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ClipboardList, CheckCircle2, Clock, LogOut, ChevronRight, ShieldCheck,
   Megaphone, AlertTriangle, Bell, Check, Globe, Building2, LayoutGrid,
   ChevronDown, MessageCircle, CheckSquare, TrendingUp, BookOpen,
+  LayoutDashboard,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
 import api from '@/lib/api';
 import { useNurseAuth } from '@/lib/nurse-auth';
 import { formatDate } from '@/lib/utils';
+
+type Tab = 'home' | 'updates' | 'issues' | 'tasks' | 'guide';
 
 // ─── Style maps ─────────────────────────────────────────────────────────────
 
@@ -323,13 +325,12 @@ export default function NursePortalPage() {
   const { nurse, isAuthenticated, logout, accessToken } = useNurseAuth();
   const router = useRouter();
   const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>('home');
 
-  // Guard
   useEffect(() => {
     if (!isAuthenticated) router.replace('/portal/login');
   }, [isAuthenticated, router]);
 
-  // Inject nurse token into API calls
   useEffect(() => {
     if (accessToken) localStorage.setItem('access_token', accessToken);
   }, [accessToken]);
@@ -362,7 +363,6 @@ export default function NursePortalPage() {
     mutationFn: (id: string) => api.post(`/announcements/${id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['nurse-announcements'] }),
   });
-
   const acknowledge = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/acknowledge`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['nurse-announcements'] }),
@@ -370,10 +370,10 @@ export default function NursePortalPage() {
 
   if (!isAuthenticated) return null;
 
-  const activeSurveys    = (surveys as any[]).filter((s) => s.status === 'ACTIVE');
-  const unreadCount      = feed.filter((a) => !a.isRead).length;
-  const pendingAckCount  = feed.filter((a) => a.requiresAcknowledgement && !a.isAcknowledged).length;
-  const criticalUnacked  = feed.filter((a) => a.priority === 'CRITICAL' && a.requiresAcknowledgement && !a.isAcknowledged);
+  const activeSurveys   = (surveys as any[]).filter((s) => s.status === 'ACTIVE');
+  const unreadCount     = feed.filter((a) => !a.isRead).length;
+  const pendingAckCount = feed.filter((a) => a.requiresAcknowledgement && !a.isAcknowledged).length;
+  const criticalUnacked = feed.filter((a) => a.priority === 'CRITICAL' && a.requiresAcknowledgement && !a.isAcknowledged);
 
   const myOrgUnitId = nurse?.orgUnit?.id;
   const OPEN_STATUSES = new Set(['OPEN', 'ACTION_PLANNED', 'IN_PROGRESS', 'BLOCKED', 'AWAITING_VALIDATION', 'REOPENED']);
@@ -384,327 +384,377 @@ export default function NursePortalPage() {
     .filter((t) => t.status !== 'DONE' && t.status !== 'CANCELLED')
     .filter((t) => !myOrgUnitId || !t.orgUnitId || t.orgUnitId === myOrgUnitId);
 
-  function handleLogout() {
-    logout();
-    router.push('/portal/login');
-  }
+  const TABS = [
+    { id: 'home'    as Tab, label: 'Home',    Icon: LayoutDashboard, badge: 0 },
+    { id: 'updates' as Tab, label: 'Updates', Icon: Megaphone,       badge: unreadCount + pendingAckCount },
+    { id: 'issues'  as Tab, label: 'Issues',  Icon: AlertTriangle,   badge: deptIssues.length },
+    { id: 'tasks'   as Tab, label: 'Tasks',   Icon: CheckSquare,     badge: deptTasks.length },
+    { id: 'guide'   as Tab, label: 'Guide',   Icon: BookOpen,        badge: 0 },
+  ];
+
+  function handleLogout() { logout(); router.push('/portal/login'); }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+
+      {/* ── Top header ─────────────────────────────────────────────────────── */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-20 flex-shrink-0">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="font-semibold text-gray-900 text-sm">Nurse Portal</p>
-              <p className="text-xs text-gray-500">Welcome, {nurse?.firstName} {nurse?.lastName}</p>
+              <p className="font-semibold text-gray-900 text-sm leading-tight">Nurse Portal</p>
+              <p className="text-xs text-gray-400 leading-tight">
+                {nurse?.firstName} {nurse?.lastName}
+                {nurse?.orgUnit ? ` · ${nurse.orgUnit.name}` : ''}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/portal/guide" className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-              <BookOpen className="w-4 h-4" /> Guide
-            </Link>
-            <button onClick={handleLogout}
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-              <LogOut className="w-4 h-4" /> Sign Out
-            </button>
-          </div>
+          <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors">
+            <LogOut className="w-4 h-4" /> Sign Out
+          </button>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+      {/* ── Scrollable content ─────────────────────────────────────────────── */}
+      <main className="flex-1 overflow-auto pb-20">
+        <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
-            <p className="text-3xl font-bold text-blue-600">{activeSurveys.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Surveys</p>
-          </div>
-          <div className={`rounded-xl border p-4 text-center shadow-sm ${deptIssues.length > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200'}`}>
-            <p className={`text-3xl font-bold ${deptIssues.length > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{deptIssues.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Open Issues</p>
-          </div>
-          <div className={`rounded-xl border p-4 text-center shadow-sm ${deptTasks.length > 0 ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200'}`}>
-            <p className={`text-3xl font-bold ${deptTasks.length > 0 ? 'text-indigo-600' : 'text-gray-400'}`}>{deptTasks.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Active Tasks</p>
-          </div>
-        </div>
+          {/* ── HOME TAB ── */}
+          {tab === 'home' && (
+            <>
+              {/* Greeting */}
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">
+                  Good morning, {nurse?.firstName} 👋
+                </h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {nurse?.orgUnit?.name ?? 'Your hospital'} · Here&apos;s your overview
+                </p>
+              </div>
 
-        {/* Second stats row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm relative">
-            <p className="text-3xl font-bold text-indigo-600">{feed.length}</p>
-            {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-5 h-5 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
-            <p className="text-xs text-gray-500 mt-1">Announce</p>
-          </div>
-          <div className={`rounded-xl border p-4 text-center shadow-sm ${pendingAckCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
-            <p className={`text-3xl font-bold ${pendingAckCount > 0 ? 'text-amber-600' : 'text-green-600'}`}>{pendingAckCount}</p>
-            <p className="text-xs text-gray-500 mt-1">Pending Ack</p>
-          </div>
-          <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 text-center shadow-sm">
-            <MessageCircle className="w-7 h-7 text-blue-500 mx-auto" />
-            <p className="text-xs text-blue-700 font-semibold mt-1">Speak Up</p>
-          </div>
-        </div>
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => setTab('home')}
+                  className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-600">{activeSurveys.length}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Surveys</p>
+                </button>
+                <button onClick={() => setTab('updates')}
+                  className={`rounded-xl border p-3 text-center relative ${unreadCount + pendingAckCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                  <p className={`text-2xl font-bold ${unreadCount + pendingAckCount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                    {unreadCount + pendingAckCount}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">Updates</p>
+                </button>
+                <button onClick={() => setTab('issues')}
+                  className={`rounded-xl border p-3 text-center ${deptIssues.length > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-200'}`}>
+                  <p className={`text-2xl font-bold ${deptIssues.length > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                    {deptIssues.length}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">Issues</p>
+                </button>
+              </div>
 
-        {/* Critical unacknowledged banner */}
-        {criticalUnacked.length > 0 && (
-          <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-bold text-red-800">
-                {criticalUnacked.length} critical announcement{criticalUnacked.length > 1 ? 's' : ''} require your acknowledgement
+              {/* Critical unacked banner */}
+              {criticalUnacked.length > 0 && (
+                <button onClick={() => setTab('updates')}
+                  className="w-full bg-red-50 border border-red-300 rounded-xl p-3 flex items-center gap-3 text-left">
+                  <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-red-800">
+                      {criticalUnacked.length} critical announcement{criticalUnacked.length > 1 ? 's' : ''} need acknowledgement
+                    </p>
+                    <p className="text-xs text-red-500 mt-0.5">Tap to view →</p>
+                  </div>
+                </button>
+              )}
+
+              {/* Anonymous reminder */}
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-3">
+                <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <p className="text-sm text-green-800">
+                  <span className="font-semibold">All survey responses are anonymous.</span>{' '}
+                  Your name is never stored with your answers.
+                </p>
+              </div>
+
+              {/* Available Surveys */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <ClipboardList className="w-5 h-5 text-blue-500" />
+                  <h2 className="text-base font-bold text-gray-900">Available Surveys</h2>
+                  {activeSurveys.length > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">
+                      {activeSurveys.length} open
+                    </span>
+                  )}
+                </div>
+                {surveysLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 h-16 animate-pulse" />
+                    ))}
+                  </div>
+                ) : activeSurveys.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
+                    <ClipboardList className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 font-medium text-sm">No active surveys right now</p>
+                    <p className="text-gray-400 text-xs mt-1">Check back later.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {activeSurveys.map((survey: any) => (
+                      <Link key={survey.id} href={`/portal/survey/${survey.id}`}
+                        className="flex items-center justify-between bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all p-4 group">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Active</span>
+                            {survey.isAnonymous && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Anonymous</span>
+                            )}
+                          </div>
+                          <p className="font-semibold text-gray-900 text-sm group-hover:text-blue-700 transition-colors truncate">
+                            {survey.title}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {survey.questions?.length ?? '—'} questions
+                            {survey.closesAt ? ` · Closes ${formatDate(survey.closesAt)}` : ''}
+                          </p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 flex-shrink-0 ml-3 transition-colors" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Speak Up */}
+              <SpeakUpSection />
+            </>
+          )}
+
+          {/* ── UPDATES TAB ── */}
+          {tab === 'updates' && (
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <Megaphone className="w-5 h-5 text-indigo-500" />
+                <h2 className="text-base font-bold text-gray-900">Announcements</h2>
+                {unreadCount > 0 && (
+                  <span className="text-xs bg-blue-500 text-white font-bold px-2 py-0.5 rounded-full">{unreadCount} new</span>
+                )}
+                {pendingAckCount > 0 && (
+                  <span className="text-xs bg-amber-500 text-white font-bold px-2 py-0.5 rounded-full">{pendingAckCount} ack needed</span>
+                )}
+              </div>
+              {feedLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 h-16 animate-pulse" />)}
+                </div>
+              ) : feed.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-10 text-center shadow-sm">
+                  <Megaphone className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500 font-medium text-sm">No announcements yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {feed.map((ann) => (
+                    <AnnouncementCard key={ann.id} ann={ann}
+                      onMarkRead={(id) => markRead.mutate(id)}
+                      onAcknowledge={(id) => acknowledge.mutate(id)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ── ISSUES TAB ── */}
+          {tab === 'issues' && (
+            <section>
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-5 h-5 text-orange-500" />
+                <h2 className="text-base font-bold text-gray-900">Department Issues</h2>
+                {deptIssues.length > 0 && (
+                  <span className="text-xs bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">{deptIssues.length} open</span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mb-4">
+                Issues raised from survey feedback — your responses help drive these improvements.
               </p>
-              <p className="text-xs text-red-600 mt-0.5">Scroll to announcements below and acknowledge each one.</p>
-            </div>
-          </div>
-        )}
-
-        {/* Anonymous reminder */}
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-green-800">
-            <span className="font-semibold">All your survey responses are anonymous.</span>{' '}
-            Your answers are never linked to your name or employee ID.
-          </p>
-        </div>
-
-        {/* ── Announcements ── */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Megaphone className="w-5 h-5 text-indigo-500" />
-            <h2 className="text-lg font-bold text-gray-900">Announcements</h2>
-            {unreadCount > 0 && (
-              <span className="text-xs bg-blue-500 text-white font-bold px-2 py-0.5 rounded-full">
-                {unreadCount} new
-              </span>
-            )}
-          </div>
-
-          {feedLoading && (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-                  <div className="h-3 bg-gray-200 rounded w-1/4 mb-2" />
-                  <div className="h-4 bg-gray-100 rounded w-3/4" />
+              {deptIssues.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-10 text-center shadow-sm">
+                  <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-gray-500 font-medium text-sm">No open issues in your department</p>
+                  <p className="text-gray-400 text-xs mt-1">Great news — keep the feedback coming.</p>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {!feedLoading && feed.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
-              <Megaphone className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500 font-medium text-sm">No announcements yet</p>
-              <p className="text-gray-400 text-xs mt-1">Leadership announcements will appear here.</p>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {feed.map((ann) => (
-              <AnnouncementCard
-                key={ann.id}
-                ann={ann}
-                onMarkRead={(id) => markRead.mutate(id)}
-                onAcknowledge={(id) => acknowledge.mutate(id)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ── Surveys ── */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <ClipboardList className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-bold text-gray-900">Available Surveys</h2>
-          </div>
-
-          {surveysLoading && (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-1/3" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!surveysLoading && activeSurveys.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center shadow-sm">
-              <ClipboardList className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No active surveys right now</p>
-              <p className="text-gray-400 text-sm mt-1">Check back later — your manager will notify you when a new survey opens.</p>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {activeSurveys.map((survey: any) => (
-              <Link key={survey.id} href={`/portal/survey/${survey.id}`}
-                className="block bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all p-5 group">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                        <Clock className="w-3 h-3" /> Active
-                      </span>
-                      {survey.isAnonymous && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                          Anonymous
-                        </span>
-                      )}
+              ) : (
+                <div className="space-y-2">
+                  {deptIssues.map((issue: any) => (
+                    <div key={issue.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${
+                          issue.severity === 'CRITICAL' ? 'bg-red-500' :
+                          issue.severity === 'HIGH' ? 'bg-orange-400' :
+                          issue.severity === 'MEDIUM' ? 'bg-blue-400' : 'bg-gray-300'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap gap-1.5 mb-1">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              issue.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                              issue.severity === 'HIGH' ? 'bg-orange-100 text-orange-700' :
+                              issue.severity === 'MEDIUM' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                            }`}>{issue.severity}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              issue.status === 'IN_PROGRESS' ? 'bg-indigo-100 text-indigo-700' :
+                              issue.status === 'ACTION_PLANNED' ? 'bg-purple-100 text-purple-700' :
+                              issue.status === 'BLOCKED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                            }`}>{issue.status.replace(/_/g, ' ')}</span>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900">{issue.title}</p>
+                          {issue.category && (
+                            <p className="text-xs text-gray-400 mt-0.5">{issue.category}{issue.subcategory ? ` · ${issue.subcategory}` : ''}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
-                      {survey.title}
-                    </h3>
-                    {survey.description && (
-                      <p className="text-sm text-gray-500 mt-1 truncate">{survey.description}</p>
-                    )}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-                      <span>{survey.questions?.length ?? '—'} questions</span>
-                      {survey.closesAt && <span>Closes {formatDate(survey.closesAt)}</span>}
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 flex-shrink-0 ml-4 transition-colors" />
+                  ))}
                 </div>
+              )}
+            </section>
+          )}
+
+          {/* ── TASKS TAB ── */}
+          {tab === 'tasks' && (
+            <section>
+              <div className="flex items-center gap-2 mb-1">
+                <CheckSquare className="w-5 h-5 text-indigo-500" />
+                <h2 className="text-base font-bold text-gray-900">Department Tasks</h2>
+                {deptTasks.length > 0 && (
+                  <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{deptTasks.length} active</span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mb-4">
+                Action items being worked through based on survey insights.
+              </p>
+              {deptTasks.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-10 text-center shadow-sm">
+                  <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-gray-500 font-medium text-sm">No active tasks right now</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {deptTasks.map((task: any) => (
+                    <div key={task.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <div className="flex items-start gap-3">
+                        <TrendingUp className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                          task.priority === 'HIGH' || task.priority === 'CRITICAL' ? 'text-orange-500' : 'text-indigo-400'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap gap-1.5 mb-1">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                              task.status === 'TODO' ? 'bg-gray-100 text-gray-600' : 'bg-purple-100 text-purple-700'
+                            }`}>{task.status?.replace(/_/g, ' ')}</span>
+                            {task.dueDate && new Date(task.dueDate) < new Date() && (
+                              <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                                <Clock className="w-2.5 h-2.5" /> Overdue
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium text-gray-900">{task.title}</p>
+                          {task.dueDate && (
+                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> Due {formatDate(task.dueDate)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ── GUIDE TAB ── */}
+          {tab === 'guide' && (
+            <div className="space-y-3">
+              <div>
+                <h2 className="text-base font-bold text-gray-900 mb-1">Nurse Guide</h2>
+                <p className="text-xs text-gray-400">Step-by-step help for every portal feature.</p>
+              </div>
+              <Link href="/portal/guide"
+                className="flex items-center gap-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl p-5 shadow-md">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-base">Open Full Guide</p>
+                  <p className="text-blue-200 text-sm mt-0.5">Surveys, Announcements, Issues, Tasks, Speak Up & Privacy</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-white/60 flex-shrink-0" />
               </Link>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Department Issues ── */}
-        <section>
-          <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle className="w-5 h-5 text-orange-500" />
-            <h2 className="text-lg font-bold text-gray-900">Department Issues</h2>
-            {deptIssues.length > 0 && (
-              <span className="text-xs bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">
-                {deptIssues.length} open
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 mb-3">
-            Issues identified from survey feedback in your department — your responses help drive these improvements.
-          </p>
-
-          {deptIssues.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
-              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <p className="text-gray-500 font-medium text-sm">No open issues in your department</p>
-              <p className="text-gray-400 text-xs mt-1">Great news — keep the feedback coming through surveys.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {deptIssues.slice(0, 5).map((issue: any) => (
-                <div key={issue.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
-                      issue.severity === 'CRITICAL' ? 'bg-red-500' :
-                      issue.severity === 'HIGH'     ? 'bg-orange-400' :
-                      issue.severity === 'MEDIUM'   ? 'bg-blue-400' : 'bg-gray-300'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap gap-1.5 mb-1">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                          issue.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
-                          issue.severity === 'HIGH'     ? 'bg-orange-100 text-orange-700' :
-                          issue.severity === 'MEDIUM'   ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-                        }`}>{issue.severity}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          issue.status === 'IN_PROGRESS'     ? 'bg-indigo-100 text-indigo-700' :
-                          issue.status === 'ACTION_PLANNED'  ? 'bg-purple-100 text-purple-700' :
-                          issue.status === 'BLOCKED'         ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>{issue.status.replace(/_/g, ' ')}</span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">{issue.title}</p>
-                      {issue.category && (
-                        <p className="text-xs text-gray-400 mt-0.5">{issue.category}{issue.subcategory ? ` · ${issue.subcategory}` : ''}</p>
-                      )}
-                    </div>
+              {[
+                { icon: ClipboardList, color: 'bg-blue-500',   title: 'Completing a Survey',           desc: 'Find, answer, and submit surveys anonymously' },
+                { icon: Megaphone,     color: 'bg-indigo-500', title: 'Announcements & Acknowledgements', desc: 'Read and acknowledge hospital notices' },
+                { icon: AlertTriangle, color: 'bg-orange-500', title: 'Department Issues',              desc: 'See what problems leadership is working on' },
+                { icon: CheckSquare,   color: 'bg-teal-500',   title: 'Department Tasks',               desc: 'Track action items from survey insights' },
+                { icon: MessageCircle, color: 'bg-green-600',  title: 'Using Speak Up',                 desc: 'Submit anonymous or confidential concerns' },
+                { icon: ShieldCheck,   color: 'bg-purple-600', title: 'Your Privacy',                   desc: 'What is and isn\'t stored about you' },
+              ].map(({ icon: Icon, color, title, desc }) => (
+                <Link key={title} href="/portal/guide"
+                  className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-4 hover:border-blue-200 hover:shadow-sm transition-all">
+                  <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <Icon className="w-4 h-4 text-white" />
                   </div>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{title}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                </Link>
               ))}
-              {deptIssues.length > 5 && (
-                <p className="text-xs text-center text-gray-400 pt-1">+{deptIssues.length - 5} more issues being tracked</p>
-              )}
             </div>
           )}
-        </section>
 
-        {/* ── Department Tasks ── */}
-        <section>
-          <div className="flex items-center gap-2 mb-1">
-            <CheckSquare className="w-5 h-5 text-indigo-500" />
-            <h2 className="text-lg font-bold text-gray-900">Department Tasks</h2>
-            {deptTasks.length > 0 && (
-              <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
-                {deptTasks.length} active
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 mb-3">
-            Action items your department leadership is working through based on survey insights.
-          </p>
-
-          {deptTasks.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
-              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <p className="text-gray-500 font-medium text-sm">No active tasks in your department</p>
-              <p className="text-gray-400 text-xs mt-1">Tasks created from survey insights will appear here.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {deptTasks.slice(0, 5).map((task: any) => (
-                <div key={task.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                  <div className="flex items-start gap-3">
-                    <TrendingUp className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                      task.priority === 'HIGH' || task.priority === 'CRITICAL' ? 'text-orange-500' : 'text-indigo-400'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap gap-1.5 mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                          task.status === 'TODO'        ? 'bg-gray-100 text-gray-600' :
-                          'bg-purple-100 text-purple-700'
-                        }`}>{task.status?.replace(/_/g, ' ')}</span>
-                        {task.dueDate && new Date(task.dueDate) < new Date() && (
-                          <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
-                            <Clock className="w-2.5 h-2.5" /> Overdue
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">{task.title}</p>
-                      {task.dueDate && (
-                        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Due {formatDate(task.dueDate)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {deptTasks.length > 5 && (
-                <p className="text-xs text-center text-gray-400 pt-1">+{deptTasks.length - 5} more tasks in progress</p>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* ── Speak Up ── */}
-        <SpeakUpSection />
-
-        <p className="text-center text-xs text-gray-400 pt-4">
-          Workforce Transformation Platform · Nurse Portal
-        </p>
+        </div>
       </main>
+
+      {/* ── Bottom navigation ──────────────────────────────────────────────── */}
+      <nav className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 safe-area-pb">
+        <div className="max-w-2xl mx-auto flex">
+          {TABS.map(({ id, label, Icon, badge }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => id === 'guide' ? setTab('guide') : setTab(id)}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 px-1 relative transition-colors ${
+                  active ? 'text-blue-600' : 'text-gray-400 hover:text-gray-700'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className="w-5 h-5" />
+                  {badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-[10px] font-medium leading-tight ${active ? 'text-blue-600' : 'text-gray-400'}`}>
+                  {label}
+                </span>
+                {active && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-blue-600 rounded-full" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
     </div>
   );
 }
