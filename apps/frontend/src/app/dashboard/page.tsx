@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from 'recharts';
 
 function MetricCard({ label, value, icon: Icon, color, href }: {
   label: string; value: number | string; icon: any; color: string; href?: string;
@@ -230,6 +233,7 @@ function CNOView({ user }: { user: any }) {
         <Link href="/surveys/new" className="btn-primary flex items-center gap-2 text-sm"><ClipboardList className="w-4 h-4" /> New Survey</Link>
         <Link href="/surveys" className="btn-secondary flex items-center gap-2 text-sm"><Eye className="w-4 h-4" /> My Surveys</Link>
         <Link href="/issues" className="btn-secondary flex items-center gap-2 text-sm"><AlertTriangle className="w-4 h-4" /> Issues</Link>
+        <Link href="/analytics/cno" className="btn-secondary flex items-center gap-2 text-sm"><BarChart2 className="w-4 h-4" /> View Full Analytics</Link>
       </div>
     </div>
   );
@@ -273,22 +277,57 @@ function DirectorView({ user }: { user: any }) {
     enabled: !!hospitalId,
     staleTime: 5 * 60_000,
   });
+  // Engagement trend for this hospital
+  const { data: trendsData } = useQuery<any>({
+    queryKey: ['director-trends', hospitalId],
+    queryFn: () => api.get('/analytics/trends', { params: { hospitalId } }).then((r) => r.data),
+    enabled: !!hospitalId,
+    staleTime: 5 * 60_000,
+  });
+  // Response counts for active surveys in this hospital
+  const { data: participation = [] } = useQuery<any[]>({
+    queryKey: ['director-participation', hospitalId],
+    queryFn: () => api.get('/analytics/participation', { params: { hospitalId } }).then((r) => r.data),
+    enabled: !!hospitalId,
+    staleTime: 5 * 60_000,
+  });
 
   if (profileLoading || surveysLoading) return <p className="text-gray-400 text-sm">Loading...</p>;
 
   const activeSurveys = surveys.filter((s) => s.status === 'ACTIVE');
-  const draftSurveys  = surveys.filter((s) => s.status === 'DRAFT');
   const openIssues    = issues.filter((i) => !['RESOLVED', 'CLOSED'].includes(i.status));
   const overdueTasks  = tasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE');
 
-  // Analytics: filter heatmap units to this hospital only
-  const hospitalUnits: any[] = (heatmap?.units ?? []).filter((u: any) => {
-    const match = (lowUnits?.units ?? []).find((lu: any) => lu.orgUnitId === u.orgUnitId);
-    return match ? match.hospitalId === hospitalId : true;
-  });
+  // Hospital engagement score: average of all depts in this hospital from heatmap
+  const hospitalDepts: any[] = (heatmap?.units ?? []).filter((u: any) => u.hospitalId === hospitalId);
+  const allDimKeys = heatmap?.dimensions ?? [];
+  const hospitalEngagementScore = hospitalDepts.length > 0
+    ? Math.round(
+        hospitalDepts.reduce((sum: number, u: any) => {
+          const vals = Object.values(u.scores ?? {}).filter((v): v is number => typeof v === 'number');
+          const avg = vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
+          return sum + avg;
+        }, 0) / hospitalDepts.length
+      )
+    : null;
+
+  // Dimension insights: average per dimension across hospital depts
+  const dimInsights: { name: string; score: number }[] = allDimKeys.map((dim: string) => {
+    const scores = hospitalDepts
+      .map((u: any) => u.scores?.[dim])
+      .filter((v): v is number => typeof v === 'number');
+    return { name: dim, score: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0 };
+  }).sort((a: any, b: any) => a.score - b.score);
+
   const deptRanking: any[] = ((lowUnits?.units ?? []) as any[])
     .filter((u) => u.hospitalId === hospitalId)
     .sort((a, b) => b.overallFavorable - a.overallFavorable);
+
+  // Trend chart data
+  const trendCycles = (trendsData?.cycles ?? []).slice(-6);
+
+  // Total responses from this hospital
+  const totalResponses = (participation as any[]).reduce((sum, r) => sum + (r.count ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -299,16 +338,105 @@ function DirectorView({ user }: { user: any }) {
         </p>
       </div>
 
+      {/* Director profile card */}
+      {profile && (
+        <div className="card flex flex-wrap gap-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+              <UserCircle2 className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900">{profile.firstName} {profile.lastName}</p>
+              <p className="text-xs text-gray-500">{profile.jobTitle ?? 'Director'}{profile.hospital ? ` · ${profile.hospital.name}` : ''}</p>
+            </div>
+          </div>
+          {profile.hospital && (
+            <div className="border-l border-gray-200 pl-6 min-w-0">
+              <p className="text-xs text-gray-400 font-medium mb-0.5">Hospital</p>
+              <p className="text-sm font-semibold text-gray-800">{profile.hospital.name}</p>
+            </div>
+          )}
+          {profile.department && (
+            <div className="border-l border-gray-200 pl-6 min-w-0">
+              <p className="text-xs text-gray-400 font-medium mb-0.5">Department</p>
+              <p className="text-sm font-semibold text-gray-800">{profile.department.name}</p>
+            </div>
+          )}
+          {profile.manager && (
+            <div className="border-l border-gray-200 pl-6 min-w-0">
+              <p className="text-xs text-gray-400 font-medium mb-0.5">Reports to</p>
+              <p className="text-sm font-semibold text-gray-800">{profile.manager.firstName} {profile.manager.lastName}</p>
+              {profile.manager.jobTitle && <p className="text-xs text-gray-500">{profile.manager.jobTitle}</p>}
+            </div>
+          )}
+          {profile.employeeId && (
+            <div className="border-l border-gray-200 pl-6 min-w-0">
+              <p className="text-xs text-gray-400 font-medium mb-0.5">Employee ID</p>
+              <p className="text-sm font-semibold text-gray-800">{profile.employeeId}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Metrics scoped to hospital */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Active Surveys"  value={activeSurveys.length} icon={Zap}          color="bg-green-500"  href="/surveys" />
-        <MetricCard label="Open Issues"     value={openIssues.length}    icon={AlertTriangle} color="bg-red-500"    href="/issues" />
-        <MetricCard label="Active Tasks"    value={tasks.length}         icon={CheckSquare}   color="bg-blue-500"   href="/tasks" />
-        <MetricCard label="Overdue Tasks"   value={overdueTasks.length}  icon={Clock}         color="bg-orange-500" href="/tasks" />
+        <MetricCard label="Active Surveys"  value={activeSurveys.length}   icon={Zap}          color="bg-green-500"  href="/surveys" />
+        <MetricCard label="Open Issues"     value={openIssues.length}      icon={AlertTriangle} color="bg-red-500"    href="/issues" />
+        <MetricCard label="Overdue Tasks"   value={overdueTasks.length}    icon={Clock}         color="bg-orange-500" href="/tasks" />
+        <MetricCard label="Responses (All)" value={totalResponses || '—'}  icon={Users}         color="bg-blue-500" />
       </div>
 
+      {/* Hospital engagement score + trend */}
+      {(hospitalEngagementScore !== null || trendCycles.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {hospitalEngagementScore !== null && (
+            <div className="card">
+              <p className="text-xs text-gray-400 font-medium mb-2 uppercase tracking-wide">Hospital Engagement Score</p>
+              <div className="flex items-end gap-3 mb-3">
+                <span className={`text-4xl font-bold ${hospitalEngagementScore >= 70 ? 'text-emerald-600' : hospitalEngagementScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                  {hospitalEngagementScore}%
+                </span>
+                <span className={`text-sm font-medium mb-1 px-2 py-0.5 rounded-full ${hospitalEngagementScore >= 70 ? 'bg-emerald-100 text-emerald-700' : hospitalEngagementScore >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                  {hospitalEngagementScore >= 70 ? 'Healthy' : hospitalEngagementScore >= 50 ? 'At Risk' : 'Critical'}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-gray-100 rounded-full">
+                <div
+                  className={`h-full rounded-full ${hospitalEngagementScore >= 70 ? 'bg-emerald-500' : hospitalEngagementScore >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                  style={{ width: `${hospitalEngagementScore}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Based on {hospitalDepts.length} department(s)</p>
+            </div>
+          )}
+          {trendCycles.length > 1 && (
+            <div className="card">
+              <p className="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Engagement Trend</p>
+              <ResponsiveContainer width="100%" height={100}>
+                <LineChart data={trendCycles}>
+                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={28} />
+                  <Tooltip formatter={(v: any) => `${v}%`} />
+                  <Line
+                    type="monotone"
+                    dataKey={(entry) => {
+                      const vals = Object.values(entry.dimensions ?? {}).filter((v): v is number => typeof v === 'number');
+                      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+                    }}
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={false}
+                    name="Engagement"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Surveys */}
+        {/* Surveys with approval status + response counts */}
         <div className="card">
           <SectionHeader title="Hospital Surveys" action={<Link href="/surveys/new" className="text-xs text-blue-600 font-medium">+ New →</Link>} />
           {surveys.length === 0 ? (
@@ -318,12 +446,25 @@ function DirectorView({ user }: { user: any }) {
             </div>
           ) : (
             <ul className="space-y-2">
-              {surveys.slice(0, 5).map((s: any) => (
-                <li key={s.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-sm text-gray-700 truncate flex-1">{s.title}</span>
-                  <span className={`flex-shrink-0 ml-2 text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : s.status === 'DRAFT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>{s.status}</span>
-                </li>
-              ))}
+              {surveys.slice(0, 5).map((s: any) => {
+                const responses = (participation as any[]).filter((p) => p.surveyId === s.id).reduce((sum, p) => sum + (p.count ?? 0), 0);
+                return (
+                  <li key={s.id} className="py-2 border-b border-gray-50 last:border-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm text-gray-700 truncate flex-1">{s.title}</span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : s.status === 'DRAFT' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>{s.status}</span>
+                        {s.approvalStatus && s.approvalStatus !== 'APPROVED' && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.approvalStatus === 'PENDING' ? 'bg-amber-100 text-amber-700' : s.approvalStatus === 'REJECTED' ? 'bg-red-100 text-red-700' : ''}`}>{s.approvalStatus}</span>
+                        )}
+                      </div>
+                    </div>
+                    {responses > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">{responses} response{responses !== 1 ? 's' : ''} from your hospital</p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -362,19 +503,45 @@ function DirectorView({ user }: { user: any }) {
           )}
         </div>
 
-        {/* Department engagement ranking for this hospital */}
-        {deptRanking.length > 0 && (
+        {/* Dimension insights */}
+        {dimInsights.length > 0 && (
           <div className="card">
-            <SectionHeader title="Dept Engagement Ranking" />
+            <SectionHeader title="Dimension Insights" />
             <ul className="space-y-2">
-              {deptRanking.slice(0, 6).map((u: any, i: number) => {
+              {dimInsights.slice(0, 6).map((d) => {
+                const color = d.score >= 70 ? 'bg-emerald-500' : d.score >= 50 ? 'bg-amber-400' : 'bg-red-400';
+                return (
+                  <li key={d.name} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600 w-36 truncate">{d.name}</span>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${color} rounded-full`} style={{ width: `${d.score}%` }} />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-600 w-9 text-right">{d.score}%</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {dimInsights.length > 0 && dimInsights[0].score < 70 && (
+              <p className="text-xs text-orange-600 mt-3 font-medium">
+                ⚠ Lowest: {dimInsights[0].name} ({dimInsights[0].score}%)
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Department engagement ranking */}
+        {deptRanking.length > 0 && (
+          <div className="card lg:col-span-2">
+            <SectionHeader title="Dept Engagement Ranking" />
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+              {deptRanking.slice(0, 8).map((u: any, i: number) => {
                 const score = u.overallFavorable;
                 const color = score >= 70 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-400' : 'bg-red-400';
                 return (
                   <li key={u.orgUnitId} className="flex items-center gap-2">
                     <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
                     <span className="text-sm text-gray-700 truncate flex-1">{u.orgUnitName}</span>
-                    <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div className={`h-full ${color} rounded-full`} style={{ width: `${score}%` }} />
                     </div>
                     <span className="text-xs font-semibold text-gray-600 w-9 text-right">{score}%</span>

@@ -20,14 +20,16 @@ export class AnalyticsController {
 
   @Get('trends')
   @ApiOperation({ summary: 'Survey score trends across cycles' })
-  @ApiQuery({ name: 'orgUnitId', required: false })
-  @ApiQuery({ name: 'cycles', required: false })
+  @ApiQuery({ name: 'orgUnitId',  required: false })
+  @ApiQuery({ name: 'hospitalId', required: false })
+  @ApiQuery({ name: 'cycles',     required: false })
   getTrends(@Query() query: any) {
     return this.analyticsService.getTrends(query);
   }
 
   @Get('heatmap')
   @ApiOperation({ summary: 'Engagement heatmap data across org units' })
+  @ApiQuery({ name: 'surveyId', required: false })
   getHeatmap(@Query() query: any) {
     return this.analyticsService.getHeatmap(query);
   }
@@ -42,6 +44,8 @@ export class AnalyticsController {
 
   @Get('participation')
   @ApiOperation({ summary: 'Participation rates by org unit / survey' })
+  @ApiQuery({ name: 'surveyId',   required: false })
+  @ApiQuery({ name: 'hospitalId', required: false })
   getParticipation(@Query() query: any) {
     return this.analyticsService.getParticipation(query);
   }

@@ -160,6 +160,7 @@ export class AnalyticsService {
       units.push({
         orgUnitId,
         orgUnitName:   orgMap.get(orgUnitId)?.name ?? orgUnitId,
+        hospitalId:    unitResponses[0]?.hospitalId ?? null,
         responseCount: unitResponses.length,
         scores,
       });
@@ -177,10 +178,11 @@ export class AnalyticsService {
   // ── Trends ────────────────────────────────────────────────────────────────
 
   async getTrends(query: any) {
-    const { orgUnitId, surveyId } = query;
+    const { orgUnitId, surveyId, hospitalId } = query;
     const qb = this.responseRepo.createQueryBuilder('r').orderBy('r."submittedAt"', 'ASC');
-    if (orgUnitId) qb.andWhere('r."orgUnitId" = :orgUnitId', { orgUnitId });
-    if (surveyId)  qb.andWhere('r."surveyId" = :surveyId',  { surveyId });
+    if (orgUnitId)  qb.andWhere('r."orgUnitId" = :orgUnitId',   { orgUnitId });
+    if (hospitalId) qb.andWhere('r."hospitalId" = :hospitalId', { hospitalId });
+    if (surveyId)   qb.andWhere('r."surveyId" = :surveyId',     { surveyId });
     const responses = await qb.getMany();
 
     // Group into monthly buckets
@@ -656,7 +658,8 @@ export class AnalyticsService {
       .where('r."orgUnitId" IS NOT NULL')
       .groupBy('r."orgUnitId"')
       .addGroupBy('r."hospitalId"');
-    if (query.surveyId) qb.andWhere('r."surveyId" = :surveyId', { surveyId: query.surveyId });
+    if (query.surveyId)   qb.andWhere('r."surveyId" = :surveyId',     { surveyId: query.surveyId });
+    if (query.hospitalId) qb.andWhere('r."hospitalId" = :hospitalId', { hospitalId: query.hospitalId });
 
     const rows = await qb.getRawMany();
 

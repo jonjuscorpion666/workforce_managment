@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
@@ -177,6 +177,18 @@ function AutoCreateModal({ onClose }: { onClose: () => void }) {
 
 function CreateIssueModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const { hasRole } = useAuth();
+  const isDirector = hasRole('DIRECTOR');
+
+  // For Directors: fetch profile to lock hospital
+  const { data: profile } = useQuery<any>({
+    queryKey: ['profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+    enabled: isDirector,
+  });
+
+  const lockedHospitalName = isDirector ? (profile?.hospital?.name ?? '') : '';
+
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -194,6 +206,13 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
     targetThreshold: '70',
     statusNote: '',
   });
+
+  // Auto-populate hospital once profile loads for Directors
+  useEffect(() => {
+    if (isDirector && lockedHospitalName) {
+      setForm((f) => ({ ...f, hospital: lockedHospitalName }));
+    }
+  }, [isDirector, lockedHospitalName]);
 
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
     queryKey: ['org-units'],
@@ -312,8 +331,15 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
           {/* Row: Hospital + Org Unit */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hospital</label>
-              {hospitals.length > 0 ? (
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hospital {isDirector && <span className="text-xs text-gray-400 font-normal">(auto-assigned)</span>}
+              </label>
+              {isDirector ? (
+                <div className="input bg-gray-50 text-gray-600 cursor-not-allowed select-none flex items-center gap-2">
+                  <span className="flex-1 truncate">{form.hospital || '—'}</span>
+                  <span className="text-xs text-gray-400">🔒</span>
+                </div>
+              ) : hospitals.length > 0 ? (
                 <select className="input" value={form.hospital} onChange={(e) => set('hospital', e.target.value)}>
                   <option value="">— Select hospital —</option>
                   {hospitals.map((h) => <option key={h.id} value={h.name}>{h.name}</option>)}

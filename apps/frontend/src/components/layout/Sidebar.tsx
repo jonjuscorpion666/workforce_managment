@@ -19,6 +19,7 @@ const navItems = [
   { label: 'Tasks',         href: '/tasks',          icon: CheckSquare },
   { label: 'Analytics',     href: '/analytics',      icon: BarChart2, exact: true },
   { label: 'SVP Dashboard', href: '/analytics/svp',  icon: PieChart, indent: true },
+  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2, indent: true },
   { label: 'Program Flow',  href: '/program-flow',   icon: GitBranch },
   { label: 'Escalations',   href: '/escalations',    icon: ArrowUpCircle },
   { label: 'Announcements', href: '/announcements',  icon: Megaphone },
