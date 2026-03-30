@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
+import OnboardingModal from '../OnboardingModal';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -43,6 +44,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="font-semibold text-gray-900 text-sm">Workforce Platform</span>
         </div>
 
+        <OnboardingModal />
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>

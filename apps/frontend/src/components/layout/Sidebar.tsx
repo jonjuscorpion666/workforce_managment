@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, ClipboardList, AlertTriangle, CheckSquare,
   ArrowUpCircle, Megaphone, MessageCircle,
-  BarChart2, PieChart, Settings, LogOut, ShieldCheck, GitBranch, BookOpen,
+  BarChart2, PieChart, Settings, LogOut, ShieldCheck, GitBranch, BookOpen, Users2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -25,6 +25,7 @@ const navItems = [
   { label: 'Speak Up',      href: '/speak-up',       icon: MessageCircle },
   { label: 'Audit Log',     href: '/audit',          icon: ShieldCheck },
   { label: 'Admin',         href: '/admin',          icon: Settings },
+  { label: 'Personas',      href: '/persona-map',    icon: Users2 },
   { label: 'Help',          href: '/help',           icon: BookOpen },
 ];
 
