@@ -242,53 +242,54 @@ function CNOView({ user }: { user: any }) {
 // ── Director view ─────────────────────────────────────────────────────────────
 
 function DirectorView({ user }: { user: any }) {
-  // 1. Fetch full profile to get hospitalId
+  // 1. Fetch full profile to get departmentId (primary scope) + hospitalId
   const { data: profile, isLoading: profileLoading } = useQuery<any>({
     queryKey: ['profile'],
     queryFn: () => api.get('/auth/profile').then((r) => r.data),
   });
 
+  const deptId     = profile?.department?.id;
   const hospitalId = profile?.hospital?.id;
 
-  // 2. All queries scoped to this director's hospital
+  // 2. All queries scoped to Director's department
   const { data: issues = [], isLoading: issuesLoading } = useQuery<any[]>({
-    queryKey: ['director-issues', hospitalId],
-    queryFn: () => api.get('/issues', { params: { hospitalId } }).then((r) => r.data),
-    enabled: !!hospitalId,
+    queryKey: ['director-issues', deptId],
+    queryFn: () => api.get('/issues', { params: { departmentId: deptId } }).then((r) => r.data),
+    enabled: !!deptId,
   });
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
-    queryKey: ['director-tasks', hospitalId],
-    queryFn: () => api.get('/tasks', { params: { hospitalId } }).then((r) => r.data),
-    enabled: !!hospitalId,
+    queryKey: ['director-tasks', deptId],
+    queryFn: () => api.get('/tasks', { params: { departmentId: deptId } }).then((r) => r.data),
+    enabled: !!deptId,
   });
   const { data: surveys = [], isLoading: surveysLoading } = useQuery<any[]>({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
   });
   const { data: heatmap } = useQuery<any>({
-    queryKey: ['director-heatmap', hospitalId],
-    queryFn: () => api.get('/analytics/heatmap').then((r) => r.data),
-    enabled: !!hospitalId,
+    queryKey: ['director-heatmap', deptId],
+    queryFn: () => api.get('/analytics/heatmap', { params: { departmentId: deptId } }).then((r) => r.data),
+    enabled: !!deptId,
     staleTime: 5 * 60_000,
   });
   const { data: lowUnits } = useQuery<any>({
-    queryKey: ['director-low-units', hospitalId],
+    queryKey: ['director-low-units', deptId],
     queryFn: () => api.get('/analytics/low-units').then((r) => r.data),
-    enabled: !!hospitalId,
+    enabled: !!deptId,
     staleTime: 5 * 60_000,
   });
-  // Engagement trend for this hospital
+  // Engagement trend scoped to Director's department
   const { data: trendsData } = useQuery<any>({
-    queryKey: ['director-trends', hospitalId],
-    queryFn: () => api.get('/analytics/trends', { params: { hospitalId } }).then((r) => r.data),
-    enabled: !!hospitalId,
+    queryKey: ['director-trends', deptId],
+    queryFn: () => api.get('/analytics/trends', { params: { departmentId: deptId } }).then((r) => r.data),
+    enabled: !!deptId,
     staleTime: 5 * 60_000,
   });
-  // Response counts for active surveys in this hospital
+  // Response counts scoped to Director's department
   const { data: participation = [] } = useQuery<any[]>({
-    queryKey: ['director-participation', hospitalId],
-    queryFn: () => api.get('/analytics/participation', { params: { hospitalId } }).then((r) => r.data),
-    enabled: !!hospitalId,
+    queryKey: ['director-participation', deptId],
+    queryFn: () => api.get('/analytics/participation', { params: { departmentId: deptId } }).then((r) => r.data),
+    enabled: !!deptId,
     staleTime: 5 * 60_000,
   });
 
@@ -298,22 +299,22 @@ function DirectorView({ user }: { user: any }) {
   const openIssues    = issues.filter((i) => !['RESOLVED', 'CLOSED'].includes(i.status));
   const overdueTasks  = tasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE');
 
-  // Hospital engagement score: average of all depts in this hospital from heatmap
-  const hospitalDepts: any[] = (heatmap?.units ?? []).filter((u: any) => u.hospitalId === hospitalId);
+  // Department pulse score: average across all units in the dept from heatmap
+  const deptUnits: any[] = heatmap?.units ?? [];
   const allDimKeys = heatmap?.dimensions ?? [];
-  const hospitalEngagementScore = hospitalDepts.length > 0
+  const deptEngagementScore = deptUnits.length > 0
     ? Math.round(
-        hospitalDepts.reduce((sum: number, u: any) => {
+        deptUnits.reduce((sum: number, u: any) => {
           const vals = Object.values(u.scores ?? {}).filter((v): v is number => typeof v === 'number');
           const avg = vals.length ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : 0;
           return sum + avg;
-        }, 0) / hospitalDepts.length
+        }, 0) / deptUnits.length
       )
     : null;
 
-  // Dimension insights: average per dimension across hospital depts
+  // Dimension insights: average per dimension across dept units
   const dimInsights: { name: string; score: number }[] = allDimKeys.map((dim: string) => {
-    const scores = hospitalDepts
+    const scores = deptUnits
       .map((u: any) => u.scores?.[dim])
       .filter((v): v is number => typeof v === 'number');
     return { name: dim, score: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0 };
@@ -326,7 +327,7 @@ function DirectorView({ user }: { user: any }) {
   // Trend chart data
   const trendCycles = (trendsData?.cycles ?? []).slice(-6);
 
-  // Total responses from this hospital
+  // Total responses from this department
   const totalResponses = (participation as any[]).reduce((sum, r) => sum + (r.count ?? 0), 0);
 
   return (
@@ -334,7 +335,7 @@ function DirectorView({ user }: { user: any }) {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
         <p className="text-gray-500 mt-1">
-          {profile?.hospital?.name ?? user?.orgUnit?.name ?? 'Your hospital'} — hospital overview
+          {profile?.department?.name ?? profile?.hospital?.name ?? user?.orgUnit?.name ?? 'Your department'} — department overview
         </p>
       </div>
 
@@ -383,30 +384,30 @@ function DirectorView({ user }: { user: any }) {
         <MetricCard label="Active Surveys"  value={activeSurveys.length}   icon={Zap}          color="bg-green-500"  href="/surveys" />
         <MetricCard label="Open Issues"     value={openIssues.length}      icon={AlertTriangle} color="bg-red-500"    href="/issues" />
         <MetricCard label="Overdue Tasks"   value={overdueTasks.length}    icon={Clock}         color="bg-orange-500" href="/tasks" />
-        <MetricCard label="Responses (All)" value={totalResponses || '—'}  icon={Users}         color="bg-blue-500" />
+        <MetricCard label="Dept Responses"  value={totalResponses || '—'}  icon={Users}         color="bg-blue-500" />
       </div>
 
-      {/* Hospital engagement score + trend */}
-      {(hospitalEngagementScore !== null || trendCycles.length > 0) && (
+      {/* Department pulse score + trend */}
+      {(deptEngagementScore !== null || trendCycles.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {hospitalEngagementScore !== null && (
+          {deptEngagementScore !== null && (
             <div className="card">
-              <p className="text-xs text-gray-400 font-medium mb-2 uppercase tracking-wide">Hospital Engagement Score</p>
+              <p className="text-xs text-gray-400 font-medium mb-2 uppercase tracking-wide">Department Pulse Score</p>
               <div className="flex items-end gap-3 mb-3">
-                <span className={`text-4xl font-bold ${hospitalEngagementScore >= 70 ? 'text-emerald-600' : hospitalEngagementScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                  {hospitalEngagementScore}%
+                <span className={`text-4xl font-bold ${deptEngagementScore >= 70 ? 'text-emerald-600' : deptEngagementScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                  {deptEngagementScore}%
                 </span>
-                <span className={`text-sm font-medium mb-1 px-2 py-0.5 rounded-full ${hospitalEngagementScore >= 70 ? 'bg-emerald-100 text-emerald-700' : hospitalEngagementScore >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                  {hospitalEngagementScore >= 70 ? 'Healthy' : hospitalEngagementScore >= 50 ? 'At Risk' : 'Critical'}
+                <span className={`text-sm font-medium mb-1 px-2 py-0.5 rounded-full ${deptEngagementScore >= 70 ? 'bg-emerald-100 text-emerald-700' : deptEngagementScore >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                  {deptEngagementScore >= 70 ? 'Healthy' : deptEngagementScore >= 50 ? 'At Risk' : 'Critical'}
                 </span>
               </div>
               <div className="w-full h-2 bg-gray-100 rounded-full">
                 <div
-                  className={`h-full rounded-full ${hospitalEngagementScore >= 70 ? 'bg-emerald-500' : hospitalEngagementScore >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
-                  style={{ width: `${hospitalEngagementScore}%` }}
+                  className={`h-full rounded-full ${deptEngagementScore >= 70 ? 'bg-emerald-500' : deptEngagementScore >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                  style={{ width: `${deptEngagementScore}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-1">Based on {hospitalDepts.length} department(s)</p>
+              <p className="text-xs text-gray-400 mt-1">Based on {deptUnits.length} unit(s) in your department</p>
             </div>
           )}
           {trendCycles.length > 1 && (
@@ -460,7 +461,7 @@ function DirectorView({ user }: { user: any }) {
                       </div>
                     </div>
                     {responses > 0 && (
-                      <p className="text-xs text-gray-400 mt-0.5">{responses} response{responses !== 1 ? 's' : ''} from your hospital</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{responses} response{responses !== 1 ? 's' : ''} from your department</p>
                     )}
                   </li>
                 );

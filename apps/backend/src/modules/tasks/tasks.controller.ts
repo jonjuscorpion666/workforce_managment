@@ -21,8 +21,9 @@ export class TasksController {
   @ApiQuery({ name: 'assignedTo', required: false })
   @ApiQuery({ name: 'issueId', required: false })
   @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'orgUnitId', required: false })
-  @ApiQuery({ name: 'hospitalId', required: false })
+  @ApiQuery({ name: 'orgUnitId',    required: false })
+  @ApiQuery({ name: 'hospitalId',   required: false })
+  @ApiQuery({ name: 'departmentId', required: false })
   findAll(@Query() query: any) {
     return this.tasksService.findAll(query);
   }

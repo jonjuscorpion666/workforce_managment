@@ -126,12 +126,14 @@ export class AnalyticsService {
   // ── Heatmap ───────────────────────────────────────────────────────────────
 
   async getHeatmap(query: any) {
-    const surveyId = query.surveyId ?? null;
+    const surveyId     = query.surveyId     ?? null;
+    const departmentId = query.departmentId ?? null;
     const dimNames = Object.keys(DIMENSIONS);
 
     const qb = this.responseRepo.createQueryBuilder('r')
       .where('r."orgUnitId" IS NOT NULL');
-    if (surveyId) qb.andWhere('r."surveyId" = :surveyId', { surveyId });
+    if (surveyId)     qb.andWhere('r."surveyId" = :surveyId',         { surveyId });
+    if (departmentId) qb.andWhere('r."departmentId" = :departmentId', { departmentId });
     const responses = await qb.getMany();
 
     if (responses.length === 0) return { dimensions: dimNames, units: [] };
@@ -178,11 +180,12 @@ export class AnalyticsService {
   // ── Trends ────────────────────────────────────────────────────────────────
 
   async getTrends(query: any) {
-    const { orgUnitId, surveyId, hospitalId } = query;
+    const { orgUnitId, surveyId, hospitalId, departmentId } = query;
     const qb = this.responseRepo.createQueryBuilder('r').orderBy('r."submittedAt"', 'ASC');
-    if (orgUnitId)  qb.andWhere('r."orgUnitId" = :orgUnitId',   { orgUnitId });
-    if (hospitalId) qb.andWhere('r."hospitalId" = :hospitalId', { hospitalId });
-    if (surveyId)   qb.andWhere('r."surveyId" = :surveyId',     { surveyId });
+    if (orgUnitId)    qb.andWhere('r."orgUnitId" = :orgUnitId',       { orgUnitId });
+    if (hospitalId)   qb.andWhere('r."hospitalId" = :hospitalId',     { hospitalId });
+    if (departmentId) qb.andWhere('r."departmentId" = :departmentId', { departmentId });
+    if (surveyId)     qb.andWhere('r."surveyId" = :surveyId',         { surveyId });
     const responses = await qb.getMany();
 
     // Group into monthly buckets
@@ -658,8 +661,9 @@ export class AnalyticsService {
       .where('r."orgUnitId" IS NOT NULL')
       .groupBy('r."orgUnitId"')
       .addGroupBy('r."hospitalId"');
-    if (query.surveyId)   qb.andWhere('r."surveyId" = :surveyId',     { surveyId: query.surveyId });
-    if (query.hospitalId) qb.andWhere('r."hospitalId" = :hospitalId', { hospitalId: query.hospitalId });
+    if (query.surveyId)     qb.andWhere('r."surveyId" = :surveyId',         { surveyId: query.surveyId });
+    if (query.hospitalId)   qb.andWhere('r."hospitalId" = :hospitalId',     { hospitalId: query.hospitalId });
+    if (query.departmentId) qb.andWhere('r."departmentId" = :departmentId', { departmentId: query.departmentId });
 
     const rows = await qb.getRawMany();
 

@@ -17,11 +17,12 @@ export class IssuesController {
   }
 
   @Get()
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'orgUnitId', required: false })
-  @ApiQuery({ name: 'hospitalId', required: false })
-  @ApiQuery({ name: 'severity', required: false })
-  @ApiQuery({ name: 'ownerId', required: false })
+  @ApiQuery({ name: 'status',       required: false })
+  @ApiQuery({ name: 'orgUnitId',    required: false })
+  @ApiQuery({ name: 'hospitalId',   required: false })
+  @ApiQuery({ name: 'departmentId', required: false })
+  @ApiQuery({ name: 'severity',     required: false })
+  @ApiQuery({ name: 'ownerId',      required: false })
   findAll(@Query() query: any) {
     return this.issuesService.findAll(query);
   }

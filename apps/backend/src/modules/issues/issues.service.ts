@@ -90,11 +90,15 @@ export class IssuesService {
       .leftJoinAndSelect('i.orgUnit', 'ou')
       .orderBy('i.createdAt', 'DESC');
 
-    if (query.status) qb.andWhere('i.status = :status', { status: query.status });
-    if (query.orgUnitId) qb.andWhere('i.orgUnitId = :orgUnitId', { orgUnitId: query.orgUnitId });
-    if (query.hospitalId) qb.andWhere('i.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
-    if (query.severity) qb.andWhere('i.severity = :severity', { severity: query.severity });
-    if (query.ownerId) qb.andWhere('i.ownerId = :ownerId', { ownerId: query.ownerId });
+    if (query.status)       qb.andWhere('i.status = :status',         { status: query.status });
+    if (query.orgUnitId)    qb.andWhere('i.orgUnitId = :orgUnitId',   { orgUnitId: query.orgUnitId });
+    if (query.hospitalId)   qb.andWhere('i.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
+    if (query.departmentId) qb.andWhere(
+      'i.orgUnitId IN (SELECT id FROM org_units WHERE id = :deptId OR "parentId" = :deptId)',
+      { deptId: query.departmentId },
+    );
+    if (query.severity)     qb.andWhere('i.severity = :severity',     { severity: query.severity });
+    if (query.ownerId)      qb.andWhere('i.ownerId = :ownerId',       { ownerId: query.ownerId });
 
     return qb.getMany();
   }

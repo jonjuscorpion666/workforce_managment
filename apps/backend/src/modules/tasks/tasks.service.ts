@@ -61,8 +61,12 @@ export class TasksService {
     if (query.assignedTo) qb.andWhere('t.assignedToId = :assignedTo', { assignedTo: query.assignedTo });
     if (query.issueId) qb.andWhere('t.issueId = :issueId', { issueId: query.issueId });
     if (query.status) qb.andWhere('t.status = :status', { status: query.status });
-    if (query.orgUnitId) qb.andWhere('t.orgUnitId = :orgUnitId', { orgUnitId: query.orgUnitId });
-    if (query.hospitalId) qb.andWhere('t.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
+    if (query.orgUnitId)    qb.andWhere('t.orgUnitId = :orgUnitId',   { orgUnitId: query.orgUnitId });
+    if (query.hospitalId)   qb.andWhere('t.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
+    if (query.departmentId) qb.andWhere(
+      't.orgUnitId IN (SELECT id FROM org_units WHERE id = :deptId OR "parentId" = :deptId)',
+      { deptId: query.departmentId },
+    );
 
     const tasks = await qb.getMany();
     return this.enrichWithMilestone(tasks);
