@@ -1087,13 +1087,19 @@ export default function AdminPage() {
     return null;
   }
 
-  // Filtered users list — CNO scoped to hospital, Director scoped to department
+  const MANAGER_ALLOWED_ROLES = ['NURSE', 'PCT'];
+
+  // Filtered users list — CNO → hospital, Director → department, Manager → NURSE/PCT only
   const filteredUsers = users.filter((u) => {
     if (isCNO && cnoHospitalId) {
       if (userHospitalId(u) !== cnoHospitalId) return false;
     }
     if (isDirector && directorDeptId) {
       if (userDeptId(u) !== directorDeptId) return false;
+    }
+    if (isManager) {
+      const uRole = u.roles?.[0]?.name ?? '';
+      if (!MANAGER_ALLOWED_ROLES.includes(uRole)) return false;
     }
     const q = userSearch.toLowerCase();
     const matchesSearch = !q
@@ -1136,7 +1142,9 @@ export default function AdminPage() {
               ? roles.filter((r: any) => ['DIRECTOR', 'MANAGER', 'NURSE', 'PCT'].includes(r.name))
               : isDirector
                 ? roles.filter((r: any) => ['MANAGER', 'NURSE', 'PCT'].includes(r.name))
-                : roles
+                : isManager
+                  ? roles.filter((r: any) => ['NURSE', 'PCT'].includes(r.name))
+                  : roles
           }
           orgUnits={orgUnits}
           allUsers={users}
@@ -1361,7 +1369,8 @@ export default function AdminPage() {
                     <td className="px-5 py-3.5 text-right">
                       <button
                         onClick={() => openEditUser(u)}
-                        className="text-gray-400 hover:text-brand-600 transition-colors p-1 rounded"
+                        disabled={isManager && !MANAGER_ALLOWED_ROLES.includes(u.roles?.[0]?.name)}
+                        className="text-gray-400 hover:text-brand-600 transition-colors p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                         title="Edit user">
                         <Pencil className="w-4 h-4" />
                       </button>
