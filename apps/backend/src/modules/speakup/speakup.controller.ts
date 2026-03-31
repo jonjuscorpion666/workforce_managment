@@ -1,7 +1,7 @@
 import {
   Controller, Get, Post, Param, Body, Query, Req, UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SpeakUpService } from './speakup.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -23,7 +23,13 @@ export class SpeakUpController {
   @Get('cases')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'List cases (filter: status, urgency, category, routedTo)' })
+  @ApiOperation({ summary: 'List cases (filter: status, urgency, category, routedTo, orgUnitId, hospitalId)' })
+  @ApiQuery({ name: 'status',     required: false })
+  @ApiQuery({ name: 'urgency',    required: false })
+  @ApiQuery({ name: 'category',   required: false })
+  @ApiQuery({ name: 'routedTo',   required: false })
+  @ApiQuery({ name: 'orgUnitId',  required: false })
+  @ApiQuery({ name: 'hospitalId', required: false })
   findAll(@Query() query: any) {
     return this.svc.findAll(query);
   }

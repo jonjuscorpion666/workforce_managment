@@ -566,71 +566,192 @@ function DirectorView({ user }: { user: any }) {
 // ── Manager view ──────────────────────────────────────────────────────────────
 
 function ManagerView({ user }: { user: any }) {
-  const { data: tasks = [], isLoading } = useQuery<any[]>({
-    queryKey: ['tasks'],
-    queryFn: () => api.get('/tasks').then((r) => r.data),
+  // 1. Fetch profile to get unit scope
+  const { data: profile, isLoading: profileLoading } = useQuery<any>({
+    queryKey: ['profile'],
+    queryFn: () => api.get('/auth/profile').then((r) => r.data),
+  });
+
+  const unitId = profile?.orgUnit?.id;
+
+  // 2. All queries scoped to manager's unit
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
+    queryKey: ['manager-tasks', unitId],
+    queryFn: () => api.get('/tasks', { params: { orgUnitId: unitId } }).then((r) => r.data),
+    enabled: !!unitId,
+  });
+  const { data: issues = [], isLoading: issuesLoading } = useQuery<any[]>({
+    queryKey: ['manager-issues', unitId],
+    queryFn: () => api.get('/issues', { params: { orgUnitId: unitId } }).then((r) => r.data),
+    enabled: !!unitId,
+  });
+  const { data: speakUpCases = [], isLoading: speakUpLoading } = useQuery<any[]>({
+    queryKey: ['manager-speakup', unitId],
+    queryFn: () => api.get('/speak-up/cases', { params: { orgUnitId: unitId } }).then((r) => r.data),
+    enabled: !!unitId,
   });
   const { data: surveys = [] } = useQuery<any[]>({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
   });
+  const { data: participation = [] } = useQuery<any[]>({
+    queryKey: ['manager-participation', unitId],
+    queryFn: () => api.get('/analytics/participation', { params: { orgUnitId: unitId } }).then((r) => r.data),
+    enabled: !!unitId,
+    staleTime: 5 * 60_000,
+  });
 
-  if (isLoading) return <p className="text-gray-400 text-sm">Loading...</p>;
+  if (profileLoading) return <p className="text-gray-400 text-sm">Loading...</p>;
 
-  const myTasks = tasks.filter((t: any) => t.assignedToId === user?.id || t.status !== 'DONE');
-  const overdue = tasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE');
-  const activeSurveys = surveys.filter((s: any) => s.status === 'ACTIVE');
+  const activeSurveys  = surveys.filter((s: any) => s.status === 'ACTIVE');
+  const recentSurveys  = surveys.filter((s: any) => s.status === 'CLOSED').slice(0, 3);
+  const openIssues     = issues.filter((i: any) => !['RESOLVED', 'CLOSED'].includes(i.status));
+  const openTasks      = tasks.filter((t: any) => t.status !== 'DONE');
+  const inProgressTasks = tasks.filter((t: any) => t.status === 'IN_PROGRESS');
+  const doneTasks      = tasks.filter((t: any) => t.status === 'DONE');
+  const overdueTasks   = tasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE');
+  const openCases      = speakUpCases.filter((c: any) => !['RESOLVED'].includes(c.status));
+  const totalResponses = (participation as any[]).reduce((sum, r) => sum + (r.count ?? 0), 0);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
-        <p className="text-gray-500 mt-1">Your team at a glance</p>
+        <p className="text-gray-500 mt-1">
+          {profile?.orgUnit?.name ?? 'Your unit'} — team overview
+        </p>
       </div>
 
+      {/* Metric cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Active Surveys"  value={activeSurveys.length} icon={ClipboardList} color="bg-blue-500"   href="/surveys" />
-        <MetricCard label="Open Tasks"      value={myTasks.length}       icon={CheckSquare}   color="bg-indigo-500" href="/tasks" />
-        <MetricCard label="Overdue Tasks"   value={overdue.length}       icon={Clock}         color="bg-orange-500" href="/tasks" />
-        <MetricCard label="Team Members"    value="—"                    icon={Users}         color="bg-teal-500" />
+        <MetricCard label="Active Surveys"  value={activeSurveys.length} icon={ClipboardList} color="bg-blue-500"    href="/surveys" />
+        <MetricCard label="Open Tasks"      value={openTasks.length}     icon={CheckSquare}   color="bg-indigo-500"  href="/tasks" />
+        <MetricCard label="Open Issues"     value={openIssues.length}    icon={AlertTriangle} color="bg-red-500"     href="/issues" />
+        <MetricCard label="Speak-up Cases"  value={openCases.length}     icon={MessageCircle} color="bg-amber-500"   href="/speak-up" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Team surveys with unit response counts */}
         <div className="card">
-          <SectionHeader title="Active Surveys" action={<Link href="/surveys" className="text-xs text-blue-600 font-medium">View all →</Link>} />
-          {activeSurveys.length === 0 ? (
-            <p className="text-gray-400 text-sm">No active surveys right now</p>
+          <SectionHeader title="Team Surveys" action={<Link href="/surveys" className="text-xs text-blue-600 font-medium">View all →</Link>} />
+          {activeSurveys.length === 0 && recentSurveys.length === 0 ? (
+            <p className="text-gray-400 text-sm">No surveys yet</p>
           ) : (
             <ul className="space-y-2">
-              {activeSurveys.slice(0, 4).map((s: any) => (
-                <li key={s.id} className="flex items-center gap-2 text-sm">
-                  <Zap className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  <span className="truncate text-gray-700">{s.title}</span>
+              {[...activeSurveys, ...recentSurveys].slice(0, 5).map((s: any) => {
+                const unitResponses = (participation as any[])
+                  .filter((p) => p.orgUnitId === unitId)
+                  .reduce((sum, p) => sum + (p.count ?? 0), 0);
+                return (
+                  <li key={s.id} className="py-2 border-b border-gray-50 last:border-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm text-gray-700 truncate flex-1">{s.title}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                        s.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                      }`}>{s.status}</span>
+                    </div>
+                    {s.status === 'ACTIVE' && totalResponses > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">{totalResponses} response{totalResponses !== 1 ? 's' : ''} from your unit</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Task completion status */}
+        <div className="card">
+          <SectionHeader title="Action Items" action={<Link href="/tasks" className="text-xs text-blue-600 font-medium">View all →</Link>} />
+          {tasksLoading ? <p className="text-gray-400 text-sm">Loading…</p> : tasks.length === 0 ? (
+            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> No tasks for your unit</p>
+          ) : (
+            <>
+              {/* Status breakdown */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {[
+                  { label: 'Open',        value: openTasks.length,       color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                  { label: 'In Progress', value: inProgressTasks.length, color: 'text-amber-600',  bg: 'bg-amber-50' },
+                  { label: 'Done',        value: doneTasks.length,       color: 'text-emerald-600',bg: 'bg-emerald-50' },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} className={`${bg} rounded-lg px-3 py-2 text-center`}>
+                    <p className={`text-xl font-bold ${color}`}>{value}</p>
+                    <p className="text-xs text-gray-500">{label}</p>
+                  </div>
+                ))}
+              </div>
+              {overdueTasks.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-orange-600 mb-1">Overdue ({overdueTasks.length})</p>
+                  <ul className="space-y-1">
+                    {overdueTasks.slice(0, 3).map((t: any) => (
+                      <li key={t.id} className="text-sm text-gray-700 truncate flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />{t.title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <ul className="space-y-1">
+                {openTasks.filter((t: any) => !overdueTasks.includes(t)).slice(0, 4).map((t: any) => (
+                  <li key={t.id} className="text-sm text-gray-700 truncate flex items-center gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />{t.title}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+
+        {/* Open issues from unit */}
+        <div className="card">
+          <SectionHeader title="Unit Issues" action={<Link href="/issues" className="text-xs text-blue-600 font-medium">View all →</Link>} />
+          {issuesLoading ? <p className="text-gray-400 text-sm">Loading…</p> : openIssues.length === 0 ? (
+            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> No open issues</p>
+          ) : (
+            <ul className="space-y-2">
+              {openIssues.slice(0, 5).map((i: any) => (
+                <li key={i.id} className="flex items-center gap-2 py-1 border-b border-gray-50 last:border-0">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${i.severity === 'CRITICAL' ? 'bg-red-500' : i.severity === 'HIGH' ? 'bg-orange-400' : 'bg-blue-400'}`} />
+                  <span className="text-sm text-gray-700 truncate flex-1">{i.title}</span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">{i.status?.replace(/_/g, ' ')}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
+        {/* Anonymous speak-up cases from unit */}
         <div className="card">
-          <SectionHeader title="Overdue Tasks" action={<Link href="/tasks" className="text-xs text-blue-600 font-medium">View all →</Link>} />
-          {overdue.length === 0 ? (
-            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> All caught up!</p>
+          <SectionHeader title="Speak-up Cases" action={<Link href="/speak-up" className="text-xs text-blue-600 font-medium">View all →</Link>} />
+          {speakUpLoading ? <p className="text-gray-400 text-sm">Loading…</p> : speakUpCases.length === 0 ? (
+            <p className="text-gray-400 text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> No cases from your unit</p>
           ) : (
-            <ul className="space-y-2">
-              {overdue.slice(0, 5).map((t: any) => (
-                <li key={t.id} className="text-sm truncate flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />{t.title}
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" /> Submitter identities are never shown
+              </p>
+              <ul className="space-y-2">
+                {speakUpCases.slice(0, 5).map((c: any) => (
+                  <li key={c.id} className="flex items-center gap-2 py-1 border-b border-gray-50 last:border-0">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.urgency === 'URGENT' ? 'bg-red-500' : 'bg-gray-300'}`} />
+                    <span className="text-sm text-gray-700 truncate flex-1">{c.category} — {c.description?.slice(0, 50) ?? 'No description'}…</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
+                      c.status === 'NEW' ? 'bg-amber-100 text-amber-700' :
+                      c.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                    }`}>{c.status}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       </div>
 
+      {/* Quick actions */}
       <div className="flex gap-3 flex-wrap">
         <Link href="/tasks" className="btn-primary flex items-center gap-2 text-sm"><CheckSquare className="w-4 h-4" /> Manage Tasks</Link>
-        <Link href="/issues" className="btn-secondary flex items-center gap-2 text-sm"><AlertTriangle className="w-4 h-4" /> Raise Issue</Link>
+        <Link href="/issues/new" className="btn-secondary flex items-center gap-2 text-sm"><AlertTriangle className="w-4 h-4" /> Escalate Issue</Link>
         <Link href="/speak-up" className="btn-secondary flex items-center gap-2 text-sm"><MessageCircle className="w-4 h-4" /> Speak Up</Link>
       </div>
     </div>

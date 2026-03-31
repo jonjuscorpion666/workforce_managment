@@ -112,10 +112,12 @@ export class SpeakUpService {
 
   findAll(query: any = {}) {
     const qb = this.repo.createQueryBuilder('c').orderBy('c.createdAt', 'DESC');
-    if (query.status)   qb.andWhere('c.status = :status',     { status: query.status });
-    if (query.urgency)  qb.andWhere('c.urgency = :urgency',   { urgency: query.urgency });
-    if (query.category) qb.andWhere('c.category = :category', { category: query.category });
-    if (query.routedTo) qb.andWhere('c.routedTo = :routedTo', { routedTo: query.routedTo });
+    if (query.status)     qb.andWhere('c.status = :status',         { status: query.status });
+    if (query.urgency)    qb.andWhere('c.urgency = :urgency',       { urgency: query.urgency });
+    if (query.category)   qb.andWhere('c.category = :category',     { category: query.category });
+    if (query.routedTo)   qb.andWhere('c.routedTo = :routedTo',     { routedTo: query.routedTo });
+    if (query.orgUnitId)  qb.andWhere('c.orgUnitId = :orgUnitId',   { orgUnitId: query.orgUnitId });
+    if (query.hospitalId) qb.andWhere('c.hospitalId = :hospitalId', { hospitalId: query.hospitalId });
     return qb.getMany();
   }
 
