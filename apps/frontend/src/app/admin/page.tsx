@@ -1011,6 +1011,7 @@ export default function AdminPage() {
   const { hasRole } = useAuth();
   const canCreateHospital = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const canAccessConfig   = hasRole('SVP') || hasRole('SUPER_ADMIN');
+  const isManager         = hasRole('MANAGER');
   const [tab,       setTab]       = useState<Tab>('hospitals');
   const [modal,     setModal]     = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | null>(null);
   const [editUser,  setEditUser]  = useState<any>(null);
@@ -1155,7 +1156,7 @@ export default function AdminPage() {
 
         {/* Context-sensitive add buttons */}
         <div className="flex gap-2">
-          {tab === 'hospitals' && (
+          {tab === 'hospitals' && !isManager && (
             <>
               <button onClick={() => setModal('unit')} className="btn-secondary text-sm flex items-center gap-2">
                 <Layers className="w-4 h-4" /> {isDirector ? 'Add Unit' : 'Add Dept / Unit'}
@@ -1188,8 +1189,9 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="flex border-b border-gray-200 gap-1">
         {TABS.filter(({ key }) => {
-          if (key === 'config' && !canAccessConfig) return false;
-          if (key === 'roles'  && isDirector)       return false;
+          if (key === 'config'    && !canAccessConfig)        return false;
+          if (key === 'roles'     && (isDirector || isManager)) return false;
+          if (key === 'hospitals' && isManager)               return false;
           return true;
         }).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)}
