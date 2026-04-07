@@ -426,6 +426,10 @@ export default function NewSurveyPage() {
   const [targetScope, setTargetScope]             = useState<TargetScope>(defaultScope);
   const [selectedHospitals, setSelectedHospitals] = useState<string[]>([]);
 
+  // Focus group
+  const [isFocusGroup, setIsFocusGroup]           = useState(false);
+  const [focusGroupUserIds, setFocusGroupUserIds]  = useState<string[]>([]);
+
   const [questions, setQuestions] = useState<QuestionDraft[]>([makeQuestion()]);
   const [error, setError]         = useState('');
 
@@ -435,6 +439,13 @@ export default function NewSurveyPage() {
     queryFn: () => api.get('/org/units').then((r) => r.data),
   });
   const hospitals = orgUnits.filter((u) => u.level === 'HOSPITAL');
+
+  // Fetch users for focus group picker
+  const { data: allUsers = [] } = useQuery<any[]>({
+    queryKey: ['admin-users'],
+    queryFn: () => api.get('/admin/users').then((r) => r.data),
+    enabled: isFocusGroup,
+  });
 
   // Pre-select CNO's own hospital once org units load
   useEffect(() => {
@@ -461,6 +472,7 @@ export default function NewSurveyPage() {
     setType(t.type);
     setIsAnonymous(t.isAnonymous);
     if (!isDirector && !isCNO && t.targetScope) setTargetScope(t.targetScope as TargetScope);
+    if (t.focusGroupUserIds?.length) { setIsFocusGroup(true); setFocusGroupUserIds(t.focusGroupUserIds); }
     const qs = (t.questions ?? [])
       .sort((a: any, b: any) => a.orderIndex - b.orderIndex)
       .map((q: any) => ({
@@ -527,6 +539,7 @@ export default function NewSurveyPage() {
       closesAt: closesAt || undefined,
       targetScope,
       targetOrgUnitIds: targetScope === 'SYSTEM' ? [] : selectedHospitals,
+      focusGroupUserIds: isFocusGroup && focusGroupUserIds.length ? focusGroupUserIds : [],
       questions: questions.map((q, i) => ({
         text: q.text, helpText: q.helpText || undefined,
         type: q.type, isRequired: q.isRequired,
@@ -582,13 +595,17 @@ export default function NewSurveyPage() {
   const isBusy = saveDraft.isPending || saveAndRequestApproval.isPending || saveAndPublish.isPending;
   const atQuestionLimit = questions.length >= maxQuestions;
 
-  const targetSummary = targetScope === 'SYSTEM'
-    ? 'All Franciscan Health hospitals'
-    : selectedHospitals.length > 0
-      ? `${selectedHospitals.length} hospital${selectedHospitals.length > 1 ? 's' : ''} selected`
-      : targetScope === 'UNIT'
-        ? 'Your department'
-        : 'No target selected';
+  const targetSummary = isFocusGroup && focusGroupUserIds.length > 0
+    ? `Focus group · ${focusGroupUserIds.length} person${focusGroupUserIds.length !== 1 ? 's' : ''}`
+    : isFocusGroup
+      ? 'Focus group (no members yet)'
+      : targetScope === 'SYSTEM'
+        ? 'All Franciscan Health hospitals'
+        : selectedHospitals.length > 0
+          ? `${selectedHospitals.length} hospital${selectedHospitals.length > 1 ? 's' : ''} selected`
+          : targetScope === 'UNIT'
+            ? 'Your department'
+            : 'No target selected';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-24">
@@ -931,6 +948,56 @@ export default function NewSurveyPage() {
             Unit-level targeting available once department/unit org units are configured.
           </div>
         )}
+
+        {/* ── Focus Group ── */}
+        <div className="border-t border-gray-100 pt-4">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div
+              onClick={() => { setIsFocusGroup(!isFocusGroup); if (isFocusGroup) setFocusGroupUserIds([]); }}
+              className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 flex items-center px-1 ${isFocusGroup ? 'bg-indigo-600' : 'bg-gray-200'}`}
+            >
+              <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${isFocusGroup ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-800">Focus Group</p>
+              <p className="text-xs text-gray-400">Restrict this survey to specific people only</p>
+            </div>
+          </label>
+
+          {isFocusGroup && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-gray-500 font-medium">Select users in this focus group:</p>
+              {allUsers.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Loading users…</p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+                  {allUsers.map((u: any) => {
+                    const selected = focusGroupUserIds.includes(u.id);
+                    return (
+                      <label key={u.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-indigo-50 transition-colors ${selected ? 'bg-indigo-50' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => setFocusGroupUserIds((prev) =>
+                            selected ? prev.filter((id) => id !== u.id) : [...prev, u.id]
+                          )}
+                          className="w-4 h-4 text-indigo-600 rounded"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800">{u.firstName} {u.lastName}</p>
+                          <p className="text-xs text-gray-400 truncate">{u.email} · {u.roles?.[0]?.name ?? '—'}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              {focusGroupUserIds.length > 0 && (
+                <p className="text-xs text-indigo-600 font-medium">{focusGroupUserIds.length} person{focusGroupUserIds.length !== 1 ? 's' : ''} selected</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Questions ──────────────────────────────────────────────────────────── */}

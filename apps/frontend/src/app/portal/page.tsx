@@ -826,9 +826,9 @@ export default function NursePortalPage() {
   }, [accessToken]);
 
   const { data: surveys = [], isLoading: surveysLoading } = useQuery({
-    queryKey: ['nurse-surveys'],
-    queryFn: () => api.get('/surveys', { params: { status: 'ACTIVE' } }).then((r) => r.data),
-    enabled: isAuthenticated,
+    queryKey: ['nurse-surveys', nurse?.id],
+    queryFn: () => api.get('/surveys', { params: { status: 'ACTIVE', userId: nurse?.id } }).then((r) => r.data),
+    enabled: isAuthenticated && !!nurse?.id,
   });
 
   const { data: feed = [], isLoading: feedLoading } = useQuery<any[]>({

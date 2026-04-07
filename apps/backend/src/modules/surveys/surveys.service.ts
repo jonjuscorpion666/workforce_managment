@@ -95,6 +95,15 @@ export class SurveysService {
     if (query.approvalStatus) qb.andWhere('s.approvalStatus = :approvalStatus',   { approvalStatus: query.approvalStatus });
     if (query.createdById)    qb.andWhere('s.createdById = :createdById',         { createdById: query.createdById });
 
+    // Focus group filter: when userId is passed (portal), exclude surveys with a focus group
+    // that doesn't include this user. Surveys without a focus group are always visible.
+    if (query.userId) {
+      qb.andWhere(
+        '(s."focusGroupUserIds" IS NULL OR s."focusGroupUserIds" = \'[]\' OR s."focusGroupUserIds" @> :userIdJson)',
+        { userIdJson: JSON.stringify([query.userId]) },
+      );
+    }
+
     return qb.getMany();
   }
 

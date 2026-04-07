@@ -96,6 +96,14 @@ export class Survey {
   @Column({ type: 'jsonb', nullable: true })
   targetRoles: string[];
 
+  /**
+   * Focus group: specific user IDs this survey is restricted to.
+   * When set and non-empty, only these users see the survey in the portal.
+   * When null/empty, normal scope rules (targetScope) apply.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  focusGroupUserIds: string[];
+
   @Column({ type: 'jsonb', nullable: true })
   targetShifts: string[];
 

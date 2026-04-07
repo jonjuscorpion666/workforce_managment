@@ -28,6 +28,7 @@ export class SurveysController {
   @ApiQuery({ name: 'orgUnitId',      required: false })
   @ApiQuery({ name: 'approvalStatus', required: false })
   @ApiQuery({ name: 'createdById',    required: false })
+  @ApiQuery({ name: 'userId',         required: false, description: 'When passed, excludes focus-group surveys the user is not in' })
   findAll(@Query() query: any) {
     return this.surveysService.findAll(query);
   }
