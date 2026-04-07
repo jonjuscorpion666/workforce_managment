@@ -455,6 +455,13 @@ export default function NewSurveyPage() {
     }
   }, [isCNO, userOrgUnit, hospitals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pre-set Director's own department as the target unit
+  useEffect(() => {
+    if (isDirector && userOrgUnit && selectedHospitals.length === 0) {
+      setSelectedHospitals([userOrgUnit.id]);
+    }
+  }, [isDirector, userOrgUnit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Template picker state
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [appliedTemplateName, setAppliedTemplateName] = useState('');

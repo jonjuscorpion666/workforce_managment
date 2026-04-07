@@ -31,9 +31,11 @@ export default function SurveysPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const isSVP = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const isSuperAdmin = hasRole('SUPER_ADMIN');
+  const isDirector = hasRole('DIRECTOR');
+  const deptId = isDirector ? user?.orgUnit?.id : null;
   const qc = useQueryClient();
   const toast = useToast();
 
@@ -49,10 +51,19 @@ export default function SurveysPage() {
     setSelectedIds((prev) => prev.size === ids.length ? new Set() : new Set(ids));
   }
 
-  const { data: surveys = [], isLoading } = useQuery({
+  const { data: allSurveys = [], isLoading } = useQuery({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
   });
+
+  // Directors only see surveys they created or that target their department (or system-wide)
+  const surveys = isDirector && deptId
+    ? allSurveys.filter((s: any) =>
+        s.createdById === user?.id ||
+        s.targetScope === 'SYSTEM' ||
+        (s.targetOrgUnitIds as string[] | null)?.includes(deptId)
+      )
+    : allSurveys;
 
   const bulkDelete = useMutation({
     mutationFn: (ids: string[]) => api.post('/surveys/bulk-delete', { ids }),
