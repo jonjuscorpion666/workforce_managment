@@ -276,7 +276,7 @@ function MetricsStrip({ metrics }: { metrics: any }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
       {cards.map((c) => (
-        <div key={c.label} className="bg-white rounded-xl border border-gray-200 px-3 py-3 text-center shadow-sm">
+        <div key={c.label} className="bg-white rounded-2xl border border-gray-100 px-3 py-3 text-center shadow-sm">
           <p className={`text-2xl font-bold ${c.color}`}>{c.value ?? 0}</p>
           <p className="text-[11px] text-gray-500 mt-0.5">{c.label}</p>
         </div>
@@ -357,7 +357,7 @@ function CasesList() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>

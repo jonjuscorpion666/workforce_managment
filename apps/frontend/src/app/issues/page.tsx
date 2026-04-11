@@ -117,7 +117,7 @@ function AutoCreateModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Auto-Create from Survey</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -258,7 +258,7 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">New Issue</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -507,40 +507,40 @@ export default function IssuesPage() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="card flex items-center gap-4 py-4">
-          <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
             <Layers className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Total Issues</p>
-            <p className="text-2xl font-bold text-gray-900">{total}</p>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{total}</p>
+            <p className="text-sm text-gray-500 mt-1">Total Issues</p>
           </div>
         </div>
-        <div className="card flex items-center gap-4 py-4">
-          <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
+          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
             <Clock className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Open / Action Planned</p>
-            <p className="text-2xl font-bold text-gray-900">{openCount}</p>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{openCount}</p>
+            <p className="text-sm text-gray-500 mt-1">Open / Action Planned</p>
           </div>
         </div>
-        <div className="card flex items-center gap-4 py-4">
-          <div className="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
+          <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Awaiting Validation</p>
-            <p className="text-2xl font-bold text-gray-900">{awaitingCount}</p>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{awaitingCount}</p>
+            <p className="text-sm text-gray-500 mt-1">Awaiting Validation</p>
           </div>
         </div>
-        <div className="card flex items-center gap-4 py-4">
-          <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
+          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Critical Severity</p>
-            <p className="text-2xl font-bold text-gray-900">{criticalCount}</p>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{criticalCount}</p>
+            <p className="text-sm text-gray-500 mt-1">Critical Severity</p>
           </div>
         </div>
       </div>
@@ -606,7 +606,7 @@ export default function IssuesPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 h-14 animate-pulse" />
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 h-14 animate-pulse" />
           ))}
         </div>
       ) : (

@@ -138,7 +138,7 @@ export default function SurveysPage() {
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {isSuperAdmin && (
                   <th className="px-4 py-3 w-8">

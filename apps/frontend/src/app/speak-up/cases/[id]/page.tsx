@@ -83,7 +83,7 @@ function NoteModal({ caseId, onClose }: { caseId: string; onClose: () => void })
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="p-5 border-b flex items-center justify-between">
           <h3 className="font-semibold text-gray-800">Add Note</h3>
           <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
@@ -130,7 +130,7 @@ function ScheduleModal({ caseId, onClose }: { caseId: string; onClose: () => voi
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="p-5 border-b flex items-center justify-between">
           <h3 className="font-semibold text-gray-800">Schedule Meeting</h3>
           <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
@@ -193,7 +193,7 @@ function OutcomeForm({ caseId, existing, onClose }: { caseId: string; existing?:
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="p-5 border-b flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-gray-800">Record Meeting Outcome</h3>
@@ -371,13 +371,13 @@ export default function CaseDetailPage() {
         <div className="lg:col-span-2 space-y-5">
 
           {/* Description */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Description</p>
             <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{c.description ?? c.message}</p>
           </div>
 
           {/* Metadata grid */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Category</p>
@@ -469,7 +469,7 @@ export default function CaseDetailPage() {
           )}
 
           {/* Activity timeline */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Activity Timeline</p>
             <Timeline activities={c.activities ?? []} />
           </div>
@@ -486,7 +486,7 @@ export default function CaseDetailPage() {
           )}
 
           {/* Status actions */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-2">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Actions</p>
 
             {status === 'NEW' && (
@@ -558,7 +558,7 @@ export default function CaseDetailPage() {
 
           {/* Convert to Issue */}
           {!c.convertedToIssueId && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Integrations</p>
               <button
                 onClick={() => convertMutation.mutate()}
@@ -581,7 +581,7 @@ export default function CaseDetailPage() {
           )}
 
           {/* SLA info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">SLA</p>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">

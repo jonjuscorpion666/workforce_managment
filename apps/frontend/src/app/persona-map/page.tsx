@@ -171,7 +171,7 @@ export default function PersonaMapPage() {
 
       {/* "You are currently" banner */}
       {user && currentPersona && (
-        <div className={`rounded-xl border-2 ${currentPersona.color.border} ${currentPersona.color.light} px-5 py-4 flex items-center gap-4`}>
+        <div className={`rounded-2xl border-2 ${currentPersona.color.border} ${currentPersona.color.light} px-5 py-4 flex items-center gap-4`}>
           <div className={`p-2.5 rounded-xl ${currentPersona.color.bg} flex-shrink-0`}>
             <currentPersona.icon className="w-5 h-5 text-white" />
           </div>

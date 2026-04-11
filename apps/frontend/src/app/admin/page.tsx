@@ -389,7 +389,7 @@ function BulkUploadModal({ onClose }: { onClose: () => void }) {
       {step === 'upload' && (
         <div className="space-y-4">
           {/* Template download */}
-          <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4">
             <FileSpreadsheet className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-blue-800">Use the CSV template</p>
@@ -405,7 +405,7 @@ function BulkUploadModal({ onClose }: { onClose: () => void }) {
 
           {/* Drop zone */}
           <label className="block cursor-pointer">
-            <div className="border-2 border-dashed border-gray-300 hover:border-brand-400 rounded-xl p-8 text-center transition-colors">
+            <div className="border-2 border-dashed border-gray-300 hover:border-brand-400 rounded-2xl p-8 text-center transition-colors">
               <Upload className="w-8 h-8 text-gray-300 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-600">Click to select CSV file</p>
               <p className="text-xs text-gray-400 mt-1">or drag and drop</p>
@@ -440,7 +440,7 @@ function BulkUploadModal({ onClose }: { onClose: () => void }) {
             <span className="ml-auto text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{rows.length} rows</span>
           </div>
 
-          <div className="rounded-xl border border-gray-200 overflow-x-auto">
+          <div className="rounded-2xl border border-gray-100 overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -498,14 +498,14 @@ function BulkUploadModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {/* Summary cards */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-green-50 border border-green-100 rounded-xl p-4 flex items-center gap-3">
+            <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex items-center gap-3">
               <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0" />
               <div>
                 <p className="text-2xl font-bold text-green-700">{result.created}</p>
                 <p className="text-xs text-green-600">Users created</p>
               </div>
             </div>
-            <div className={`rounded-xl p-4 flex items-center gap-3 border ${result.failed.length > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+            <div className={`rounded-2xl p-4 flex items-center gap-3 border ${result.failed.length > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
               <XCircle className={`w-8 h-8 flex-shrink-0 ${result.failed.length > 0 ? 'text-red-400' : 'text-gray-300'}`} />
               <div>
                 <p className={`text-2xl font-bold ${result.failed.length > 0 ? 'text-red-600' : 'text-gray-400'}`}>{result.failed.length}</p>
@@ -764,7 +764,7 @@ function HospitalRow({ hospital, cno, units }: { hospital: any; cno: any; units:
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-gray-100 rounded-2xl overflow-hidden">
       <div className="flex items-center gap-4 px-5 py-4 bg-white hover:bg-gray-50 cursor-pointer"
         onClick={() => setOpen((o) => !o)}>
         <div className="w-9 h-9 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -1255,13 +1255,13 @@ export default function AdminPage() {
             {/* Stats strip */}
             {(isCNO || isDirector) ? (
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 rounded-xl px-5 py-4">
+                <div className="bg-blue-50 rounded-2xl px-5 py-4">
                   <p className="text-xs text-gray-500 mb-1">{isDirector ? 'Your Hospital' : 'Your Hospital'}</p>
                   <p className="text-base font-bold text-blue-700 truncate">
                     {isDirector ? (directorHospitalName || '—') : (cnoHospitalName || '—')}
                   </p>
                 </div>
-                <div className="bg-gray-50 rounded-xl px-5 py-4">
+                <div className="bg-gray-50 rounded-2xl px-5 py-4">
                   <p className="text-xs text-gray-500 mb-1">{isDirector ? 'Your Department' : 'Dept / Units'}</p>
                   {isDirector
                     ? <p className="text-base font-bold text-gray-700 truncate">{directorDeptName || '—'}</p>
@@ -1275,7 +1275,7 @@ export default function AdminPage() {
                   { label: 'CNOs assigned', value: cnoUsers.filter((u) => u.orgUnit).length, color: 'text-amber-700', bg: 'bg-amber-50' },
                   { label: 'Dept / Units',  value: childUnits.length, color: 'text-gray-700',  bg: 'bg-gray-50' },
                 ].map(({ label, value, color, bg }) => (
-                  <div key={label} className={`${bg} rounded-xl px-5 py-4`}>
+                  <div key={label} className={`${bg} rounded-2xl px-5 py-4`}>
                     <p className="text-xs text-gray-500 mb-1">{label}</p>
                     <p className={`text-2xl font-bold ${color}`}>{value}</p>
                   </div>
@@ -1289,7 +1289,7 @@ export default function AdminPage() {
             </div>
 
             {visibleHospitals.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
+              <div className="text-center py-12 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-2xl">
                 {isCNO ? 'Your hospital is not configured yet.' : isDirector ? 'Your department is not configured yet.' : 'No hospitals yet — click "Add Hospital" to get started.'}
               </div>
             ) : (

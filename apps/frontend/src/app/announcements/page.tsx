@@ -93,8 +93,8 @@ function AnnouncementCard({
   const isCritical = ann.priority === 'CRITICAL';
 
   return (
-    <div className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all hover:shadow-md
-      ${!ann.isRead ? 'border-blue-200' : 'border-gray-200'}
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md
+      ${!ann.isRead ? 'border-blue-200' : 'border-gray-100'}
       ${isCritical ? 'ring-1 ring-red-300' : ''}`}>
 
       {/* Priority bar */}
@@ -282,7 +282,7 @@ export default function AnnouncementsPage() {
 
       {/* Critical banner */}
       {feed.filter((a) => a.priority === 'CRITICAL' && !a.isAcknowledged && a.requiresAcknowledgement).length > 0 && (
-        <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-start gap-3">
+        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-red-800">Critical announcements require your acknowledgement</p>
@@ -352,7 +352,7 @@ export default function AnnouncementsPage() {
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-200 h-32 animate-pulse" />
+                <div key={i} className="bg-white rounded-2xl border border-gray-100 h-32 animate-pulse" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
@@ -448,7 +448,7 @@ export default function AnnouncementsPage() {
                   { label: 'Overall Read Rate', value: `${metrics.overallReadRate}%`, color: 'text-green-700', bg: 'bg-green-50' },
                   { label: 'Overall Ack Rate',  value: `${metrics.overallAckRate}%`,  color: 'text-amber-700', bg: 'bg-amber-50' },
                 ].map(({ label, value, color, bg }) => (
-                  <div key={label} className={`${bg} rounded-xl p-5`}>
+                  <div key={label} className={`${bg} rounded-2xl p-5`}>
                     <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
                     <p className={`text-2xl font-bold ${color}`}>{value}</p>
                   </div>
@@ -483,13 +483,13 @@ export default function AnnouncementsPage() {
                   { label: 'Total reads',            value: metrics.totalRead,             icon: Eye },
                   { label: 'Total acknowledgements', value: metrics.totalAcknowledged,     icon: Check },
                 ].map(({ label, value, icon: Icon }) => (
-                  <div key={label} className="card flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
                       <Icon className="w-5 h-5 text-gray-500" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className="text-xl font-bold text-gray-900">{value}</p>
+                      <p className="text-xl font-bold text-gray-900 leading-none">{value}</p>
+                      <p className="text-sm text-gray-500 mt-1">{label}</p>
                     </div>
                   </div>
                 ))}

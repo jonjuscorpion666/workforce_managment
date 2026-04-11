@@ -283,7 +283,7 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -543,7 +543,7 @@ function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: ()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Add Action Plan</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -911,7 +911,7 @@ export default function IssueDetailPage() {
       <div className="space-y-4 animate-pulse">
         <div className="h-8 bg-gray-200 rounded w-1/3" />
         <div className="h-4 bg-gray-100 rounded w-1/4" />
-        <div className="h-48 bg-gray-100 rounded-xl" />
+        <div className="h-48 bg-gray-100 rounded-2xl" />
       </div>
     );
   }

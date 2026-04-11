@@ -73,7 +73,7 @@ function SurveyCard({ survey, onApprove, onReject, onPreview, isActing }: {
     : `${survey.targetOrgUnitIds?.length ?? 0} Hospital${(survey.targetOrgUnitIds?.length ?? 0) !== 1 ? 's' : ''}`;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Card header */}
       <div className="px-5 py-4">
         <div className="flex items-start justify-between gap-4">
@@ -231,7 +231,7 @@ export default function ApprovalsPage() {
         <>
           {/* Pending */}
           {pending.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+            <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
               <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-3" />
               <p className="font-semibold text-gray-700">All caught up!</p>
               <p className="text-sm text-gray-400 mt-1">No surveys are waiting for your review.</p>

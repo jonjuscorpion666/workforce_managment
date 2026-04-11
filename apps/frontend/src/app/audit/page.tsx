@@ -127,7 +127,7 @@ function FeedEntry({ log }: { log: ActivityEntry }) {
       {/* Timeline dot */}
       <span className={`absolute left-0 top-3 w-2 h-2 rounded-full ${meta.dot} border-2 border-white shadow-sm`} />
 
-      <div className="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors shadow-sm">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 hover:border-gray-200 transition-colors shadow-sm">
         {/* Main row */}
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
