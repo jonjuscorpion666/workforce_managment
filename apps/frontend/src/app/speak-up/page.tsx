@@ -96,7 +96,7 @@ function SubmitForm() {
           <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-7 h-7 text-emerald-600" />
           </div>
-          <h3 className="text-lg font-semibold text-emerald-900 mb-2">Your voice has been heard</h3>
+          <h3 data-testid="success-heading" className="text-lg font-semibold text-emerald-900 mb-2">Your voice has been heard</h3>
           <p className="text-sm text-emerald-700 mb-1">
             Your case has been submitted{privacy === 'ANONYMOUS' ? ' anonymously' : ' confidentially'}.
           </p>
@@ -135,6 +135,7 @@ function SubmitForm() {
             <button
               key={c.value}
               type="button"
+              data-testid={`category-btn-${c.value}`}
               onClick={() => setCategory(c.value)}
               className={`text-left p-3 rounded-xl border text-sm transition-all ${
                 category === c.value
@@ -156,6 +157,7 @@ function SubmitForm() {
         </label>
         <textarea
           rows={5}
+          data-testid="description-textarea"
           className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
           placeholder="Be as specific as you can. Include dates, names, and what happened. The more detail, the faster we can act."
           value={description}
@@ -246,6 +248,7 @@ function SubmitForm() {
       <div className="pt-1">
         <button
           type="button"
+          data-testid="submit-concern-button"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending || !description.trim()}
           className="btn-primary w-full py-3 text-base"

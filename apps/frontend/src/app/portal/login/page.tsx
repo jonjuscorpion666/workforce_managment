@@ -69,6 +69,7 @@ export default function NurseLoginPage() {
                 placeholder="you@hospital.com"
                 required
                 autoComplete="email"
+                data-testid="email-input"
               />
             </div>
 
@@ -83,6 +84,7 @@ export default function NurseLoginPage() {
                   placeholder="••••••••••••"
                   required
                   autoComplete="current-password"
+                  data-testid="password-input"
                 />
                 <button
                   type="button"
@@ -95,12 +97,13 @@ export default function NurseLoginPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+              <p data-testid="error-message" className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
             )}
 
             <button
               type="submit"
               disabled={loading}
+              data-testid="sign-in-button"
               className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-60 shadow-sm"
             >
               {loading ? 'Signing in…' : 'Sign In'}

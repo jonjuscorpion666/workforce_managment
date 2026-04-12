@@ -41,6 +41,7 @@ function LikertRow({ max, value, onChange }: { max: number; value: AnswerValue; 
       <div className="flex gap-2 flex-wrap">
         {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
           <button key={n} type="button" onClick={() => onChange(n)}
+            data-testid={`likert-btn-${n}`}
             className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all
               ${value === n ? 'bg-blue-600 border-blue-600 text-white scale-110' : 'border-gray-300 text-gray-600 hover:border-blue-400'}`}>
             {n}
@@ -274,7 +275,7 @@ export default function NurseSurveyPage() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
           <CheckCircle2 className="w-8 h-8 text-green-600" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Response Submitted!</h2>
+        <h2 data-testid="success-heading" className="text-xl font-bold text-gray-900 mb-2">Response Submitted!</h2>
         <p className="text-gray-500 text-sm mb-1">
           Your feedback has been recorded <span className="font-semibold text-green-700">anonymously</span>.
         </p>
@@ -339,6 +340,7 @@ export default function NurseSurveyPage() {
             <button
               type="submit"
               disabled={submitting}
+              data-testid="submit-response-button"
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-3.5 rounded-xl transition-colors text-sm"
             >
               {submitting ? 'Submitting anonymously...' : 'Submit Anonymous Response'}

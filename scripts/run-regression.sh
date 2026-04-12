@@ -12,17 +12,23 @@
 #   --skip-db          Don't create/drop the regression database (use with --url)
 #   --keep-db          Don't drop the regression database on exit
 #   --port <port>      Local server port (default: 3099)
+#   --e2e              Also run Playwright UI tests after the API suite
+#   --e2e-only         Run only the Playwright UI tests (skip API suite)
+#   --frontend-url <u> Frontend URL for E2E tests (default: http://localhost:3000)
 #   --help             Show this help
 #
 # Examples:
-#   # Full local run (creates DB, seeds, starts server, tests, cleans up):
+#   # Full local run (API + UI tests):
+#   ./scripts/run-regression.sh --e2e
+#
+#   # API tests only:
 #   ./scripts/run-regression.sh
+#
+#   # UI tests only against already-running stack:
+#   ./scripts/run-regression.sh --e2e-only --skip-db --url http://localhost:3001/api/v1
 #
 #   # Test against Railway staging (no local server needed):
 #   ./scripts/run-regression.sh --url https://my-app.up.railway.app/api/v1 --skip-db
-#
-#   # Re-run tests against already-running local server:
-#   ./scripts/run-regression.sh --url http://localhost:3001/api/v1 --skip-db --skip-seed
 # =============================================================================
 
 set -euo pipefail
@@ -43,7 +49,11 @@ CUSTOM_URL=""
 SKIP_SEED=false
 SKIP_DB=false
 KEEP_DB=false
+RUN_E2E=false
+E2E_ONLY=false
+FRONTEND_URL="http://localhost:3000"
 SERVER_PID=""
+FRONTEND_PID=""
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -58,11 +68,14 @@ header()  { echo -e "\n${BOLD}${CYAN}══ $* ══${RESET}\n"; }
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --url)       CUSTOM_URL="$2"; shift 2 ;;
-    --port)      TEST_PORT="$2"; shift 2 ;;
-    --skip-seed) SKIP_SEED=true; shift ;;
-    --skip-db)   SKIP_DB=true; shift ;;
-    --keep-db)   KEEP_DB=true; shift ;;
+    --url)          CUSTOM_URL="$2"; shift 2 ;;
+    --port)         TEST_PORT="$2"; shift 2 ;;
+    --skip-seed)    SKIP_SEED=true; shift ;;
+    --skip-db)      SKIP_DB=true; shift ;;
+    --keep-db)      KEEP_DB=true; shift ;;
+    --e2e)          RUN_E2E=true; shift ;;
+    --e2e-only)     E2E_ONLY=true; RUN_E2E=true; shift ;;
+    --frontend-url) FRONTEND_URL="$2"; shift 2 ;;
     --help)
       sed -n '/^# Usage/,/^# ====/p' "${BASH_SOURCE[0]}" | head -n -1
       exit 0
@@ -79,6 +92,12 @@ cleanup() {
     log "Stopping test server (PID ${SERVER_PID})..."
     kill "${SERVER_PID}" 2>/dev/null || true
     wait "${SERVER_PID}" 2>/dev/null || true
+  fi
+
+  if [[ -n "${FRONTEND_PID}" ]]; then
+    log "Stopping frontend dev server (PID ${FRONTEND_PID})..."
+    kill "${FRONTEND_PID}" 2>/dev/null || true
+    wait "${FRONTEND_PID}" 2>/dev/null || true
   fi
 
   if [[ "${SKIP_DB}" == false && "${KEEP_DB}" == false ]]; then
@@ -190,12 +209,50 @@ header "Running regression test suite"
 
 mkdir -p "${BACKEND_DIR}/test/reports"
 
-TEST_API_URL="${TEST_API_URL}" \
-TEST_SKIP_SEED=true \
-  npx jest \
-    --config "${BACKEND_DIR}/test/jest.integration.ts" \
-    --forceExit \
-    --passWithNoTests \
-    "${@}"
+if [[ "${E2E_ONLY}" == false ]]; then
+  TEST_API_URL="${TEST_API_URL}" \
+  TEST_SKIP_SEED=true \
+    npx jest \
+      --config "${BACKEND_DIR}/test/jest.integration.ts" \
+      --forceExit \
+      --passWithNoTests
+fi
+
+# ── Run Playwright E2E tests (optional) ──────────────────────────────────────
+
+if [[ "${RUN_E2E}" == true ]]; then
+  header "Starting Playwright E2E suite"
+
+  FRONTEND_DIR="${ROOT_DIR}/apps/frontend"
+
+  # Start the Next.js frontend if a custom frontend URL wasn't given
+  if [[ "${FRONTEND_URL}" == "http://localhost:3000" ]]; then
+    log "Starting Next.js frontend on port 3000..."
+    NEXT_PUBLIC_API_URL="${TEST_API_URL}" \
+      npm run dev --workspace=apps/frontend > /tmp/regression-frontend.log 2>&1 &
+    FRONTEND_PID=$!
+
+    log "Waiting for frontend to be ready..."
+    for i in $(seq 1 40); do
+      if curl -sf "${FRONTEND_URL}" -o /dev/null 2>/dev/null; then
+        success "Frontend ready after ${i}s"
+        break
+      fi
+      sleep 2
+      if [[ $i -eq 40 ]]; then
+        error "Frontend did not become ready. Logs:"
+        tail -20 /tmp/regression-frontend.log
+        exit 1
+      fi
+    done
+  fi
+
+  mkdir -p "${FRONTEND_DIR}/e2e/reports"
+
+  E2E_BASE_URL="${FRONTEND_URL}" \
+  TEST_API_URL="${TEST_API_URL}" \
+    npx playwright test \
+      --config "${FRONTEND_DIR}/playwright.config.ts"
+fi
 
 # Exit code is propagated by trap

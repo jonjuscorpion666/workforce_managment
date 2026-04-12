@@ -214,7 +214,9 @@ GET    /kpis                        KPI data
 
 A full API regression suite lives in `apps/backend/test/`. Run it before every release to catch auth, RBAC, and workflow regressions across all eight feature modules.
 
-### What is covered
+Two layers of test coverage: **API regression** (fast, role-by-role) and **UI E2E** (real browser, critical journeys).
+
+### API regression — what is covered
 
 | Suite | Description |
 |---|---|
@@ -227,35 +229,50 @@ A full API regression suite lives in `apps/backend/test/`. Run it before every r
 | `07.escalations` | Trigger, list, get by ID, acknowledge |
 | `08.rbac-matrix` | Systematic 403/401 checks — every sensitive endpoint tested with an unauthorized role |
 
+### UI E2E — what is covered (Playwright)
+
+| Suite | Description |
+|---|---|
+| `01.nurse-login` | Nurse portal login, wrong credentials, admin blocked from nurse portal |
+| `02.admin-login` | Admin login for SVP/CNP/Manager/HR, wrong credentials, auth guard redirects |
+| `03.nurse-survey` | Full flow: nurse navigates to survey, answers Likert question, submits, sees success |
+| `04.speak-up` | Manager submits a speak-up case, form validation, success screen, reset |
+| `05.rbac-ui` | Unauthenticated access to all protected routes, cross-portal access attempts, post-logout redirect |
+
 ### Run locally (full automated run)
 
-**Prerequisites:** PostgreSQL running locally, backend built.
+**Prerequisites:** PostgreSQL running locally, Node 20+, backend built.
 
 ```bash
-# Creates a fresh regression DB, seeds it, starts the server, runs all tests, tears down
+# API tests only (creates DB, seeds, starts server, tests, tears down):
 ./scripts/run-regression.sh
-```
 
-Common options:
+# API + UI tests together:
+./scripts/run-regression.sh --e2e
 
-```bash
-# Test against Railway staging (no local server needed)
+# UI tests only (backend + frontend already running):
+./scripts/run-regression.sh --e2e-only --skip-db --url http://localhost:3001/api/v1
+
+# Test against Railway staging:
 ./scripts/run-regression.sh --url https://your-app.up.railway.app/api/v1 --skip-db
-
-# Re-run without recreating the database
-./scripts/run-regression.sh --skip-db --skip-seed
-
-# Keep the regression DB after the run (useful for debugging)
-./scripts/run-regression.sh --keep-db
 ```
 
-### Run manually (server already running)
+### Run manually
 
 ```bash
+# API tests (server must be running):
 cd apps/backend
-
-# Ensure TEST_API_URL points at your running server (default: http://localhost:3001/api/v1)
 TEST_API_URL=http://localhost:3001/api/v1 npm run test:regression
+
+# UI tests (both backend + frontend must be running):
+cd apps/frontend
+TEST_API_URL=http://localhost:3001/api/v1 npm run test:e2e
+
+# Open Playwright's interactive UI explorer:
+npm run test:e2e:ui
+
+# View the last HTML report:
+npm run test:e2e:report
 ```
 
 ### HTML report
