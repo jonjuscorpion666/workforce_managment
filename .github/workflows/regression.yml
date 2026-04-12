@@ -1,0 +1,189 @@
+name: Regression Tests
+
+on:
+  # Run on every PR targeting main
+  pull_request:
+    branches: [main]
+  # Run manually (e.g., before a release)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [local, staging, production]
+  # Allow calling from another workflow (e.g., release pipeline)
+  workflow_call:
+    secrets:
+      TEST_DATABASE_URL:
+        required: true
+      JWT_SECRET:
+        required: true
+      REFRESH_TOKEN_SECRET:
+        required: true
+
+env:
+  NODE_VERSION: '20'
+  POSTGRES_DB: workforce_regression
+  POSTGRES_USER: workforce_user
+  POSTGRES_PASSWORD: workforce_pass
+
+jobs:
+  regression:
+    name: API Regression Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      # ── Checkout & Setup ────────────────────────────────────────────────────
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --workspace=apps/backend --include-workspace-root
+
+      # ── Build ────────────────────────────────────────────────────────────────
+
+      - name: Build backend
+        run: npm run build --workspace=apps/backend
+
+      # ── Environment ──────────────────────────────────────────────────────────
+
+      - name: Write .env for backend
+        run: |
+          cat > apps/backend/.env <<EOF
+          NODE_ENV=test
+          PORT=3099
+          DATABASE_URL=postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'regression-test-jwt-secret-32chars!!' }}
+          JWT_EXPIRY=7d
+          REFRESH_TOKEN_SECRET=${{ secrets.REFRESH_TOKEN_SECRET || 'regression-refresh-secret-32chars' }}
+          REFRESH_TOKEN_EXPIRY=30d
+          REDIS_HOST=localhost
+          REDIS_PORT=6379
+          EOF
+
+      # ── Seed ─────────────────────────────────────────────────────────────────
+
+      - name: Seed test database
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
+          NODE_ENV: test
+        run: npm run seed
+
+      # ── Start backend ─────────────────────────────────────────────────────────
+
+      - name: Start backend server
+        working-directory: apps/backend
+        env:
+          NODE_ENV: test
+          PORT: 3099
+          DATABASE_URL: postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
+          JWT_SECRET: regression-test-jwt-secret-32chars!!
+          REFRESH_TOKEN_SECRET: regression-refresh-secret-32chars
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: node dist/main &
+
+      - name: Wait for backend to be ready
+        run: |
+          echo "Waiting for backend on port 3099..."
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3099/api/v1/auth/me -o /dev/null && echo "Ready!" && exit 0 || true
+            sleep 2
+          done
+          echo "Backend did not start in time" && exit 1
+
+      # ── Run Regression Tests ─────────────────────────────────────────────────
+
+      - name: Run regression test suite
+        working-directory: apps/backend
+        env:
+          TEST_API_URL: http://localhost:3099/api/v1
+          TEST_SKIP_SEED: 'true'   # already seeded above
+        run: npx jest --config test/jest.integration.ts --forceExit
+
+      # ── Artifacts ────────────────────────────────────────────────────────────
+
+      - name: Upload HTML test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report-${{ github.run_number }}
+          path: apps/backend/test/reports/regression-report.html
+          retention-days: 30
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs-${{ github.run_number }}
+          path: /tmp/backend.log
+          retention-days: 7
+
+  # ── Summary comment on PRs ──────────────────────────────────────────────────
+
+  comment-pr:
+    name: Post results to PR
+    needs: regression
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment result on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ needs.regression.result }}';
+            const icon   = status === 'success' ? '✅' : '❌';
+            const body   = [
+              `## ${icon} Regression Tests — ${status.toUpperCase()}`,
+              '',
+              `**Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              '',
+              status === 'success'
+                ? 'All regression checks passed. Safe to merge.'
+                : '⚠️ One or more regression checks failed. Please review before merging.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
