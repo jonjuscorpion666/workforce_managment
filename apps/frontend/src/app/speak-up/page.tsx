@@ -130,7 +130,7 @@ function SubmitForm() {
       {/* Category */}
       <div>
         <p className="text-sm font-semibold text-gray-700 mb-2">What is this about? <span className="text-red-500">*</span></p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
           {CATEGORIES.map((c) => (
             <button
               key={c.value}
@@ -158,11 +158,15 @@ function SubmitForm() {
         <textarea
           rows={5}
           data-testid="description-textarea"
+          maxLength={1000}
           className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
           placeholder="Be as specific as you can. Include dates, names, and what happened. The more detail, the faster we can act."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+        <p className={`text-xs mt-1 text-right ${description.length >= 900 ? 'text-orange-500' : 'text-gray-400'}`}>
+          {description.length} / 1000
+        </p>
       </div>
 
       {/* Urgency + Preferred level */}

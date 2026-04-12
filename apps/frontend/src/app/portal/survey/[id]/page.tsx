@@ -32,6 +32,19 @@ type AnswerValue = number | string | null;
 
 // ─── Question input components ────────────────────────────────────────────────
 
+const LIKERT_COLORS = [
+  { active: 'bg-red-500 border-red-500 text-white',    idle: 'border-red-200 text-red-500 hover:border-red-400 hover:bg-red-50' },
+  { active: 'bg-orange-400 border-orange-400 text-white', idle: 'border-orange-200 text-orange-500 hover:border-orange-400 hover:bg-orange-50' },
+  { active: 'bg-amber-400 border-amber-400 text-white',   idle: 'border-amber-200 text-amber-600 hover:border-amber-400 hover:bg-amber-50' },
+  { active: 'bg-lime-500 border-lime-500 text-white',     idle: 'border-lime-300 text-lime-600 hover:border-lime-400 hover:bg-lime-50' },
+  { active: 'bg-green-500 border-green-500 text-white',   idle: 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50' },
+];
+
+function likertColor(n: number, max: number) {
+  const idx = Math.round(((n - 1) / Math.max(max - 1, 1)) * 4);
+  return LIKERT_COLORS[Math.min(idx, 4)];
+}
+
 function LikertRow({ max, value, onChange }: { max: number; value: AnswerValue; onChange: (v: number) => void }) {
   const ends = max === 5
     ? { first: 'Strongly Disagree', last: 'Strongly Agree' }
@@ -39,14 +52,17 @@ function LikertRow({ max, value, onChange }: { max: number; value: AnswerValue; 
   return (
     <div className="mt-3">
       <div className="flex gap-2 flex-wrap">
-        {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
-          <button key={n} type="button" onClick={() => onChange(n)}
-            data-testid={`likert-btn-${n}`}
-            className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all
-              ${value === n ? 'bg-blue-600 border-blue-600 text-white scale-110' : 'border-gray-300 text-gray-600 hover:border-blue-400'}`}>
-            {n}
-          </button>
-        ))}
+        {Array.from({ length: max }, (_, i) => i + 1).map((n) => {
+          const { active, idle } = likertColor(n, max);
+          return (
+            <button key={n} type="button" onClick={() => onChange(n)}
+              data-testid={`likert-btn-${n}`}
+              className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all
+                ${value === n ? `${active} scale-110` : idle}`}>
+              {n}
+            </button>
+          );
+        })}
       </div>
       <div className="flex justify-between mt-1 text-xs text-gray-400">
         <span>{ends.first}</span><span>{ends.last}</span>
@@ -187,11 +203,25 @@ export default function NurseSurveyPage() {
   const [submitting, setSubmitting]   = useState(false);
   const [submitted, setSubmitted]     = useState(false);
   const [validErr, setValidErr]       = useState('');
+  const [countdown, setCountdown]     = useState(3);
 
   // Guard
   useEffect(() => {
     if (!isAuthenticated) router.replace('/portal/login');
   }, [isAuthenticated, router]);
+
+  // Auto-redirect after submission
+  useEffect(() => {
+    if (!submitted) return;
+    setCountdown(3);
+    const interval = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) { clearInterval(interval); router.push('/portal'); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [submitted, router]);
 
   useEffect(() => {
     if (accessToken) localStorage.setItem('access_token', accessToken);
@@ -251,8 +281,33 @@ export default function NurseSurveyPage() {
   if (!isAuthenticated) return null;
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-400 text-sm">Loading survey...</p>
+    <div className="pb-16">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="w-5 h-5 rounded bg-gray-200 animate-pulse" />
+          <div className="flex-1">
+            <div className="h-4 w-48 bg-gray-200 rounded animate-pulse mb-1.5" />
+            <div className="h-1.5 w-full bg-gray-100 rounded-full" />
+          </div>
+        </div>
+      </div>
+      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white rounded-xl border-2 border-gray-100 p-5">
+            <div className="flex gap-3">
+              <div className="w-7 h-7 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+                <div className="flex gap-2 mt-3">
+                  {[1,2,3,4,5].map((n) => (
+                    <div key={n} className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 
@@ -279,7 +334,8 @@ export default function NurseSurveyPage() {
         <p className="text-gray-500 text-sm mb-1">
           Your feedback has been recorded <span className="font-semibold text-green-700">anonymously</span>.
         </p>
-        <p className="text-gray-400 text-xs mb-6">Your name was never attached to these answers.</p>
+        <p className="text-gray-400 text-xs mb-4">Your name was never attached to these answers.</p>
+        <p className="text-gray-400 text-xs mb-6">Redirecting to portal in {countdown}s…</p>
         <Link href="/portal"
           className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition-colors">
           Back to Portal

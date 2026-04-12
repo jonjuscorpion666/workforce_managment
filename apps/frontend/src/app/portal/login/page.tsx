@@ -123,8 +123,8 @@ export default function NurseLoginPage() {
           </div>
         </div>
 
-        {/* Demo accounts card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        {/* Demo accounts card — hidden in production */}
+        {process.env.NODE_ENV !== 'production' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center gap-2.5 mb-4">
             <Key className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <span className="text-sm font-semibold text-gray-800">Demo Accounts</span>
@@ -151,7 +151,7 @@ export default function NurseLoginPage() {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Back to admin */}
         <div className="text-center">

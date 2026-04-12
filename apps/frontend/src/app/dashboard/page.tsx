@@ -79,6 +79,20 @@ function AllClearState() {
   );
 }
 
+// ── Shared greeting ──────────────────────────────────────────────────────────
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  const text  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const emoji = hour < 12 ? '☀️' : hour < 17 ? '👋' : '🌙';
+  return `${text}`;
+}
+
+function getGreetingEmoji() {
+  const hour = new Date().getHours();
+  return hour < 12 ? '☀️' : hour < 17 ? '👋' : '🌙';
+}
+
 // ── SVP / Super Admin view ──────────────────────────────────────────────────
 
 function SVPView({ user }: { user: any }) {
@@ -99,14 +113,28 @@ function SVPView({ user }: { user: any }) {
     queryFn: () => api.get('/announcements').then((r) => r.data),
   });
 
-  if (isLoading) return <p className="text-gray-400 text-sm animate-pulse">Loading dashboard…</p>;
+  if (isLoading) return (
+    <div className="space-y-7">
+      <div className="space-y-2">
+        <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse" />
+        <div className="h-4 w-80 bg-gray-100 rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1,2,3,4].map((i) => <div key={i} className="bg-white rounded-2xl border border-gray-100 h-28 animate-pulse" />)}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 h-48 animate-pulse" />
+        <div className="bg-white rounded-2xl border border-gray-100 h-48 animate-pulse" />
+      </div>
+    </div>
+  );
   const m = data?.metrics;
 
   return (
     <div className="space-y-7">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {user?.firstName} {getGreetingEmoji()}</h1>
         <p className="text-gray-500 mt-1">Here's what needs your attention across Franciscan Health.</p>
       </div>
 
@@ -217,7 +245,18 @@ function CNOView({ user }: { user: any }) {
     queryFn: () => api.get('/announcements').then((r) => r.data),
   });
 
-  if (isLoading) return <p className="text-gray-400 text-sm animate-pulse">Loading…</p>;
+  if (isLoading) return (
+    <div className="space-y-7">
+      <div className="space-y-2">
+        <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse" />
+        <div className="h-4 w-72 bg-gray-100 rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1,2,3,4].map((i) => <div key={i} className="bg-white rounded-2xl border border-gray-100 h-28 animate-pulse" />)}
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 h-48 animate-pulse" />
+    </div>
+  );
 
   const draft    = surveys.filter((s) => s.status === 'DRAFT');
   const pending  = surveys.filter((s) => s.approvalStatus === 'PENDING');
@@ -227,7 +266,7 @@ function CNOView({ user }: { user: any }) {
   return (
     <div className="space-y-7">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {user?.firstName} {getGreetingEmoji()}</h1>
         <p className="text-gray-500 mt-1">{profile?.hospital?.name ?? user?.orgUnit?.name ?? 'Your hospital'} — nurse engagement overview</p>
       </div>
 
@@ -389,7 +428,7 @@ function DirectorView({ user }: { user: any }) {
   return (
     <div className="space-y-7">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {user?.firstName} {getGreetingEmoji()}</h1>
         <p className="text-gray-500 mt-1">
           {profile?.department?.name ?? profile?.hospital?.name ?? 'Your department'} — department overview
         </p>
@@ -568,7 +607,7 @@ function ManagerView({ user }: { user: any }) {
   return (
     <div className="space-y-7">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {user?.firstName} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{getGreeting()}, {user?.firstName} {getGreetingEmoji()}</h1>
         <p className="text-gray-500 mt-1">{profile?.orgUnit?.name ?? 'Your unit'} — team overview</p>
       </div>
 
@@ -675,9 +714,8 @@ function ManagerView({ user }: { user: any }) {
 // ── Staff / Nurse view (catchy) ───────────────────────────────────────────────
 
 function StaffView({ user }: { user: any }) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const greetingEmoji = hour < 12 ? '☀️' : hour < 17 ? '👋' : '🌙';
+  const greeting = getGreeting();
+  const greetingEmoji = getGreetingEmoji();
 
   return (
     <div className="space-y-7">
