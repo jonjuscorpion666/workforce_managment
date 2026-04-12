@@ -210,6 +210,92 @@ GET    /kpis                        KPI data
 
 ---
 
+## Regression Testing
+
+A full API regression suite lives in `apps/backend/test/`. Run it before every release to catch auth, RBAC, and workflow regressions across all eight feature modules.
+
+### What is covered
+
+| Suite | Description |
+|---|---|
+| `01.auth` | Login (all 9 roles), JWT structure, token refresh, logout |
+| `02.surveys` | Create, approval workflow (CNP → SVP), publish, close, delete |
+| `03.responses` | Anonymous submission, identified submission, validation errors |
+| `04.issues` | CRUD, action plans, milestones, comments, bulk-delete |
+| `05.tasks` | CRUD, subtasks, comments, bulk-delete |
+| `06.speakup` | Full lifecycle (submit → acknowledge → schedule → outcome → resolve), escalate, convert to issue |
+| `07.escalations` | Trigger, list, get by ID, acknowledge |
+| `08.rbac-matrix` | Systematic 403/401 checks — every sensitive endpoint tested with an unauthorized role |
+
+### Run locally (full automated run)
+
+**Prerequisites:** PostgreSQL running locally, backend built.
+
+```bash
+# Creates a fresh regression DB, seeds it, starts the server, runs all tests, tears down
+./scripts/run-regression.sh
+```
+
+Common options:
+
+```bash
+# Test against Railway staging (no local server needed)
+./scripts/run-regression.sh --url https://your-app.up.railway.app/api/v1 --skip-db
+
+# Re-run without recreating the database
+./scripts/run-regression.sh --skip-db --skip-seed
+
+# Keep the regression DB after the run (useful for debugging)
+./scripts/run-regression.sh --keep-db
+```
+
+### Run manually (server already running)
+
+```bash
+cd apps/backend
+
+# Ensure TEST_API_URL points at your running server (default: http://localhost:3001/api/v1)
+TEST_API_URL=http://localhost:3001/api/v1 npm run test:regression
+```
+
+### HTML report
+
+After each run an HTML report is written to `apps/backend/test/reports/regression-report.html`. Open it in a browser for a full pass/fail breakdown per suite and test case.
+
+### CI (GitHub Actions)
+
+The workflow at `.github/workflows/regression.yml` runs on every PR targeting `main` and on manual trigger (`workflow_dispatch`). It:
+
+1. Spins up a fresh PostgreSQL + Redis service container
+2. Seeds the regression database
+3. Starts the compiled backend on port 3099
+4. Runs the full Jest suite
+5. Uploads the HTML report as a build artifact
+6. Posts a ✅ / ❌ comment on the PR
+
+> **Note:** Pushing the workflow file requires the `workflow` scope on your GitHub personal access token. Add it at **GitHub → Settings → Developer settings → Personal access tokens**, then:
+> ```bash
+> git add .github/workflows/regression.yml && git commit -m "ci: add regression workflow" && git push
+> ```
+
+### Test credentials
+
+The suite uses the standard demo users seeded by `npm run seed`. All use password `Password123!`.
+
+| Role | Email |
+|---|---|
+| `SUPER_ADMIN` | admin@hospital.com |
+| `SVP` | svp@hospital.com |
+| `CNP` | cnp@hospital.com |
+| `VP` | vp@hospital.com |
+| `DIRECTOR` | director@hospital.com |
+| `MANAGER` | manager@hospital.com |
+| `NURSE` | nurse1@hospital.com |
+| `PCT` | pct1@hospital.com |
+| `HR_ANALYST` | hr@hospital.com |
+
+---
+
 ## Scripts
 
 ```bash
@@ -222,6 +308,10 @@ npm run build            # Build both apps for production
 npm run migration:generate   # Generate migration from entity changes
 npm run migration:run        # Run pending migrations
 npm run seed                 # Seed demo data
+
+# Testing
+npm run test:regression      # Run API regression suite (server must be running)
+./scripts/run-regression.sh  # Full automated regression run (local)
 
 # Docker
 npm run docker:up        # Start infrastructure services
