@@ -135,11 +135,11 @@ export class AuditService {
     const params: any[]        = [];
     let   p                    = 1;
 
-    if (query.entityType) { conditions.push(`al.entity_type = $${p++}`); params.push(query.entityType); }
-    if (query.action)     { conditions.push(`al.action = $${p++}`);      params.push(query.action);     }
-    if (query.userId)     { conditions.push(`al.performed_by_id = $${p++}`); params.push(query.userId); }
-    if (query.dateFrom)   { conditions.push(`al.timestamp >= $${p++}`);  params.push(query.dateFrom);   }
-    if (query.dateTo)     { conditions.push(`al.timestamp <= $${p++}`);  params.push(query.dateTo);     }
+    if (query.entityType) { conditions.push(`al."entityType" = $${p++}`); params.push(query.entityType); }
+    if (query.action)     { conditions.push(`al.action = $${p++}`);       params.push(query.action);     }
+    if (query.userId)     { conditions.push(`al."performedById" = $${p++}`); params.push(query.userId); }
+    if (query.dateFrom)   { conditions.push(`al.timestamp >= $${p++}`);   params.push(query.dateFrom);   }
+    if (query.dateTo)     { conditions.push(`al.timestamp <= $${p++}`);   params.push(query.dateTo);     }
 
     params.push(limit, offset);
 
@@ -148,24 +148,24 @@ export class AuditService {
     const rows: any[] = await this.dataSource.query(
       `SELECT
          al.id,
-         al.entity_type   AS "entityType",
-         al.entity_id     AS "entityId",
+         al."entityType",
+         al."entityId",
          al.action,
-         al.performed_by_id AS "performedById",
+         al."performedById",
          al.before,
          al.after,
          al.timestamp,
-         CONCAT(u.first_name, ' ', u.last_name)  AS "performedByName",
-         CASE al.entity_type
-           WHEN 'issues'       THEN (SELECT title FROM issues       WHERE id::text = al.entity_id LIMIT 1)
-           WHEN 'tasks'        THEN (SELECT title FROM tasks        WHERE id::text = al.entity_id LIMIT 1)
-           WHEN 'surveys'      THEN (SELECT title FROM surveys      WHERE id::text = al.entity_id LIMIT 1)
-           WHEN 'Announcement' THEN (SELECT title FROM announcements WHERE id::text = al.entity_id LIMIT 1)
-           WHEN 'announcement' THEN (SELECT title FROM announcements WHERE id::text = al.entity_id LIMIT 1)
+         CONCAT(u."firstName", ' ', u."lastName")  AS "performedByName",
+         CASE al."entityType"
+           WHEN 'issues'       THEN (SELECT title FROM issues       WHERE id::text = al."entityId" LIMIT 1)
+           WHEN 'tasks'        THEN (SELECT title FROM tasks        WHERE id::text = al."entityId" LIMIT 1)
+           WHEN 'surveys'      THEN (SELECT title FROM surveys      WHERE id::text = al."entityId" LIMIT 1)
+           WHEN 'Announcement' THEN (SELECT title FROM announcements WHERE id::text = al."entityId" LIMIT 1)
+           WHEN 'announcement' THEN (SELECT title FROM announcements WHERE id::text = al."entityId" LIMIT 1)
            ELSE NULL
          END AS "entityTitle"
        FROM audit_logs al
-       LEFT JOIN users u ON u.id::text = al.performed_by_id
+       LEFT JOIN users u ON u.id::text = al."performedById"
        ${where}
        ORDER BY al.timestamp DESC
        LIMIT $${p++} OFFSET $${p++}`,
