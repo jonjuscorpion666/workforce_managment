@@ -2,10 +2,15 @@ import { Controller, Get, Post, Patch, Param, Body, UseGuards } from '@nestjs/co
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { EscalationsService } from './escalations.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+
+const ESCALATION_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST'];
 
 @ApiTags('Escalations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(...ESCALATION_MANAGERS)
 @Controller('escalations')
 export class EscalationsController {
   constructor(private readonly escalationsService: EscalationsService) {}

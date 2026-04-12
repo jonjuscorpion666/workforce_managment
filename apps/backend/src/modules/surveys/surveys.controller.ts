@@ -4,6 +4,8 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SurveysService } from './surveys.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Surveys')
 @ApiBearerAuth()
@@ -13,6 +15,8 @@ export class SurveysController {
   constructor(private readonly surveysService: SurveysService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'DIRECTOR', 'HR_ANALYST')
   @ApiOperation({ summary: 'Create a new survey' })
   create(@Body() body: any, @Req() req: any) {
     // JWT strategy returns roles as string[], not Role objects
@@ -91,12 +95,16 @@ export class SurveysController {
   }
 
   @Post(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP')
   @ApiOperation({ summary: 'SVP approves a CNO survey' })
   approve(@Param('id') id: string, @Req() req: any) {
     return this.surveysService.approve(id, req.user.id);
   }
 
   @Post(':id/reject')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP')
   @ApiOperation({ summary: 'SVP rejects a CNO survey with reason' })
   reject(@Param('id') id: string, @Body() body: { reason: string }, @Req() req: any) {
     return this.surveysService.reject(id, req.user.id, body.reason);
@@ -112,12 +120,16 @@ export class SurveysController {
 
   @Post('bulk-delete')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Bulk soft-delete surveys (SUPER_ADMIN only)' })
   bulkDelete(@Body() body: { ids: string[] }) {
     return this.surveysService.bulkSoftDelete(body.ids);
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'HR_ANALYST')
   remove(@Param('id') id: string) {
     return this.surveysService.remove(id);
   }

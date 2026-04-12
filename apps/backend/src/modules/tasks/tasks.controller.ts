@@ -2,6 +2,8 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, UseGuard
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Tasks')
 @ApiBearerAuth()
@@ -11,6 +13,8 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Create task (linked to an issue)' })
   create(@Body() body: any, @Req() req: any) {
     return this.tasksService.create(body, req.user.id);
@@ -52,6 +56,8 @@ export class TasksController {
 
   @Post('bulk-delete')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Bulk soft-delete tasks (SUPER_ADMIN only)' })
   bulkDelete(@Body() body: { ids: string[] }) {
     return this.tasksService.bulkSoftDelete(body.ids);
@@ -59,6 +65,8 @@ export class TasksController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Delete a task and its comments/subtasks' })
   delete(@Param('id') id: string) {
     return this.tasksService.delete(id);

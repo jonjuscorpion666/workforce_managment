@@ -2,6 +2,8 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, UseGuard
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { IssuesService } from './issues.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Issues')
 @ApiBearerAuth()
@@ -11,6 +13,8 @@ export class IssuesController {
   constructor(private readonly issuesService: IssuesService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST')
   @ApiOperation({ summary: 'Create issue (manual or auto-generated from survey)' })
   create(@Body() body: any, @Req() req: any) {
     return this.issuesService.create(body, req.user.id);
@@ -39,6 +43,8 @@ export class IssuesController {
 
   @Post('bulk-delete')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Bulk soft-delete issues (SUPER_ADMIN only)' })
   bulkDelete(@Body() body: { ids: string[] }) {
     return this.issuesService.bulkSoftDelete(body.ids);
@@ -46,6 +52,8 @@ export class IssuesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'HR_ANALYST')
   @ApiOperation({ summary: 'Delete an issue and all related data' })
   delete(@Param('id') id: string) {
     return this.issuesService.delete(id);
@@ -70,6 +78,8 @@ export class IssuesController {
   }
 
   @Post('auto-create')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'HR_ANALYST')
   @ApiOperation({ summary: 'Auto-create issues from survey analysis' })
   autoCreate(@Body() body: { surveyId: string }, @Req() req: any) {
     return this.issuesService.autoCreateFromSurvey(body.surveyId, req.user.id);
