@@ -197,9 +197,9 @@ const ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
 const ROLE_META: Record<SystemRole, { description: string }> = {
   [SystemRole.SUPER_ADMIN]: { description: 'Full platform access — system administrators only' },
   [SystemRole.SVP]:         { description: 'Senior Vice President — top of the organisation; all hospitals report up to SVP' },
-  [SystemRole.CNO]:         { description: 'Chief Nursing Officer — reports to SVP; one per hospital; CNP oversees VPs and Directors' },
-  [SystemRole.VP]:          { description: 'Vice President — reports to CNP; oversees a clinical division' },
-  [SystemRole.DIRECTOR]:    { description: 'Director — reports to CNP; manages a department and oversees Managers' },
+  [SystemRole.CNO]:         { description: 'Chief Nursing Officer — reports to SVP; one per hospital; CNO oversees VPs and Directors' },
+  [SystemRole.VP]:          { description: 'Vice President — reports to CNO; oversees a clinical division' },
+  [SystemRole.DIRECTOR]:    { description: 'Director — reports to CNO; manages a department and oversees Managers' },
   [SystemRole.MANAGER]:     { description: 'Manager — reports to Director; manages a unit and oversees Nurses' },
   [SystemRole.NURSE]:       { description: 'Nurse — reports to Manager; participates in surveys and can raise speak-up cases' },
   [SystemRole.PCT]:         { description: 'Patient Care Technician — same level as Nurse; participates in surveys and can raise speak-up cases' },
@@ -257,9 +257,9 @@ export async function seedRoles(dataSource: DataSource) {
   console.log('Hierarchy:');
   console.log('  SUPER_ADMIN');
   console.log('  SVP');
-  console.log('  └── CNP  (reports to SVP, one per hospital)');
-  console.log('      ├── VP       (reports to CNP)');
-  console.log('      └── DIRECTOR (reports to CNP)');
+  console.log('  └── CNO  (reports to SVP, one per hospital)');
+  console.log('      ├── VP       (reports to CNO)');
+  console.log('      └── DIRECTOR (reports to CNO)');
   console.log('          └── MANAGER  (reports to DIRECTOR)');
   console.log('              ├── NURSE    (reports to MANAGER)');
   console.log('              └── PCT      (Patient Care Technician — same level as NURSE)');
