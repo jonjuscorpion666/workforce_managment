@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ClipboardList, AlertTriangle, CheckSquare,
   BarChart2, ArrowUpCircle, Megaphone, MessageCircle,
@@ -31,11 +31,28 @@ const allNavItems = [
   { label: 'Help',          href: '/help',          icon: BookOpen },
 ];
 
+const NURSE_ROLES = ['NURSE', 'PCT', 'STAFF'];
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const close = useCallback(() => setMobileOpen(false), []);
   const pathname = usePathname();
-  const { hasRole } = useAuth();
+  const router = useRouter();
+  const { hasRole, isAuthenticated, user } = useAuth();
+
+  // Central auth guard — covers every admin route wrapped by AppShell
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/login');
+      return;
+    }
+    // Nurses/staff who somehow reach admin app get sent back to their portal
+    if (user?.roles?.some((r) => NURSE_ROLES.includes(r.name))) {
+      router.replace('/portal');
+    }
+  }, [isAuthenticated, user, router]);
+
+  if (!isAuthenticated) return null;
 
   const filteredNav = allNavItems.filter(({ roles }: any) =>
     !roles || roles.some((r: string) => hasRole(r))

@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Send, User, BarChart2,
 } from 'lucide-react';
 import Link from 'next/link';
-import api from '@/lib/api';
+import api from '@/lib/nurse-api';
 import { useNurseAuth } from '@/lib/nurse-auth';
 import { formatDate } from '@/lib/utils';
 
@@ -812,7 +812,7 @@ function SpeakUpSection() {
 // ─── Main portal page ────────────────────────────────────────────────────────
 
 export default function NursePortalPage() {
-  const { nurse, isAuthenticated, logout, accessToken } = useNurseAuth();
+  const { nurse, isAuthenticated, logout } = useNurseAuth();
   const router = useRouter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('home');
@@ -821,9 +821,7 @@ export default function NursePortalPage() {
     if (!isAuthenticated) router.replace('/portal/login');
   }, [isAuthenticated, router]);
 
-  useEffect(() => {
-    if (accessToken) localStorage.setItem('access_token', accessToken);
-  }, [accessToken]);
+  // nurse_access_token is managed by nurse-auth.ts — no bleed into admin access_token
 
   const { data: surveys = [], isLoading: surveysLoading } = useQuery({
     queryKey: ['nurse-surveys', nurse?.id],

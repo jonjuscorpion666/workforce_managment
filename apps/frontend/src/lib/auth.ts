@@ -37,6 +37,9 @@ export const useAuth = create<AuthState>()(
 
       login: async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password });
+        // Clear any stale nurse session to prevent cross-portal token bleed
+        localStorage.removeItem('nurse_access_token');
+        localStorage.removeItem('nurse_refresh_token');
         localStorage.setItem('access_token', data.accessToken);
         localStorage.setItem('refresh_token', data.refreshToken);
         set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true });

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import api from '@/lib/api';
+import api from '@/lib/nurse-api';
 import { useNurseAuth } from '@/lib/nurse-auth';
 
 interface Question {
@@ -193,7 +193,7 @@ function QuestionCard({ question, index, value, onChange, followUpText, onFollow
 export default function NurseSurveyPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { nurse, isAuthenticated, accessToken } = useNurseAuth();
+  const { nurse, isAuthenticated } = useNurseAuth();
 
   const [survey, setSurvey]           = useState<Survey | null>(null);
   const [loading, setLoading]         = useState(true);
@@ -223,9 +223,7 @@ export default function NurseSurveyPage() {
     return () => clearInterval(interval);
   }, [submitted, router]);
 
-  useEffect(() => {
-    if (accessToken) localStorage.setItem('access_token', accessToken);
-  }, [accessToken]);
+  // nurse_access_token is managed by nurse-auth.ts — no bleed into admin access_token
 
   useEffect(() => {
     api.get(`/surveys/${id}`)
