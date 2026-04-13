@@ -38,7 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => setMobileOpen(false), []);
   const pathname = usePathname();
   const router = useRouter();
-  const { hasRole, isAuthenticated, user } = useAuth();
+  const { hasRole, isAuthenticated, user, logout } = useAuth();
 
   // Central auth guard — covers every admin route wrapped by AppShell
   useEffect(() => {
@@ -51,6 +51,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       router.replace('/portal');
     }
   }, [isAuthenticated, user, router]);
+
+  // Cross-tab guard: if another tab (e.g. nurse portal login) clears auth-storage,
+  // reset the in-memory store in this tab and redirect to /login immediately.
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === 'auth-storage' && (e.newValue === null || e.newValue === '')) {
+        logout();
+        router.replace('/login');
+      }
+    }
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [logout, router]);
 
   if (!isAuthenticated) return null;
 
