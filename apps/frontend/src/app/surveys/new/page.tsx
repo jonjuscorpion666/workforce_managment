@@ -445,7 +445,7 @@ export default function NewSurveyPage() {
   // Fetch users for focus group picker
   const { data: allUsers = [] } = useQuery<any[]>({
     queryKey: ['admin-users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
+    queryFn: () => api.get('/admin/users', { params: { limit: 500 } }).then((r) => r.data.data),
     enabled: isFocusGroup,
   });
 

@@ -984,7 +984,7 @@ export default function TasksPage() {
 
   const { data: users = [] } = useQuery<AppUser[]>({
     queryKey: ['admin-users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
+    queryFn: () => api.get('/admin/users', { params: { limit: 500 } }).then((r) => r.data.data),
   });
 
   const updateTask = useMutation({
