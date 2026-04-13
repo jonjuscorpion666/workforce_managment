@@ -29,12 +29,67 @@ export class AdminService {
   getRoles() { return this.roleRepo.find({ relations: ['permissions'] }); }
   createRole(data: any) { return this.roleRepo.save(this.roleRepo.create(data)); }
 
-  getUsers() {
-    return this.userRepo.find({
-      relations: ['roles', 'orgUnit', 'orgUnit.parent', 'orgUnit.parent.parent', 'reportsTo'],
-      select: ['id', 'email', 'firstName', 'lastName', 'status', 'jobTitle', 'employeeId', 'createdAt', 'roles', 'orgUnit', 'reportsTo'] as any,
-      order: { createdAt: 'DESC' },
-    });
+  async getUsersPaginated(opts: {
+    page: number;
+    limit: number;
+    search?: string;
+    role?: string;
+    status?: string;
+  }): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    const page  = Math.max(1, opts.page);
+    const limit = Math.min(100, Math.max(1, opts.limit));
+    const skip  = (page - 1) * limit;
+
+    const qb = this.userRepo.createQueryBuilder('u')
+      .select([
+        'u.id', 'u.email', 'u.firstName', 'u.lastName',
+        'u.status', 'u.jobTitle', 'u.employeeId', 'u.createdAt',
+        'role.id', 'role.name',
+        'ou.id', 'ou.name', 'ou.level', 'ou.parentId',
+        'parent.id', 'parent.name', 'parent.level', 'parent.parentId',
+        'grandparent.id', 'grandparent.name', 'grandparent.level',
+        'mgr.id', 'mgr.firstName', 'mgr.lastName',
+      ])
+      .leftJoin('u.roles', 'role')
+      .leftJoin('u.orgUnit', 'ou')
+      .leftJoin('ou.parent', 'parent')
+      .leftJoin('parent.parent', 'grandparent')
+      .leftJoin('u.reportsTo', 'mgr')
+      .orderBy('u.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    if (opts.search?.trim()) {
+      const q = `%${opts.search.trim().toLowerCase()}%`;
+      qb.andWhere(
+        "(LOWER(u.firstName) LIKE :q OR LOWER(u.lastName) LIKE :q OR LOWER(u.email) LIKE :q OR LOWER(COALESCE(u.employeeId, '')) LIKE :q)",
+        { q },
+      );
+    }
+    if (opts.role)   qb.andWhere('role.name = :role',   { role: opts.role });
+    if (opts.status) qb.andWhere('u.status = :status',  { status: opts.status });
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page, limit };
+  }
+
+  async searchManagers(q: string, roles: string[]): Promise<any[]> {
+    const qb = this.userRepo.createQueryBuilder('u')
+      .select(['u.id', 'u.firstName', 'u.lastName', 'u.email', 'role.id', 'role.name', 'ou.id', 'ou.name'])
+      .leftJoin('u.roles', 'role')
+      .leftJoin('u.orgUnit', 'ou')
+      .orderBy('u.firstName', 'ASC')
+      .limit(20);
+
+    if (roles.length) qb.andWhere('role.name IN (:...roles)', { roles });
+    if (q?.trim()) {
+      const like = `%${q.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(u.firstName) LIKE :like OR LOWER(u.lastName) LIKE :like OR LOWER(u.email) LIKE :like)',
+        { like },
+      );
+    }
+    return qb.getMany();
   }
 
   async createUser(data: {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -8,9 +8,12 @@ import {
   ChevronRight, Mail, UserCheck, MapPin, AlertCircle, Plus, X,
   Save, Building, Layers, Pencil, UserPlus, Lock,
   Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, AlertTriangle,
+  ChevronLeft, Search,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
+
+const PAGE_SIZE = 50;
 
 type Tab = 'hospitals' | 'users' | 'roles' | 'config';
 
@@ -53,15 +56,96 @@ function Field({ label, required, hint, children }: { label: string; required?: 
   );
 }
 
+// ─── Manager typeahead ─────────────────────────────────────────────────────
+
+function UserSearchInput({
+  value, displayValue, onChange, roles, placeholder,
+}: {
+  value: string;
+  displayValue: string;
+  onChange: (id: string, display: string) => void;
+  roles?: string[];
+  placeholder?: string;
+}) {
+  const [input,       setInput]       = useState(displayValue);
+  const [open,        setOpen]        = useState(false);
+  const [debouncedQ,  setDebouncedQ]  = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Keep display in sync when editing an existing user
+  useEffect(() => { setInput(displayValue); }, [displayValue]);
+
+  useEffect(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedQ(input), 250);
+  }, [input]);
+
+  const { data: results = [] } = useQuery<any[]>({
+    queryKey: ['manager-search', debouncedQ, roles],
+    queryFn: () => api.get('/admin/users/search', {
+      params: { q: debouncedQ, roles: roles?.join(',') ?? '' },
+    }).then((r) => r.data),
+    enabled: open,
+    staleTime: 30_000,
+  });
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        <input
+          className="input pl-8 text-sm"
+          placeholder={placeholder ?? 'Search by name or email…'}
+          value={input}
+          onChange={(e) => { setInput(e.target.value); setOpen(true); if (!e.target.value) onChange('', ''); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        {value && (
+          <button type="button" onClick={() => { setInput(''); onChange('', ''); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {results.map((u: any) => (
+            <button
+              key={u.id}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const display = `${u.firstName} ${u.lastName}`;
+                setInput(display);
+                setOpen(false);
+                onChange(u.id, display);
+              }}
+            >
+              <span className="truncate">{u.firstName} {u.lastName}</span>
+              <span className="text-xs text-gray-400 flex-shrink-0">{u.roles?.[0]?.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && debouncedQ.length >= 2 && results.length === 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-sm px-3 py-2 text-sm text-gray-400">
+          No matches found
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Add / Edit User modal ─────────────────────────────────────────────────
 
 function UserModal({
-  roles, orgUnits, allUsers, editUser, onClose,
+  roles, orgUnits, editUser, onClose,
   lockedHospitalId = '', lockedHospitalName = '',
 }: {
   roles: any[];
   orgUnits: any[];
-  allUsers: any[];
   editUser?: any;
   onClose: () => void;
   lockedHospitalId?: string;
@@ -79,7 +163,10 @@ function UserModal({
   const [employeeId,  setEmployeeId]  = useState(editUser?.employeeId  ?? '');
   const [roleName,    setRoleName]    = useState(editUser?.roles?.[0]?.name ?? '');
   const [orgUnitId,   setOrgUnitId]   = useState(editUser?.orgUnit?.id ?? (lockedHospitalId || ''));
-  const [reportsToId, setReportsToId] = useState(editUser?.reportsTo?.id ?? '');
+  const [reportsToId,      setReportsToId]      = useState(editUser?.reportsTo?.id ?? '');
+  const [reportsToDisplay, setReportsToDisplay] = useState(
+    editUser?.reportsTo ? `${editUser.reportsTo.firstName} ${editUser.reportsTo.lastName}` : ''
+  );
   const [status,      setStatus]      = useState(editUser?.status ?? 'ACTIVE');
   const [error,       setError]       = useState('');
 
@@ -110,23 +197,14 @@ function UserModal({
     return parts.join(' › ');
   }
 
-  // Hierarchy-based manager filter when locked to a hospital
+  // Role-based manager filter for the typeahead
   const managerRoleForRole: Record<string, string[]> = {
     DIRECTOR: ['CNO'],
     MANAGER:  ['DIRECTOR'],
     NURSE:    ['MANAGER'],
     PCT:      ['MANAGER'],
   };
-  const allowedManagerRoles = isLocked && roleName ? (managerRoleForRole[roleName] ?? []) : [];
-  const filteredManagers = isLocked && allowedManagerRoles.length > 0
-    ? allUsers.filter((u) => {
-        const uRole = u.roles?.[0]?.name ?? '';
-        if (!allowedManagerRoles.includes(uRole)) return false;
-        // must belong to same hospital subtree
-        if (!u.orgUnit) return uRole === 'CNO'; // CNO may not have an orgUnit set
-        return isUnderHospital(u.orgUnit) || u.orgUnit?.id === lockedHospitalId || uRole === 'CNO';
-      })
-    : allUsers.filter((u) => u.id !== editUser?.id);
+  const managerRoles = roleName ? (managerRoleForRole[roleName] ?? []) : [];
 
   const save = useMutation({
     mutationFn: () => {
@@ -146,6 +224,7 @@ function UserModal({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] });
+      qc.invalidateQueries({ queryKey: ['admin-cno-users'] });
       toast.success(isEdit ? 'User updated' : 'User created');
       onClose();
     },
@@ -240,18 +319,14 @@ function UserModal({
       </Field>
 
       {/* Immediate manager */}
-      <Field label="Immediate Manager" hint={isLocked && allowedManagerRoles.length ? `Filtered to ${allowedManagerRoles.join('/')} role(s)` : 'Who does this person report to?'}>
-        <select className="input text-sm" value={reportsToId} onChange={(e) => setReportsToId(e.target.value)}>
-          <option value="">— None —</option>
-          {filteredManagers.map((u: any) => (
-            <option key={u.id} value={u.id}>
-              {u.firstName} {u.lastName} ({u.roles?.[0]?.name ?? 'No role'})
-            </option>
-          ))}
-        </select>
-        {isLocked && allowedManagerRoles.length > 0 && filteredManagers.length === 0 && (
-          <p className="text-xs text-amber-500 mt-1">No {allowedManagerRoles.join('/')} users found for this hospital yet.</p>
-        )}
+      <Field label="Immediate Manager" hint={managerRoles.length ? `Filtered to ${managerRoles.join('/')} role(s)` : 'Who does this person report to?'}>
+        <UserSearchInput
+          value={reportsToId}
+          displayValue={reportsToDisplay}
+          onChange={(id, display) => { setReportsToId(id); setReportsToDisplay(display); }}
+          roles={managerRoles.length ? managerRoles : undefined}
+          placeholder="Search manager by name or email…"
+        />
       </Field>
 
       {/* Job title + employee ID */}
@@ -1018,16 +1093,31 @@ export default function AdminPage() {
   const canCreateHospital = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const canAccessConfig   = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const isManager         = hasRole('MANAGER');
-  const [tab,       setTab]       = useState<Tab>('hospitals');
-  const [modal,     setModal]     = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | null>(null);
-  const [editUser,  setEditUser]  = useState<any>(null);
-  const [userSearch, setUserSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [tab,          setTab]          = useState<Tab>('hospitals');
+  const [modal,        setModal]        = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | null>(null);
+  const [editUser,     setEditUser]     = useState<any>(null);
+  const [userSearch,   setUserSearch]   = useState('');
+  const [serverSearch, setServerSearch] = useState('');
+  const [roleFilter,   setRoleFilter]   = useState('');
+  const [pageNum,      setPageNum]      = useState(1);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const { data: users = [] } = useQuery<any[]>({
-    queryKey: ['admin-users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
+  const { data: usersPage } = useQuery({
+    queryKey: ['admin-users', pageNum, serverSearch, roleFilter],
+    queryFn: () =>
+      api.get('/admin/users', {
+        params: {
+          page:   pageNum,
+          limit:  PAGE_SIZE,
+          ...(serverSearch && { search: serverSearch }),
+          ...(roleFilter   && { role:   roleFilter   }),
+        },
+      }).then((r) => r.data as { data: any[]; total: number; page: number; limit: number }),
+    placeholderData: (prev: any) => prev,
   });
+  const pageUsers  = usersPage?.data  ?? [];
+  const totalUsers = usersPage?.total ?? 0;
+  const totalPages = Math.ceil(totalUsers / PAGE_SIZE) || 1;
 
   const { data: roles = [] } = useQuery<any[]>({
     queryKey: ['admin-roles'],
@@ -1060,7 +1150,14 @@ export default function AdminPage() {
   const directorDeptId       = isDirector ? (profile?.department?.id   ?? '') : '';
   const directorDeptName     = isDirector ? (profile?.department?.name ?? '') : '';
 
-  const cnoUsers   = users.filter((u) => u.roles?.some((r: any) => r.name === 'CNO'));
+  const { data: cnoUsers = [] } = useQuery<any[]>({
+    queryKey: ['admin-cno-users'],
+    queryFn: () =>
+      api.get('/admin/users', { params: { role: 'CNO', limit: 100, page: 1 } })
+        .then((r) => r.data.data),
+    staleTime: 60_000,
+  });
+
   const hospitals  = orgUnits.filter((u) => u.level === 'HOSPITAL');
   const childUnits = orgUnits.filter((u) => u.level === 'DEPARTMENT' || u.level === 'UNIT');
 
@@ -1094,27 +1191,6 @@ export default function AdminPage() {
   }
 
   const MANAGER_ALLOWED_ROLES = ['NURSE', 'PCT'];
-
-  // Filtered users list — CNO → hospital, Director → department, Manager → NURSE/PCT only
-  const filteredUsers = users.filter((u) => {
-    if (isCNO && cnoHospitalId) {
-      if (userHospitalId(u) !== cnoHospitalId) return false;
-    }
-    if (isDirector && directorDeptId) {
-      if (userDeptId(u) !== directorDeptId) return false;
-    }
-    if (isManager) {
-      const uRole = u.roles?.[0]?.name ?? '';
-      if (!MANAGER_ALLOWED_ROLES.includes(uRole)) return false;
-    }
-    const q = userSearch.toLowerCase();
-    const matchesSearch = !q
-      || `${u.firstName} ${u.lastName}`.toLowerCase().includes(q)
-      || u.email.toLowerCase().includes(q)
-      || u.employeeId?.toLowerCase().includes(q);
-    const matchesRole = !roleFilter || u.roles?.some((r: any) => r.name === roleFilter);
-    return matchesSearch && matchesRole;
-  });
 
   function openEditUser(user: any) {
     setEditUser(user);
@@ -1153,7 +1229,6 @@ export default function AdminPage() {
                   : roles
           }
           orgUnits={orgUnits}
-          allUsers={users}
           editUser={editUser}
           onClose={closeUserModal}
           lockedHospitalId={isCNO ? cnoHospitalId : isDirector ? directorHospitalId : ''}
@@ -1215,11 +1290,7 @@ export default function AdminPage() {
             {label}
             {key === 'users' && (
               <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                {isDirector && directorDeptId
-                  ? users.filter((u: any) => userDeptId(u) === directorDeptId).length
-                  : isCNO && cnoHospitalId
-                    ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length
-                    : users.length}
+                {totalUsers}
               </span>
             )}
             {key === 'hospitals' && (
@@ -1314,16 +1385,27 @@ export default function AdminPage() {
         <div className="space-y-4">
           {/* Search + filter bar */}
           <div className="flex gap-3">
-            <input
-              className="input flex-1 text-sm"
-              placeholder="Search by name, email, or employee ID…"
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-            />
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                className="input pl-9 text-sm"
+                placeholder="Search by name, email, or employee ID…"
+                value={userSearch}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setUserSearch(val);
+                  clearTimeout(searchTimerRef.current);
+                  searchTimerRef.current = setTimeout(() => {
+                    setServerSearch(val);
+                    setPageNum(1);
+                  }, 300);
+                }}
+              />
+            </div>
             <select
               className="input text-sm w-44"
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
+              onChange={(e) => { setRoleFilter(e.target.value); setPageNum(1); }}
             >
               <option value="">All roles</option>
               {roles.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
@@ -1342,12 +1424,12 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.length === 0 && (
+                {pageUsers.length === 0 && (
                   <tr>
                     <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">No users found.</td>
                   </tr>
                 )}
-                {filteredUsers.map((u) => (
+                {pageUsers.map((u: any) => (
                   <tr key={u.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
                     <td className="px-5 py-3.5">
                       <p className="font-medium text-gray-900">{u.firstName} {u.lastName}</p>
@@ -1390,15 +1472,30 @@ export default function AdminPage() {
             </table>
           </div>
 
-          <p className="text-xs text-gray-400">
-            {filteredUsers.length} of {
-              isDirector && directorDeptId
-                ? users.filter((u: any) => userDeptId(u) === directorDeptId).length
-                : isCNO && cnoHospitalId
-                  ? users.filter((u: any) => userHospitalId(u) === cnoHospitalId).length
-                  : users.length
-            } users
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              {totalUsers === 0
+                ? 'No users found.'
+                : `${(pageNum - 1) * PAGE_SIZE + 1}–${Math.min(pageNum * PAGE_SIZE, totalUsers)} of ${totalUsers} users`}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPageNum((p) => Math.max(1, p - 1))}
+                  disabled={pageNum === 1}
+                  className="btn-secondary text-sm p-1.5 disabled:opacity-40">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-gray-500">Page {pageNum} of {totalPages}</span>
+                <button
+                  onClick={() => setPageNum((p) => Math.min(totalPages, p + 1))}
+                  disabled={pageNum >= totalPages}
+                  className="btn-secondary text-sm p-1.5 disabled:opacity-40">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

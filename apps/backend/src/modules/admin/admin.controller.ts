@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Req, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -45,9 +45,30 @@ export class AdminController {
   @Post('roles')
   createRole(@Body() body: any) { return this.svc.createRole(body); }
 
+  @Get('users/search')
+  @ApiOperation({ summary: 'Typeahead search for manager assignment (lightweight)' })
+  searchUsers(@Query('q') q = '', @Query('roles') roles = '') {
+    const roleList = roles ? roles.split(',').filter(Boolean) : [];
+    return this.svc.searchManagers(q, roleList);
+  }
+
   @Get('users')
-  @ApiOperation({ summary: 'List all users' })
-  getUsers() { return this.svc.getUsers(); }
+  @ApiOperation({ summary: 'List users with server-side pagination, search, and filtering' })
+  getUsers(
+    @Query('page')   page   = '1',
+    @Query('limit')  limit  = '50',
+    @Query('search') search = '',
+    @Query('role')   role   = '',
+    @Query('status') status = '',
+  ) {
+    return this.svc.getUsersPaginated({
+      page:   parseInt(page,  10) || 1,
+      limit:  parseInt(limit, 10) || 50,
+      search: search  || undefined,
+      role:   role    || undefined,
+      status: status  || undefined,
+    });
+  }
 
   @Post('users')
   @ApiOperation({ summary: 'Create a new user with role and org unit assignment' })
