@@ -71,7 +71,7 @@ test.describe('RBAC — Cross-Portal Access', () => {
 
 test.describe('RBAC — Post-Logout', () => {
   test('visiting /dashboard after logout redirects to /login', async ({ page }) => {
-    // Login as CNP
+    // Login as CNO
     await loginAdmin(page, CREDENTIALS.CNO.email, CREDENTIALS.CNO.password);
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 

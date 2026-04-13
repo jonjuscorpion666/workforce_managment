@@ -39,7 +39,7 @@ export interface CreatedSurvey {
 /**
  * Creates an active (published) survey via API.
  * Returns the survey ID and its first question ID.
- * The CNP role is used to create, SVP to approve, CNP to publish.
+ * The CNO role is used to create, SVP to approve, CNO to publish.
  */
 export async function createActiveSurvey(title: string): Promise<CreatedSurvey> {
   const cnpCtx = await apiAs('CNO');
@@ -63,7 +63,7 @@ export async function createActiveSurvey(title: string): Promise<CreatedSurvey> 
   // Approve (SVP)
   await svpCtx.post(`/surveys/${survey.id}/approve`);
 
-  // Publish (CNP)
+  // Publish (CNO)
   await cnpCtx.post(`/surveys/${survey.id}/publish`);
 
   // Fetch detail to get question IDs

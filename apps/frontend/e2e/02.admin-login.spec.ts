@@ -17,7 +17,7 @@ test.describe('Admin — Login', () => {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
   });
 
-  test('CNP credentials redirect to /dashboard', async ({ page }) => {
+  test('CNO credentials redirect to /dashboard', async ({ page }) => {
     await loginAdmin(page, CREDENTIALS.CNO.email, CREDENTIALS.CNO.password);
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
   });

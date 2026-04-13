@@ -15,7 +15,7 @@ export const API_URL = process.env.TEST_API_URL ?? 'http://localhost:3001/api/v1
 export const CREDENTIALS = {
   ADMIN:   { email: 'admin@hospital.com',   password: 'Password123!' },
   SVP:     { email: 'svp@hospital.com',     password: 'Password123!' },
-  CNP:     { email: 'cnp@hospital.com',     password: 'Password123!' },
+  CNO:     { email: 'cno@hospital.com',     password: 'Password123!' },
   MANAGER: { email: 'manager@hospital.com', password: 'Password123!' },
   NURSE:   { email: 'nurse1@hospital.com',  password: 'Password123!' },
   PCT:     { email: 'pct1@hospital.com',    password: 'Password123!' },
