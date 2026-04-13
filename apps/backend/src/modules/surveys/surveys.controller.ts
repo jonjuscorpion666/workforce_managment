@@ -16,7 +16,7 @@ export class SurveysController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'DIRECTOR', 'HR_ANALYST')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'DIRECTOR', 'HR_ANALYST')
   @ApiOperation({ summary: 'Create a new survey' })
   create(@Body() body: any, @Req() req: any) {
     // JWT strategy returns roles as string[], not Role objects
@@ -129,7 +129,7 @@ export class SurveysController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'HR_ANALYST')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'HR_ANALYST')
   remove(@Param('id') id: string) {
     return this.surveysService.remove(id);
   }

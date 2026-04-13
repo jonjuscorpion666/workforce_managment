@@ -52,12 +52,12 @@ describe('Auth — Login', () => {
 
 describe('Auth — Profile', () => {
   test('GET /auth/profile returns full profile when authenticated', async () => {
-    const client = await api.forRole('CNP');
+    const client = await api.forRole('CNO');
     const res = await client.get('/auth/profile');
 
     expect(res.status).toBe(200);
     expect(res.data.id).toBeDefined();
-    expect(res.data.email).toBe(CREDENTIALS.CNP.email);
+    expect(res.data.email).toBe(CREDENTIALS.CNO.email);
     expect(res.data.firstName).toBeDefined();
   });
 

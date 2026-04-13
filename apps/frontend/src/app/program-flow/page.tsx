@@ -967,7 +967,7 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
 export default function ProgramFlowPage() {
   const qc = useQueryClient();
   const { hasRole } = useAuth();
-  const isCNO = hasRole('CNP');
+  const isCNO = hasRole('CNO');
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
   const [showCreateCycle, setShowCreateCycle] = useState(false);
   const [editingStage, setEditingStage] = useState<any | null>(null);

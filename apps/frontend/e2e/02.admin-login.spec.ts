@@ -18,7 +18,7 @@ test.describe('Admin — Login', () => {
   });
 
   test('CNP credentials redirect to /dashboard', async ({ page }) => {
-    await loginAdmin(page, CREDENTIALS.CNP.email, CREDENTIALS.CNP.password);
+    await loginAdmin(page, CREDENTIALS.CNO.email, CREDENTIALS.CNO.password);
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
   });
 
@@ -33,7 +33,7 @@ test.describe('Admin — Login', () => {
   });
 
   test('wrong password shows error and stays on /login', async ({ page }) => {
-    await loginAdmin(page, CREDENTIALS.CNP.email, 'WrongPassword!');
+    await loginAdmin(page, CREDENTIALS.CNO.email, 'WrongPassword!');
     await expect(page.getByTestId('error-message')).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
   });

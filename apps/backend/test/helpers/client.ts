@@ -2,7 +2,7 @@
  * API client used by all test suites.
  *
  * Usage:
- *   const client = await api.forRole('CNP');
+ *   const client = await api.forRole('CNO');
  *   const res = await client.post('/surveys', { ... });
  *   expect(res.status).toBe(201);
  *

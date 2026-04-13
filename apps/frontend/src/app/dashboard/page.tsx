@@ -812,7 +812,7 @@ export default function DashboardPage() {
   const { user, hasRole } = useAuth();
 
   if (hasRole('SVP') || hasRole('SUPER_ADMIN')) return <SVPView user={user} />;
-  if (hasRole('CNP'))      return <CNOView user={user} />;
+  if (hasRole('CNO'))      return <CNOView user={user} />;
   if (hasRole('DIRECTOR')) return <DirectorView user={user} />;
   if (hasRole('MANAGER'))  return <ManagerView user={user} />;
   return <StaffView user={user} />;

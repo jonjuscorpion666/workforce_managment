@@ -26,7 +26,7 @@ beforeAll(async () => {
   [admin, svp, cnp, manager, nurse, pct, hr, anon] = await Promise.all([
     api.forRole('SUPER_ADMIN'),
     api.forRole('SVP'),
-    api.forRole('CNP'),
+    api.forRole('CNO'),
     api.forRole('MANAGER'),
     api.forRole('NURSE'),
     api.forRole('PCT'),

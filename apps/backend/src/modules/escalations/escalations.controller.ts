@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
-const ESCALATION_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST'];
+const ESCALATION_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST'];
 
 @ApiTags('Escalations')
 @ApiBearerAuth()

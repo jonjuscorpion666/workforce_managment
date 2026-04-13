@@ -28,7 +28,7 @@ let linkedIssueId: string;
 
 beforeAll(async () => {
   [cnp, manager, nurse, admin] = await Promise.all([
-    api.forRole('CNP'),
+    api.forRole('CNO'),
     api.forRole('MANAGER'),
     api.forRole('NURSE'),
     api.forRole('SUPER_ADMIN'),

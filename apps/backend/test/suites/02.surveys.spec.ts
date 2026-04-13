@@ -29,7 +29,7 @@ let rejectSurveyId: string;
 
 beforeAll(async () => {
   [cnp, svp, nurse, hr, admin] = await Promise.all([
-    api.forRole('CNP'),
+    api.forRole('CNO'),
     api.forRole('SVP'),
     api.forRole('NURSE'),
     api.forRole('HR_ANALYST'),

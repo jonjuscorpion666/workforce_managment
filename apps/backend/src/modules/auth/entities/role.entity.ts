@@ -6,7 +6,7 @@ import { Permission } from './permission.entity';
 export enum SystemRole {
   SUPER_ADMIN  = 'SUPER_ADMIN',   // Platform admin
   SVP          = 'SVP',           // Senior Vice President — top of org
-  CNP          = 'CNP',           // Chief Nursing Officer — reports to SVP, one per hospital
+  CNP          = 'CNO',           // Chief Nursing Officer — reports to SVP, one per hospital
   VP           = 'VP',            // Vice President — reports to CNP
   DIRECTOR     = 'DIRECTOR',      // Director — reports to CNP
   MANAGER      = 'MANAGER',       // Manager — reports to Director

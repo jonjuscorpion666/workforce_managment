@@ -9,7 +9,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 // Roles allowed to view and act on speak-up cases (all leadership + HR)
-const CASE_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST'];
+const CASE_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST'];
 
 @ApiTags('Speak Up')
 @Controller('speak-up')

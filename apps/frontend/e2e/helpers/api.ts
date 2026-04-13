@@ -42,7 +42,7 @@ export interface CreatedSurvey {
  * The CNP role is used to create, SVP to approve, CNP to publish.
  */
 export async function createActiveSurvey(title: string): Promise<CreatedSurvey> {
-  const cnpCtx = await apiAs('CNP');
+  const cnpCtx = await apiAs('CNO');
   const svpCtx = await apiAs('SVP');
 
   // Create

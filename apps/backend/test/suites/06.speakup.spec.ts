@@ -29,7 +29,7 @@ let escalateCaseId: string;
 beforeAll(async () => {
   [manager, cnp, svp, nurse, hr] = await Promise.all([
     api.forRole('MANAGER'),
-    api.forRole('CNP'),
+    api.forRole('CNO'),
     api.forRole('SVP'),
     api.forRole('NURSE'),
     api.forRole('HR_ANALYST'),

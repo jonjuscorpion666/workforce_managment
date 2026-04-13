@@ -20,7 +20,7 @@ const navItems = [
   { label: 'Tasks',         href: '/tasks',          icon: CheckSquare },
   { label: 'Analytics',     href: '/analytics',      icon: BarChart2, exact: true },
   { label: 'SVP Dashboard', href: '/analytics/svp',  icon: PieChart,  indent: true, roles: ['SVP', 'SUPER_ADMIN'] },
-  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2, indent: true, roles: ['CNP', 'SUPER_ADMIN'] },
+  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2, indent: true, roles: ['CNO', 'SUPER_ADMIN'] },
   { label: 'Program Flow',  href: '/program-flow',   icon: GitBranch },
   { label: 'Escalations',   href: '/escalations',    icon: ArrowUpCircle },
   { label: 'Announcements', href: '/announcements',  icon: Megaphone },

@@ -4,9 +4,9 @@
  * Hierarchy:
  *   SUPER_ADMIN  — full platform access
  *   SVP          — Senior Vice President; top of org
- *   CNP          — Chief Nursing Officer; reports to SVP, one per hospital
- *   VP           — Vice President; reports to CNP
- *   DIRECTOR     — Director; reports to CNP, manages a department
+ *   CNO          — Chief Nursing Officer; reports to SVP, one per hospital
+ *   VP           — Vice President; reports to CNO
+ *   DIRECTOR     — Director; reports to CNO, manages a department
  *   MANAGER      — Manager; reports to Director, oversees a unit
  *   NURSE        — Nurse; reports to Manager
  *   PCT          — Patient Care Technician; same level as Nurse
@@ -89,7 +89,7 @@ const ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
     'admin:users', 'org:manage',
   ],
 
-  [SystemRole.CNP]: [
+  [SystemRole.CNO]: [
     'surveys:create', 'surveys:read', 'surveys:update', 'surveys:publish',
     'responses:read',
     'issues:create', 'issues:read', 'issues:update', 'issues:close',
@@ -197,7 +197,7 @@ const ROLE_PERMISSIONS: Record<SystemRole, string[]> = {
 const ROLE_META: Record<SystemRole, { description: string }> = {
   [SystemRole.SUPER_ADMIN]: { description: 'Full platform access — system administrators only' },
   [SystemRole.SVP]:         { description: 'Senior Vice President — top of the organisation; all hospitals report up to SVP' },
-  [SystemRole.CNP]:         { description: 'Chief Nursing Officer — reports to SVP; one per hospital; CNP oversees VPs and Directors' },
+  [SystemRole.CNO]:         { description: 'Chief Nursing Officer — reports to SVP; one per hospital; CNP oversees VPs and Directors' },
   [SystemRole.VP]:          { description: 'Vice President — reports to CNP; oversees a clinical division' },
   [SystemRole.DIRECTOR]:    { description: 'Director — reports to CNP; manages a department and oversees Managers' },
   [SystemRole.MANAGER]:     { description: 'Manager — reports to Director; manages a unit and oversees Nurses' },
@@ -225,6 +225,14 @@ export async function seedRoles(dataSource: DataSource) {
     permMap.set(def.action, perm);
   }
   console.log(`   ✓ ${permMap.size} permissions ready`);
+
+  // ── Rename legacy CNP → CNO in existing databases ──────────────────────────
+  const legacyCnp = await roleRepo.findOne({ where: { name: 'CNP' as any } });
+  if (legacyCnp) {
+    legacyCnp.name = 'CNO' as any;
+    await roleRepo.save(legacyCnp);
+    console.log('   ↺ Renamed legacy role: CNP → CNO');
+  }
 
   console.log('🌱 Seeding roles...');
 

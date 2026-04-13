@@ -32,7 +32,7 @@ let issueCommentId: string;
 
 beforeAll(async () => {
   [cnp, svp, manager, nurse, hr, admin] = await Promise.all([
-    api.forRole('CNP'),
+    api.forRole('CNO'),
     api.forRole('SVP'),
     api.forRole('MANAGER'),
     api.forRole('NURSE'),

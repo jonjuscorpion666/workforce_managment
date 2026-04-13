@@ -110,7 +110,7 @@ function UserModal({
 
   // Hierarchy-based manager filter when locked to a hospital
   const managerRoleForRole: Record<string, string[]> = {
-    DIRECTOR: ['CNP'],
+    DIRECTOR: ['CNO'],
     MANAGER:  ['DIRECTOR'],
     NURSE:    ['MANAGER'],
     PCT:      ['MANAGER'],
@@ -121,8 +121,8 @@ function UserModal({
         const uRole = u.roles?.[0]?.name ?? '';
         if (!allowedManagerRoles.includes(uRole)) return false;
         // must belong to same hospital subtree
-        if (!u.orgUnit) return uRole === 'CNP'; // CNO may not have an orgUnit set
-        return isUnderHospital(u.orgUnit) || u.orgUnit?.id === lockedHospitalId || uRole === 'CNP';
+        if (!u.orgUnit) return uRole === 'CNO'; // CNO may not have an orgUnit set
+        return isUnderHospital(u.orgUnit) || u.orgUnit?.id === lockedHospitalId || uRole === 'CNO';
       })
     : allUsers.filter((u) => u.id !== editUser?.id);
 
@@ -1039,7 +1039,7 @@ export default function AdminPage() {
   });
 
   // CNO / Director: fetch profile to scope views and lock fields
-  const isCNO      = hasRole('CNP');
+  const isCNO      = hasRole('CNO');
   const isDirector = hasRole('DIRECTOR');
   const { data: profile } = useQuery<any>({
     queryKey: ['profile'],
@@ -1054,7 +1054,7 @@ export default function AdminPage() {
   const directorDeptId       = isDirector ? (profile?.department?.id   ?? '') : '';
   const directorDeptName     = isDirector ? (profile?.department?.name ?? '') : '';
 
-  const cnoUsers   = users.filter((u) => u.roles?.some((r: any) => r.name === 'CNP'));
+  const cnoUsers   = users.filter((u) => u.roles?.some((r: any) => r.name === 'CNO'));
   const hospitals  = orgUnits.filter((u) => u.level === 'HOSPITAL');
   const childUnits = orgUnits.filter((u) => u.level === 'DEPARTMENT' || u.level === 'UNIT');
 

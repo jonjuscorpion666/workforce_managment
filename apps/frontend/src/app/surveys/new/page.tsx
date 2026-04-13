@@ -398,7 +398,7 @@ export default function NewSurveyPage() {
   useEffect(() => { setMounted(true); }, []);
 
   const isSVP       = hasRole('SVP') || hasRole('SUPER_ADMIN');
-  const isCNO       = hasRole('CNP');
+  const isCNO       = hasRole('CNO');
   const isDirector  = hasRole('DIRECTOR');
   const isManager   = hasRole('MANAGER');
   const isStaff     = hasRole('STAFF');

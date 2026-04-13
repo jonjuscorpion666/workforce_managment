@@ -42,7 +42,7 @@ export class SurveysService {
 
   private needsApproval(role: string, governance: { requiresSvpApproval: boolean; directorRequiresApproval: boolean }) {
     if (FULL_AUTHORITY_ROLES.includes(role)) return false;
-    if (role === 'CNP')      return governance.requiresSvpApproval;
+    if (role === 'CNO')      return governance.requiresSvpApproval;
     if (role === 'DIRECTOR') return governance.directorRequiresApproval;
     return false;
   }
@@ -168,10 +168,10 @@ export class SurveysService {
     const survey = await this.findOne(id);
 
     // CNO can only publish if approved (or governance is off)
-    if (survey.createdByRole === 'CNP' && survey.approvalStatus === ApprovalStatus.PENDING) {
+    if (survey.createdByRole === 'CNO' && survey.approvalStatus === ApprovalStatus.PENDING) {
       throw new ForbiddenException('This survey requires SVP approval before it can be published.');
     }
-    if (survey.createdByRole === 'CNP' && survey.approvalStatus === ApprovalStatus.REJECTED) {
+    if (survey.createdByRole === 'CNO' && survey.approvalStatus === ApprovalStatus.REJECTED) {
       throw new ForbiddenException('This survey was rejected. Please revise and resubmit for approval.');
     }
 

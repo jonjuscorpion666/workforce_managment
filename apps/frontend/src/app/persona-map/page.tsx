@@ -62,7 +62,7 @@ const PERSONAS = [
     ],
     metrics: ['Hospital engagement', 'Survey response rate', 'Open issues', 'Approval turnaround'],
     canCreate: ['Hospital surveys (needs SVP approval)', 'Hospital announcements', 'Issues & tasks'],
-    roleKeys: ['CNP'],
+    roleKeys: ['CNO'],
     quickLink: { label: 'New Survey', href: '/surveys/new' },
   },
   {

@@ -455,7 +455,7 @@ function CasesList() {
 
 export default function SpeakUpPage() {
   const { hasRole } = useAuth();
-  const viewOnly = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNP');
+  const viewOnly = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNO');
   const [tab, setTab] = useState<'submit' | 'cases'>(viewOnly ? 'cases' : 'submit');
 
   return (

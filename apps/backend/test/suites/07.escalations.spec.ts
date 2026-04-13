@@ -21,7 +21,7 @@ let escalationId: string;
 beforeAll(async () => {
   [svp, cnp, manager, nurse] = await Promise.all([
     api.forRole('SVP'),
-    api.forRole('CNP'),
+    api.forRole('CNO'),
     api.forRole('MANAGER'),
     api.forRole('NURSE'),
   ]);

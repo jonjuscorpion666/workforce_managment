@@ -14,7 +14,7 @@ export class TasksController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Create task (linked to an issue)' })
   create(@Body() body: any, @Req() req: any) {
     return this.tasksService.create(body, req.user.id);
@@ -66,7 +66,7 @@ export class TasksController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'MANAGER')
   @ApiOperation({ summary: 'Delete a task and its comments/subtasks' })
   delete(@Param('id') id: string) {
     return this.tasksService.delete(id);

@@ -41,7 +41,7 @@ const AUDIENCE_SCOPES = [
   { value: 'COMBINATION', label: 'Combination',         description: 'Mix of hospitals, roles, and units', icon: Filter },
 ];
 
-const ROLES = ['SVP', 'CNP', 'DIRECTOR', 'MANAGER', 'NURSE', 'HR_ANALYST'];
+const ROLES = ['SVP', 'CNO', 'DIRECTOR', 'MANAGER', 'NURSE', 'HR_ANALYST'];
 
 // Allowed scopes per role
 const ALLOWED_SCOPES: Record<string, string[]> = {
@@ -95,12 +95,12 @@ export default function NewAnnouncementPage() {
   const [mounted, setMounted] = useState(false);
 
   const isSVP      = hasRole('SVP') || hasRole('SUPER_ADMIN');
-  const isCNO      = hasRole('CNP');
+  const isCNO      = hasRole('CNO');
   const isDirector = hasRole('DIRECTOR');
   const isManager  = hasRole('MANAGER');
 
-  const userRole      = isSVP ? 'SVP' : isCNO ? 'CNP' : isDirector ? 'DIRECTOR' : isManager ? 'MANAGER' : '';
-  const allowedScopes = ALLOWED_SCOPES[userRole === 'CNP' ? 'CNP' : userRole] ?? [];
+  const userRole      = isSVP ? 'SVP' : isCNO ? 'CNO' : isDirector ? 'DIRECTOR' : isManager ? 'MANAGER' : '';
+  const allowedScopes = ALLOWED_SCOPES[userRole === 'CNO' ? 'CNO' : userRole] ?? [];
 
   // Form state — initialize with safe static defaults; role-correct scope set after mount
   const [title, setTitle]             = useState('');

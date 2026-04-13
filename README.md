@@ -159,7 +159,7 @@ workforce-platform/
 |---|---|
 | `SUPER_ADMIN` | Full platform access |
 | `SVP` | Network-wide visibility, SVP dashboard |
-| `CNP` / `CNO` | Hospital-wide, all leadership features |
+| `CNO` / `CNO` | Hospital-wide, all leadership features |
 | `VP` | Vice-president level access |
 | `DIRECTOR` | Department-level management |
 | `MANAGER` | Unit-level management |
@@ -221,7 +221,7 @@ Two layers of test coverage: **API regression** (fast, role-by-role) and **UI E2
 | Suite | Description |
 |---|---|
 | `01.auth` | Login (all 9 roles), JWT structure, token refresh, logout |
-| `02.surveys` | Create, approval workflow (CNP → SVP), publish, close, delete |
+| `02.surveys` | Create, approval workflow (CNO → SVP), publish, close, delete |
 | `03.responses` | Anonymous submission, identified submission, validation errors |
 | `04.issues` | CRUD, action plans, milestones, comments, bulk-delete |
 | `05.tasks` | CRUD, subtasks, comments, bulk-delete |
@@ -234,7 +234,7 @@ Two layers of test coverage: **API regression** (fast, role-by-role) and **UI E2
 | Suite | Description |
 |---|---|
 | `01.nurse-login` | Nurse portal login, wrong credentials, admin blocked from nurse portal |
-| `02.admin-login` | Admin login for SVP/CNP/Manager/HR, wrong credentials, auth guard redirects |
+| `02.admin-login` | Admin login for SVP/CNO/Manager/HR, wrong credentials, auth guard redirects |
 | `03.nurse-survey` | Full flow: nurse navigates to survey, answers Likert question, submits, sees success |
 | `04.speak-up` | Manager submits a speak-up case, form validation, success screen, reset |
 | `05.rbac-ui` | Unauthenticated access to all protected routes, cross-portal access attempts, post-logout redirect |
@@ -303,7 +303,7 @@ The suite uses the standard demo users seeded by `npm run seed`. All use passwor
 |---|---|
 | `SUPER_ADMIN` | admin@hospital.com |
 | `SVP` | svp@hospital.com |
-| `CNP` | cnp@hospital.com |
+| `CNO` | cnp@hospital.com |
 | `VP` | vp@hospital.com |
 | `DIRECTOR` | director@hospital.com |
 | `MANAGER` | manager@hospital.com |

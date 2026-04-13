@@ -9,7 +9,7 @@ export async function seedDemoUsers(dataSource: DataSource) {
 
   const demoUsers = [
     { email: 'svp@hospital.com',      password: 'Password123!', firstName: 'Sarah',  lastName: 'Mitchell',  role: 'SVP',        jobTitle: 'Senior Vice President' },
-    { email: 'cnp@hospital.com',      password: 'Password123!', firstName: 'Claire', lastName: 'Nguyen',    role: 'CNP',        jobTitle: 'Chief Nursing Officer' },
+    { email: 'cnp@hospital.com',      password: 'Password123!', firstName: 'Claire', lastName: 'Nguyen',    role: 'CNO',        jobTitle: 'Chief Nursing Officer' },
     { email: 'vp@hospital.com',       password: 'Password123!', firstName: 'David',  lastName: 'Torres',    role: 'VP',         jobTitle: 'Vice President, Clinical' },
     { email: 'director@hospital.com', password: 'Password123!', firstName: 'Maria',  lastName: 'Johnson',   role: 'DIRECTOR',   jobTitle: 'Director of Nursing' },
     { email: 'manager@hospital.com',  password: 'Password123!', firstName: 'James',  lastName: 'Lee',       role: 'MANAGER',    jobTitle: 'Unit Manager, ICU' },

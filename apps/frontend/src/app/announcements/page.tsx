@@ -195,7 +195,7 @@ export default function AnnouncementsPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const isLeadership = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNP') || hasRole('DIRECTOR');
+  const isLeadership = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNO') || hasRole('DIRECTOR');
 
   const isSuperAdmin = hasRole('SUPER_ADMIN');
   const [tab, setTab]               = useState<'feed' | 'dashboard' | 'manage'>('feed');

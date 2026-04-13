@@ -149,7 +149,7 @@ export default function OnboardingModal() {
 
   // Determine primary role
   const roleNames = user?.roles?.map((r: any) => r.name) ?? [];
-  const ROLE_PRIORITY = ['SVP', 'SUPER_ADMIN', 'CNP', 'DIRECTOR', 'MANAGER', 'STAFF'];
+  const ROLE_PRIORITY = ['SVP', 'SUPER_ADMIN', 'CNO', 'DIRECTOR', 'MANAGER', 'STAFF'];
   const role = ROLE_PRIORITY.find((r) => roleNames.includes(r)) ?? 'STAFF';
 
   const steps = ONBOARDING[role] ?? ONBOARDING.STAFF;

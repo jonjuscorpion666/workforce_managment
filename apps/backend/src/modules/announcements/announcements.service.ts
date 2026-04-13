@@ -13,7 +13,7 @@ import { AuditService } from '../audit/audit.service';
 
 // Roles that can publish system-wide
 const FULL_AUTHORITY_ROLES = ['SVP', 'SUPER_ADMIN'];
-const CNO_ROLES            = ['CNP'];
+const CNO_ROLES            = ['CNO'];
 const DIRECTOR_ROLES       = ['DIRECTOR'];
 
 // ── Scope permission map ─────────────────────────────────────────────────────

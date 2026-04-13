@@ -91,7 +91,7 @@ export async function seedHospitals(dataSource: DataSource) {
   // 3. CNO users
   console.log('\n🌱 Seeding hospital CNOs...');
 
-  const cnpRole = await roleRepo.findOne({ where: { name: 'CNP' }, relations: ['permissions'] });
+  const cnpRole = await roleRepo.findOne({ where: { name: 'CNO' }, relations: ['permissions'] });
   if (!cnpRole) {
     console.warn('   ⚠ CNP role not found — run roles seed first');
     return;

@@ -14,7 +14,7 @@ export class IssuesController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST')
   @ApiOperation({ summary: 'Create issue (manual or auto-generated from survey)' })
   create(@Body() body: any, @Req() req: any) {
     return this.issuesService.create(body, req.user.id);
@@ -53,7 +53,7 @@ export class IssuesController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'VP', 'DIRECTOR', 'HR_ANALYST')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'HR_ANALYST')
   @ApiOperation({ summary: 'Delete an issue and all related data' })
   delete(@Param('id') id: string) {
     return this.issuesService.delete(id);
@@ -79,7 +79,7 @@ export class IssuesController {
 
   @Post('auto-create')
   @UseGuards(RolesGuard)
-  @Roles('SUPER_ADMIN', 'SVP', 'CNP', 'HR_ANALYST')
+  @Roles('SUPER_ADMIN', 'SVP', 'CNO', 'HR_ANALYST')
   @ApiOperation({ summary: 'Auto-create issues from survey analysis' })
   autoCreate(@Body() body: { surveyId: string }, @Req() req: any) {
     return this.issuesService.autoCreateFromSurvey(body.surveyId, req.user.id);

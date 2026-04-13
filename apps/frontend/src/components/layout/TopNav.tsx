@@ -24,13 +24,13 @@ const primaryNav = [
 
 const moreNav = [
   { label: 'SVP Dashboard', href: '/analytics/svp',  icon: PieChart,       roles: ['SVP', 'SUPER_ADMIN'] },
-  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2,      roles: ['CNP', 'SUPER_ADMIN'] },
+  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2,      roles: ['CNO', 'SUPER_ADMIN'] },
   { label: 'Program Flow',  href: '/program-flow',   icon: GitBranch },
   { label: 'Escalations',   href: '/escalations',    icon: ArrowUpCircle },
   { label: 'Announcements', href: '/announcements',  icon: Megaphone },
   { label: 'Speak Up',      href: '/speak-up',       icon: MessageCircle },
   { label: 'Audit Log',     href: '/audit',          icon: ShieldCheck,    roles: ['SVP', 'SUPER_ADMIN'] },
-  { label: 'Admin',         href: '/admin',          icon: Settings,       roles: ['SVP', 'SUPER_ADMIN', 'CNP', 'DIRECTOR', 'MANAGER'] },
+  { label: 'Admin',         href: '/admin',          icon: Settings,       roles: ['SVP', 'SUPER_ADMIN', 'CNO', 'DIRECTOR', 'MANAGER'] },
   { label: 'Personas',      href: '/persona-map',    icon: Users2,         roles: ['SVP', 'SUPER_ADMIN'] },
   { label: 'Help',          href: '/help',           icon: BookOpen },
 ];

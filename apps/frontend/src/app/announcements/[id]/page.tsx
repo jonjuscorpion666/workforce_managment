@@ -42,7 +42,7 @@ export default function AnnouncementDetailPage() {
   const qc      = useQueryClient();
   const { hasRole } = useAuth();
 
-  const isLeadership = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNP') || hasRole('DIRECTOR');
+  const isLeadership = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNO') || hasRole('DIRECTOR');
 
   const { data: ann, isLoading } = useQuery({
     queryKey: ['announcement', id],

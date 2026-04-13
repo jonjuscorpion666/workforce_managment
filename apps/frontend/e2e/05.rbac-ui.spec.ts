@@ -72,7 +72,7 @@ test.describe('RBAC — Cross-Portal Access', () => {
 test.describe('RBAC — Post-Logout', () => {
   test('visiting /dashboard after logout redirects to /login', async ({ page }) => {
     // Login as CNP
-    await loginAdmin(page, CREDENTIALS.CNP.email, CREDENTIALS.CNP.password);
+    await loginAdmin(page, CREDENTIALS.CNO.email, CREDENTIALS.CNO.password);
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     // Clear auth manually (simulates logout clearing localStorage)
