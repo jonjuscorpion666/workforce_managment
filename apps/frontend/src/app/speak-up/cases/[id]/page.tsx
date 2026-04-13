@@ -9,6 +9,7 @@ import {
   FileText, Zap, Link2, Plus, X, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/Toast';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,14 +72,17 @@ function StatusBadge({ status }: { status: CaseStatus }) {
 
 function NoteModal({ caseId, onClose }: { caseId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [content, setContent] = useState('');
 
   const mutation = useMutation({
     mutationFn: () => api.post(`/speak-up/cases/${caseId}/notes`, { content }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['speak-up-case', caseId] });
+      toast.success('Note added');
       onClose();
     },
+    onError: () => toast.error('Failed to add note'),
   });
 
   return (
@@ -117,6 +121,7 @@ function NoteModal({ caseId, onClose }: { caseId: string; onClose: () => void })
 
 function ScheduleModal({ caseId, onClose }: { caseId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [meetingDate, setMeetingDate] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -124,8 +129,10 @@ function ScheduleModal({ caseId, onClose }: { caseId: string; onClose: () => voi
     mutationFn: () => api.post(`/speak-up/cases/${caseId}/schedule`, { meetingDate, notes }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['speak-up-case', caseId] });
+      toast.success('Meeting scheduled');
       onClose();
     },
+    onError: () => toast.error('Failed to schedule meeting'),
   });
 
   return (
@@ -175,6 +182,7 @@ function ScheduleModal({ caseId, onClose }: { caseId: string; onClose: () => voi
 
 function OutcomeForm({ caseId, existing, onClose }: { caseId: string; existing?: any; onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [rootCause, setRootCause]         = useState(existing?.rootCause ?? '');
   const [summary, setSummary]             = useState(existing?.summary ?? '');
   const [actionRequired, setActionRequired] = useState(existing?.actionRequired ?? '');
@@ -186,6 +194,7 @@ function OutcomeForm({ caseId, existing, onClose }: { caseId: string; existing?:
       api.post(`/speak-up/cases/${caseId}/outcome`, { rootCause, summary, actionRequired, owner }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['speak-up-case', caseId] });
+      toast.success('Outcome recorded');
       onClose();
     },
     onError: (e: any) => setError(e?.response?.data?.message ?? 'Failed to record outcome'),
@@ -281,6 +290,7 @@ export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
+  const toast = useToast();
 
   const [showNote, setShowNote]             = useState(false);
   const [showSchedule, setShowSchedule]     = useState(false);
@@ -294,6 +304,13 @@ export default function CaseDetailPage() {
     enabled: !!id,
   });
 
+  const ACTION_LABELS: Record<string, string> = {
+    acknowledge: 'Case acknowledged',
+    resolve: 'Case resolved',
+    escalate: 'Case escalated',
+    'convert-to-issue': 'Converted to issue',
+  };
+
   const action = (endpoint: string) => ({
     mutationFn: () => api.post(`/speak-up/cases/${id}/${endpoint}`),
     onSuccess: () => {
@@ -301,6 +318,7 @@ export default function CaseDetailPage() {
       qc.invalidateQueries({ queryKey: ['speak-up-cases'] });
       qc.invalidateQueries({ queryKey: ['speak-up-metrics'] });
       setActionError('');
+      toast.success(ACTION_LABELS[endpoint] ?? 'Action completed');
     },
     onError: (e: any) => setActionError(e?.response?.data?.message ?? `Failed to ${endpoint}`),
   });

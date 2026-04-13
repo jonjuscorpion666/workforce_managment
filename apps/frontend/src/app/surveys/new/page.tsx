@@ -13,6 +13,7 @@ import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -393,6 +394,7 @@ function NoAccessScreen({ role }: { role: 'MANAGER' | 'STAFF' | 'unknown' }) {
 export default function NewSurveyPage() {
   const router = useRouter();
   const { user, hasRole } = useAuth();
+  const toast = useToast();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -518,7 +520,8 @@ export default function NewSurveyPage() {
   // ── mutations ──
   const saveDraft = useMutation({
     mutationFn: (data: any) => api.post('/surveys', data),
-    onSuccess: () => router.push('/surveys'),
+    onSuccess: () => { toast.success('Survey saved as draft'); router.push('/surveys'); },
+    onError: () => toast.error('Failed to save survey'),
   });
 
   const saveAndRequestApproval = useMutation({
@@ -527,7 +530,8 @@ export default function NewSurveyPage() {
       await api.post(`/surveys/${res.data.id}/request-approval`);
       return res.data;
     },
-    onSuccess: () => router.push('/surveys'),
+    onSuccess: () => { toast.success('Survey submitted for approval'); router.push('/surveys'); },
+    onError: () => toast.error('Failed to submit survey for approval'),
   });
 
   const saveAndPublish = useMutation({
@@ -536,7 +540,8 @@ export default function NewSurveyPage() {
       await api.post(`/surveys/${res.data.id}/publish`);
       return res.data;
     },
-    onSuccess: () => router.push('/surveys'),
+    onSuccess: () => { toast.success('Survey published'); router.push('/surveys'); },
+    onError: () => toast.error('Failed to publish survey'),
   });
 
   function buildPayload() {

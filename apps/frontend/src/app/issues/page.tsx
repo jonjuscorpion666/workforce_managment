@@ -10,6 +10,7 @@ import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import BulkDeleteBar from '@/components/BulkDeleteBar';
+import { useToast } from '@/components/ui/Toast';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,7 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { hasRole } = useAuth();
   const isDirector = hasRole('DIRECTOR');
+  const toast = useToast();
 
   // Always fetch profile — needed to auto-populate hospital for Directors
   const { data: profile } = useQuery<any>({
@@ -226,8 +228,10 @@ function CreateIssueModal({ onClose }: { onClose: () => void }) {
       api.post('/issues', payload).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['issues'] });
+      toast.success('Issue created');
       onClose();
     },
+    onError: () => toast.error('Failed to create issue'),
   });
 
   function set(key: string, value: string) {
@@ -414,6 +418,7 @@ export default function IssuesPage() {
   const { hasRole } = useAuth();
   const isSuperAdmin = hasRole('SUPER_ADMIN');
   const qc = useQueryClient();
+  const toast = useToast();
   const [showAutoCreate, setShowAutoCreate] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -427,7 +432,8 @@ export default function IssuesPage() {
 
   const bulkDelete = useMutation({
     mutationFn: (ids: string[]) => api.post('/issues/bulk-delete', { ids }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['issues'] }); setSelectedIds(new Set()); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['issues'] }); setSelectedIds(new Set()); toast.success('Issues deleted'); },
+    onError: () => toast.error('Failed to delete issues'),
   });
 
   // Filters

@@ -13,6 +13,7 @@ import Link from 'next/link';
 import api from '@/lib/nurse-api';
 import { useNurseAuth } from '@/lib/nurse-auth';
 import { formatDate } from '@/lib/utils';
+import { useToast } from '@/components/ui/Toast';
 
 type Tab = 'home' | 'updates' | 'issues' | 'tasks' | 'analytics' | 'guide';
 
@@ -815,6 +816,7 @@ export default function NursePortalPage() {
   const { nurse, isAuthenticated, logout } = useNurseAuth();
   const router = useRouter();
   const qc = useQueryClient();
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>('home');
 
   useEffect(() => {
@@ -877,11 +879,13 @@ export default function NursePortalPage() {
 
   const markRead = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/read`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['nurse-announcements'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['nurse-announcements'] }); toast.success('Marked as read'); },
+    onError: () => toast.error('Failed to mark as read'),
   });
   const acknowledge = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/acknowledge`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['nurse-announcements'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['nurse-announcements'] }); toast.success('Acknowledged'); },
+    onError: () => toast.error('Failed to acknowledge'),
   });
 
   if (!isAuthenticated) return null;

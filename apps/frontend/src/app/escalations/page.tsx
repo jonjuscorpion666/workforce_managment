@@ -3,9 +3,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDate, getStatusColor } from '@/lib/utils';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/Toast';
 
 export default function EscalationsPage() {
   const qc = useQueryClient();
+  const toast = useToast();
   const { data: escalations = [], isLoading } = useQuery({
     queryKey: ['escalations'],
     queryFn: () => api.get('/escalations').then((r) => r.data),
@@ -13,7 +15,8 @@ export default function EscalationsPage() {
 
   const ack = useMutation({
     mutationFn: (id: string) => api.patch(`/escalations/${id}/acknowledge`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['escalations'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['escalations'] }); toast.success('Escalation acknowledged'); },
+    onError: () => toast.error('Failed to acknowledge escalation'),
   });
 
   return (

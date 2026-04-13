@@ -11,6 +11,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
+import { useToast } from '@/components/ui/Toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -264,6 +265,7 @@ export default function EditSurveyPage() {
   const params = useParams();
   const id = params.id as string;
   const { hasRole } = useAuth();
+  const toast = useToast();
 
   const isSVP      = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const isDirector = hasRole('DIRECTOR');
@@ -363,7 +365,8 @@ export default function EditSurveyPage() {
 
   const saveDraft = useMutation({
     mutationFn: (data: any) => api.patch(`/surveys/${id}`, data),
-    onSuccess: () => router.push('/surveys'),
+    onSuccess: () => { toast.success('Survey saved as draft'); router.push('/surveys'); },
+    onError: () => toast.error('Failed to save survey'),
   });
 
   const saveAndPublish = useMutation({
@@ -371,7 +374,8 @@ export default function EditSurveyPage() {
       await api.patch(`/surveys/${id}`, data);
       await api.post(`/surveys/${id}/publish`);
     },
-    onSuccess: () => router.push('/surveys'),
+    onSuccess: () => { toast.success('Survey published'); router.push('/surveys'); },
+    onError: () => toast.error('Failed to publish survey'),
   });
 
   const saveAndRequestApproval = useMutation({
@@ -379,7 +383,8 @@ export default function EditSurveyPage() {
       await api.patch(`/surveys/${id}`, data);
       await api.post(`/surveys/${id}/request-approval`);
     },
-    onSuccess: () => router.push('/surveys'),
+    onSuccess: () => { toast.success('Survey submitted for approval'); router.push('/surveys'); },
+    onError: () => toast.error('Failed to submit survey for approval'),
   });
 
   const needsApproval = !isSVP;

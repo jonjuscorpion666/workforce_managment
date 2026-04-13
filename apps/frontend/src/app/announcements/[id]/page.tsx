@@ -12,6 +12,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
 
 const PRIORITY_STYLES: Record<string, string> = {
   CRITICAL: 'bg-red-100 text-red-700 border border-red-200',
@@ -41,6 +42,7 @@ export default function AnnouncementDetailPage() {
   const router  = useRouter();
   const qc      = useQueryClient();
   const { hasRole } = useAuth();
+  const toast   = useToast();
 
   const isLeadership = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNO') || hasRole('DIRECTOR');
 
@@ -65,17 +67,21 @@ export default function AnnouncementDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['announcement', id] });
       qc.invalidateQueries({ queryKey: ['announcements-feed'] });
+      toast.success('Acknowledged');
     },
+    onError: () => toast.error('Failed to acknowledge'),
   });
 
   const cancel = useMutation({
     mutationFn: () => api.post(`/announcements/${id}/cancel`),
-    onSuccess: () => router.push('/announcements'),
+    onSuccess: () => { toast.success('Announcement cancelled'); router.push('/announcements'); },
+    onError: () => toast.error('Failed to cancel announcement'),
   });
 
   const archive = useMutation({
     mutationFn: () => api.post(`/announcements/${id}/archive`),
-    onSuccess: () => router.push('/announcements'),
+    onSuccess: () => { toast.success('Announcement archived'); router.push('/announcements'); },
+    onError: () => toast.error('Failed to archive announcement'),
   });
 
   // Mark read once when the announcement first loads and isn't already read

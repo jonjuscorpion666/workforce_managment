@@ -397,13 +397,16 @@ function TaskDetailPanel({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-comments', task.id] });
       setCommentText('');
+      toast.success('Comment added');
     },
+    onError: () => toast.error('Failed to add comment'),
   });
 
   const deleteComment = useMutation({
     mutationFn: (commentId: string) =>
       api.delete(`/tasks/${task.id}/comments/${commentId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-comments', task.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-comments', task.id] }); toast.success('Comment deleted'); },
+    onError: () => toast.error('Failed to delete comment'),
   });
 
   function submitComment(e: React.FormEvent) {

@@ -12,6 +12,7 @@ import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import BulkDeleteBar from '@/components/BulkDeleteBar';
+import { useToast } from '@/components/ui/Toast';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -191,6 +192,7 @@ function AnnouncementCard({
 export default function AnnouncementsPage() {
   const { hasRole } = useAuth();
   const qc = useQueryClient();
+  const toast = useToast();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -210,7 +212,8 @@ export default function AnnouncementsPage() {
 
   const bulkDelete = useMutation({
     mutationFn: (ids: string[]) => api.post('/announcements/bulk-delete', { ids }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['announcements-all'] }); setSelectedIds(new Set()); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['announcements-all'] }); setSelectedIds(new Set()); toast.success('Announcements deleted'); },
+    onError: () => toast.error('Failed to delete announcements'),
   });
   const [filterPriority, setFP]     = useState('');
   const [filterType, setFT]         = useState('');
@@ -238,12 +241,14 @@ export default function AnnouncementsPage() {
 
   const markRead = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/read`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['announcements-feed'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['announcements-feed'] }); toast.success('Marked as read'); },
+    onError: () => toast.error('Failed to mark as read'),
   });
 
   const acknowledge = useMutation({
     mutationFn: (id: string) => api.post(`/announcements/${id}/acknowledge`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['announcements-feed'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['announcements-feed'] }); toast.success('Acknowledged'); },
+    onError: () => toast.error('Failed to acknowledge'),
   });
 
   // ── Filtering ──

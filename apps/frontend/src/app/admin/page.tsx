@@ -10,6 +10,7 @@ import {
   Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, AlertTriangle,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/Toast';
 
 type Tab = 'hospitals' | 'users' | 'roles' | 'config';
 
@@ -67,6 +68,7 @@ function UserModal({
   lockedHospitalName?: string;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const isEdit = !!editUser;
 
   const [firstName,   setFirstName]   = useState(editUser?.firstName   ?? '');
@@ -144,6 +146,7 @@ function UserModal({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success(isEdit ? 'User updated' : 'User created');
       onClose();
     },
     onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to save user'),
@@ -552,6 +555,7 @@ function BulkUploadModal({ onClose }: { onClose: () => void }) {
 
 function AddHospitalModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [name,        setName]        = useState('');
   const [code,        setCode]        = useState('');
   const [address,     setAddress]     = useState('');
@@ -579,7 +583,7 @@ function AddHospitalModal({ onClose }: { onClose: () => void }) {
       timezone: timezone.trim() || undefined,
       level: 'HOSPITAL',
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['org-units'] }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['org-units'] }); toast.success('Hospital created'); onClose(); },
     onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to create hospital'),
   });
 
@@ -655,6 +659,7 @@ function AddUnitModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [name, setName]         = useState('');
   const [code, setCode]         = useState('');
   // Directors are locked to UNIT level; CNO defaults to DEPARTMENT
@@ -664,7 +669,7 @@ function AddUnitModal({
 
   const create = useMutation({
     mutationFn: () => api.post('/org/units', { name: name.trim(), code: code.trim(), level, parentId: parentId || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['org-units'] }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['org-units'] }); toast.success(`${level === 'DEPARTMENT' ? 'Department' : 'Unit'} created`); onClose(); },
     onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to create unit'),
   });
 
@@ -729,12 +734,13 @@ function AddUnitModal({
 
 function AddRoleModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [name, setName]   = useState('');
   const [error, setError] = useState('');
 
   const create = useMutation({
     mutationFn: () => api.post('/admin/roles', { name: name.trim().toUpperCase() }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-roles'] }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-roles'] }); toast.success('Role created'); onClose(); },
     onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to create role'),
   });
 

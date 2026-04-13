@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -287,6 +288,7 @@ function StageDrawer({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [editMode, setEditMode] = useState(false);
   const [editState, setEditState] = useState<StageState>(info.cell?.state ?? 'NOT_STARTED');
   const [editNote, setEditNote] = useState(info.cell?.note ?? '');
@@ -315,8 +317,10 @@ function StageDrawer({
       qc.invalidateQueries({ queryKey: ['program-flow-pipeline', cycleId] });
       qc.invalidateQueries({ queryKey: ['stage-detail', cycleId, info.orgUnitId, info.stageKey] });
       setEditMode(false);
+      toast.success('Stage updated');
       onSaved();
     },
+    onError: () => toast.error('Failed to update stage'),
   });
 
   const d = detail;
@@ -592,6 +596,7 @@ function EditStageModal({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [state, setState] = useState<StageState>(info.cell?.state ?? 'NOT_STARTED');
   const [note, setNote] = useState(info.cell?.note ?? '');
   const [ownerName, setOwnerName] = useState(info.cell?.ownerName ?? '');
@@ -605,8 +610,10 @@ function EditStageModal({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['program-flow-pipeline', cycleId] });
+      toast.success('Stage saved');
       onSaved(); onClose();
     },
+    onError: () => toast.error('Failed to save stage'),
   });
 
   const stageMeta = STAGES.find((s) => s.key === info.stageKey);
@@ -822,6 +829,7 @@ function SlaConfigModal({ cycleId, currentSla, onClose }: {
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(currentSla).map(([k, v]) => [k, String(v)])),
   );
@@ -836,6 +844,7 @@ function SlaConfigModal({ cycleId, currentSla, onClose }: {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['program-flow-pipeline', cycleId] });
+      toast.success('SLA configuration saved');
       onClose();
     },
     onError: (err: any) => {
@@ -891,6 +900,7 @@ function SlaConfigModal({ cycleId, currentSla, onClose }: {
 
 function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [surveyId, setSurveyId] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
@@ -908,6 +918,7 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
       api.post('/program-flow/cycles', { name, surveyId: surveyId || undefined, startDate, targetEndDate: targetEndDate || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['program-flow-cycles'] });
+      toast.success('Cycle created');
       onCreated(); onClose();
     },
     onError: (err: any) => {
@@ -967,6 +978,7 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
 export default function ProgramFlowPage() {
   const qc = useQueryClient();
   const { hasRole } = useAuth();
+  const toast = useToast();
   const isCNO = hasRole('CNO');
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
   const [showCreateCycle, setShowCreateCycle] = useState(false);
@@ -998,7 +1010,8 @@ export default function ProgramFlowPage() {
 
   const autoComputeMutation = useMutation({
     mutationFn: () => api.post(`/program-flow/cycles/${activeCycleId}/auto-compute`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['program-flow-pipeline', activeCycleId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['program-flow-pipeline', activeCycleId] }); toast.success('Auto-compute complete'); },
+    onError: () => toast.error('Auto-compute failed'),
   });
 
   const kpis = pipeline?.kpis ?? {};

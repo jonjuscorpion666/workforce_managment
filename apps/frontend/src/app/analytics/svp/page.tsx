@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line, Legend,
 } from 'recharts';
 import api from '@/lib/api';
@@ -215,9 +215,11 @@ function ExecutionTab({ d }: { d: any }) {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              {issueBarData.map((e) => (
-                <Bar key={e.name} dataKey="value" name={e.name} fill={e.fill} radius={[4,4,0,0]} />
-              ))}
+              <Bar dataKey="value" radius={[4,4,0,0]}>
+                {issueBarData.map((e) => (
+                  <Cell key={e.name} fill={e.fill} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -229,9 +231,11 @@ function ExecutionTab({ d }: { d: any }) {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              {taskBarData.map((e) => (
-                <Bar key={e.name} dataKey="value" name={e.name} fill={e.fill} radius={[4,4,0,0]} />
-              ))}
+              <Bar dataKey="value" radius={[4,4,0,0]}>
+                {taskBarData.map((e) => (
+                  <Cell key={e.name} fill={e.fill} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -11,6 +11,7 @@ import {
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ function ScopeButton({
 export default function NewAnnouncementPage() {
   const router = useRouter();
   const { user, hasRole } = useAuth();
+  const toast = useToast();
 
   const [mounted, setMounted] = useState(false);
 
@@ -183,7 +185,8 @@ export default function NewAnnouncementPage() {
 
   const saveDraft = useMutation({
     mutationFn: (data: any) => api.post('/announcements', data),
-    onSuccess: () => router.push('/announcements'),
+    onSuccess: () => { toast.success('Draft saved'); router.push('/announcements'); },
+    onError: () => toast.error('Failed to save draft'),
   });
 
   const saveAndPublish = useMutation({
@@ -192,7 +195,8 @@ export default function NewAnnouncementPage() {
       await api.post(`/announcements/${res.data.id}/publish`);
       return res.data;
     },
-    onSuccess: () => router.push('/announcements'),
+    onSuccess: () => { toast.success('Announcement published'); router.push('/announcements'); },
+    onError: () => toast.error('Failed to publish announcement'),
   });
 
   function handleDraft()   { if (!validate()) return; setError(''); saveDraft.mutate(buildPayload(false)); }

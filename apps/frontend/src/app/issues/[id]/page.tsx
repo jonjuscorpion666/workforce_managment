@@ -144,13 +144,16 @@ function AddMilestoneForm({ planId, onDone }: { planId: string; onDone: () => vo
   const { id } = useParams<{ id: string }>();
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const toast = useToast();
 
   const add = useMutation({
     mutationFn: () => api.post(`/issues/action-plans/${planId}/milestones`, { title, dueDate: dueDate || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['action-plans', id] });
+      toast.success('Milestone added');
       onDone();
     },
+    onError: () => toast.error('Failed to add milestone'),
   });
 
   return (
@@ -228,6 +231,7 @@ function MilestoneEditForm({
 
 function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [showObjective, setShowObjective] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [showAddMilestone, setShowAddMilestone] = useState(false);
@@ -244,12 +248,15 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
       setConfirmCompleteId(null);
+      toast.success('Milestone completed');
     },
+    onError: () => toast.error('Failed to complete milestone'),
   });
 
   const deleteMilestone = useMutation({
     mutationFn: (milestoneId: string) => api.delete(`/issues/milestones/${milestoneId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['action-plans', issueId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['action-plans', issueId] }); toast.success('Milestone deleted'); },
+    onError: () => toast.error('Failed to delete milestone'),
   });
 
   const editMilestone = useMutation({
@@ -258,7 +265,9 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
       setEditingMilestone(null);
+      toast.success('Milestone updated');
     },
+    onError: () => toast.error('Failed to update milestone'),
   });
 
   const updatePlan = useMutation({
@@ -271,7 +280,9 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
       setShowEditForm(false);
+      toast.success('Action plan updated');
     },
+    onError: () => toast.error('Failed to update action plan'),
   });
 
   const now = new Date();
@@ -498,6 +509,7 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
 
 function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [form, setForm] = useState({
     title: '',
     objective: '',
@@ -521,8 +533,10 @@ function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: ()
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
+      toast.success('Action plan created');
       onClose();
     },
+    onError: () => toast.error('Failed to create action plan'),
   });
 
   function set(key: string, value: string) {
@@ -623,6 +637,7 @@ function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: ()
 
 function StatusCard({ issue }: { issue: Issue }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
@@ -640,7 +655,9 @@ function StatusCard({ issue }: { issue: Issue }) {
       qc.invalidateQueries({ queryKey: ['issue-history', issue.id] });
       setPendingStatus(null);
       setNote('');
+      toast.success('Status updated');
     },
+    onError: () => toast.error('Failed to update status'),
   });
 
   function handleTransition() {
