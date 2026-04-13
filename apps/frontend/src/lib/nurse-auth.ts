@@ -35,7 +35,12 @@ export const useNurseAuth = create<NurseAuthState>()(
         if (!roles.some((r) => nurseRoles.includes(r))) {
           throw new Error('Access denied. This portal is for nurses and staff only.');
         }
-        // Store nurse-specific tokens — never touch access_token / auth-storage
+        // Evict any existing admin/manager session — prevents privilege escalation
+        // if someone was previously logged in as an admin in the same browser.
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('auth-storage');
+        // Store nurse-specific tokens
         localStorage.setItem('nurse_access_token', data.accessToken);
         localStorage.setItem('nurse_refresh_token', data.refreshToken);
         set({ nurse: data.user, accessToken: data.accessToken, isAuthenticated: true });
