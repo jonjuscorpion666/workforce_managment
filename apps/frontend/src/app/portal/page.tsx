@@ -823,7 +823,28 @@ export default function NursePortalPage() {
     if (!isAuthenticated) router.replace('/portal/login');
   }, [isAuthenticated, router]);
 
-  // nurse_access_token is managed by nurse-auth.ts — no bleed into admin access_token
+  // Same-tab guard: if an admin logged in this tab and wiped nurse_access_token,
+  // the in-memory nurse store still says isAuthenticated=true. Detect the missing
+  // token and evict the stale session immediately.
+  useEffect(() => {
+    if (isAuthenticated && typeof window !== 'undefined' && !localStorage.getItem('nurse_access_token')) {
+      logout();
+      router.replace('/portal/login');
+    }
+  }, [isAuthenticated, logout, router]);
+
+  // Cross-tab guard: admin login in another tab removes 'nurse-auth' from localStorage.
+  // Listen for that removal and evict the stale in-memory nurse session in this tab.
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === 'nurse-auth' && (e.newValue === null || e.newValue === '')) {
+        logout();
+        router.replace('/portal/login');
+      }
+    }
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [logout, router]);
 
   const { data: surveys = [], isLoading: surveysLoading } = useQuery({
     queryKey: ['nurse-surveys', nurse?.id],

@@ -37,9 +37,13 @@ export const useAuth = create<AuthState>()(
 
       login: async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password });
-        // Clear any stale nurse session to prevent cross-portal token bleed
+        // Clear any stale nurse session to prevent cross-portal token bleed.
+        // Also wipe the nurse Zustand persist key so that:
+        //  - another tab running the portal detects the removal via storage event
+        //  - next rehydration of the nurse store starts with default (unauthenticated) state
         localStorage.removeItem('nurse_access_token');
         localStorage.removeItem('nurse_refresh_token');
+        localStorage.removeItem('nurse-auth');
         localStorage.setItem('access_token', data.accessToken);
         localStorage.setItem('refresh_token', data.refreshToken);
         set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true });
