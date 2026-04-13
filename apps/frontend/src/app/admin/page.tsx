@@ -1369,9 +1369,12 @@ export default function AdminPage() {
                     <td className="px-5 py-3.5 text-right">
                       <button
                         onClick={() => openEditUser(u)}
-                        disabled={isManager && !MANAGER_ALLOWED_ROLES.includes(u.roles?.[0]?.name)}
+                        disabled={
+                          (isManager && !MANAGER_ALLOWED_ROLES.includes(u.roles?.[0]?.name)) ||
+                          (!hasRole('SUPER_ADMIN') && u.roles?.[0]?.name === 'SUPER_ADMIN')
+                        }
                         className="text-gray-400 hover:text-brand-600 transition-colors p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400"
-                        title="Edit user">
+                        title={(!hasRole('SUPER_ADMIN') && u.roles?.[0]?.name === 'SUPER_ADMIN') ? 'Cannot edit Super Admin' : 'Edit user'}>
                         <Pencil className="w-4 h-4" />
                       </button>
                     </td>
