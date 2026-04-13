@@ -19,8 +19,13 @@ export class AuthService {
       where: { email: dto.email },
       relations: ['roles', 'orgUnit'],
     });
+    // Use the same generic message for both "user not found" and "wrong password"
+    // to prevent email enumeration.
     if (!user || !(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+    if ((user as any).status && (user as any).status !== 'ACTIVE') {
+      throw new UnauthorizedException('Account is not active');
     }
     user.lastLoginAt = new Date();
     await this.userRepo.save(user);
@@ -39,14 +44,31 @@ export class AuthService {
   }
 
   async refreshToken(token: string) {
+    if (!token) throw new UnauthorizedException('Refresh token required');
+    const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
+    if (!refreshSecret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('REFRESH_TOKEN_SECRET environment variable must be set in production');
+      }
+      // Dev fallback — same warning pattern as JWT_SECRET
+      console.warn('⚠  REFRESH_TOKEN_SECRET not set — using access token secret as fallback.');
+    }
     try {
       const payload = this.jwtService.verify(token, {
-        secret: process.env.REFRESH_TOKEN_SECRET,
+        secret: refreshSecret,
       });
-      const user = await this.userRepo.findOne({ where: { id: payload.sub } });
-      if (!user) throw new UnauthorizedException();
+      const user = await this.userRepo.findOne({
+        where: { id: payload.sub },
+        relations: ['roles', 'orgUnit'],
+      });
+      if (!user) throw new UnauthorizedException('User not found');
+      // Reject refresh for suspended / inactive accounts
+      if ((user as any).status && (user as any).status !== 'ACTIVE') {
+        throw new UnauthorizedException('Account is not active');
+      }
       return this.generateTokens(user);
-    } catch {
+    } catch (err: any) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

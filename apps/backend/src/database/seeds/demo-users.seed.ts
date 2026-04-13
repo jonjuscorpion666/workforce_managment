@@ -4,6 +4,13 @@ import { User } from '../../modules/auth/entities/user.entity';
 import { Role } from '../../modules/auth/entities/role.entity';
 
 export async function seedDemoUsers(dataSource: DataSource) {
+  // Never seed demo accounts in production unless explicitly opted in.
+  // Set SEED_DEMO_DATA=true only in staging / demo environments.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_DATA !== 'true') {
+    console.warn('⚠  Demo user seeding skipped in production. Set SEED_DEMO_DATA=true to override (staging/demo only).');
+    return;
+  }
+
   const userRepo = dataSource.getRepository(User);
   const roleRepo = dataSource.getRepository(Role);
 
@@ -53,15 +60,13 @@ export async function seedDemoUsers(dataSource: DataSource) {
   }
 
   console.log('\n✅ Demo users seeded\n');
-  console.log('┌────────────────────────────┬──────────────┬──────────────┐');
-  console.log('│ Email                      │ Role         │ Password     │');
-  console.log('├────────────────────────────┼──────────────┼──────────────┤');
+  console.log('┌────────────────────────────┬──────────────┐');
+  console.log('│ Email                      │ Role         │');
+  console.log('├────────────────────────────┼──────────────┤');
   demoUsers.forEach((u) => {
-    const email = u.email.padEnd(26);
-    const role  = u.role.padEnd(12);
-    console.log(`│ ${email} │ ${role} │ Password123! │`);
+    console.log(`│ ${u.email.padEnd(26)} │ ${u.role.padEnd(12)} │`);
   });
-  console.log('└────────────────────────────┴──────────────┴──────────────┘');
+  console.log('└────────────────────────────┴──────────────┘');
   console.log('\nNurse Portal → http://localhost:3000/portal/login');
   console.log('Admin UI     → http://localhost:3000/dashboard\n');
 }

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { SurveysModule } from './modules/surveys/surveys.module';
@@ -54,6 +55,10 @@ import { ProgramFlowModule } from './modules/program-flow/program-flow.module';
         };
       },
     }),
+
+    // Rate limiting — 10 requests per minute per IP by default;
+    // auth endpoints override this with a tighter limit.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
 
     // Scheduler (cron jobs)
     ScheduleModule.forRoot(),

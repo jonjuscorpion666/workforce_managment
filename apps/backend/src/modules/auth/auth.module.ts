@@ -17,10 +17,19 @@ import { Permission } from './entities/permission.entity';
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET') || 'dev-secret-change-in-production',
-        signOptions: { expiresIn: config.get('JWT_EXPIRY', '7d') },
-      }),
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) {
+          if (config.get('NODE_ENV') === 'production') {
+            throw new Error('JWT_SECRET environment variable must be set in production');
+          }
+          console.warn('⚠  JWT_SECRET not set — using insecure dev fallback. Never deploy without it.');
+        }
+        return {
+          secret: secret ?? 'dev-secret-change-in-production',
+          signOptions: { expiresIn: config.get('JWT_EXPIRY', '7d') },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

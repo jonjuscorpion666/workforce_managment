@@ -123,35 +123,37 @@ export default function NurseLoginPage() {
           </div>
         </div>
 
-        {/* Demo accounts card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2.5 mb-4">
-            <Key className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <span className="text-sm font-semibold text-gray-800">Demo Accounts</span>
-            <span className="ml-1 text-xs font-mono bg-gray-900 text-gray-100 px-2.5 py-0.5 rounded-full">
-              Password123!
-            </span>
-          </div>
+        {/* Demo accounts card — development / staging only */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center gap-2.5 mb-4">
+              <Key className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <span className="text-sm font-semibold text-gray-800">Demo Accounts</span>
+              <span className="ml-1 text-xs font-mono bg-gray-900 text-gray-100 px-2.5 py-0.5 rounded-full">
+                Password123!
+              </span>
+            </div>
 
-          <div className="space-y-1">
-            {DEMO_NURSES.map((u) => (
-              <button
-                key={u.email}
-                type="button"
-                onClick={() => { setEmail(u.email); setPassword('Password123!'); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left group"
-              >
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${u.color}`}>
-                  {u.role}
-                </span>
-                <span className="text-sm font-medium text-gray-800 flex-1">{u.name}</span>
-                <span className="text-xs text-gray-400 font-mono group-hover:text-gray-600 transition-colors truncate">
-                  {u.email}
-                </span>
-              </button>
-            ))}
+            <div className="space-y-1">
+              {DEMO_NURSES.map((u) => (
+                <button
+                  key={u.email}
+                  type="button"
+                  onClick={() => { setEmail(u.email); setPassword('Password123!'); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left group"
+                >
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${u.color}`}>
+                    {u.role}
+                  </span>
+                  <span className="text-sm font-medium text-gray-800 flex-1">{u.name}</span>
+                  <span className="text-xs text-gray-400 font-mono group-hover:text-gray-600 transition-colors truncate">
+                    {u.email}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Back to admin */}
         <div className="text-center">
