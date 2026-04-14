@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, In } from 'typeorm';
+import { Repository, LessThan, In, IsNull } from 'typeorm';
 import { Task, TaskStatus } from './entities/task.entity';
 import { TaskComment } from './entities/task-comment.entity';
 import { ActionPlanMilestone } from '../issues/entities/action-plan.entity';
@@ -99,6 +99,17 @@ export class TasksService {
         status: TaskStatus.TODO,
       },
       order: { dueDate: 'ASC' },
+    });
+  }
+
+  getInactive(threshold: Date) {
+    return this.repo.find({
+      where: {
+        updatedAt: LessThan(threshold),
+        status: TaskStatus.IN_PROGRESS,
+        escalatedAt: IsNull(),
+      },
+      order: { updatedAt: 'ASC' },
     });
   }
 

@@ -45,7 +45,22 @@ export class EscalationScheduler {
     const threshold = new Date();
     threshold.setDate(threshold.getDate() - inactivityThresholdDays);
 
-    // TODO: query tasks with updatedAt < threshold and status IN_PROGRESS
-    this.logger.log(`Inactivity threshold: ${threshold.toISOString()}`);
+    const staleTasks = await this.tasksService.getInactive(threshold);
+    for (const task of staleTasks) {
+      await this.escalationsService.trigger({
+        entityType: 'task',
+        entityId: task.id,
+        reason: 'INACTIVITY',
+        level: (task.escalationLevel ?? 0) + 1,
+        escalatedToId: task.ownerId || task.assignedToId,
+      });
+
+      await this.tasksService.update(task.id, {
+        escalatedAt: new Date(),
+        escalationLevel: (task.escalationLevel ?? 0) + 1,
+      }, 'system');
+
+      this.logger.warn(`Escalated inactive task: ${task.id} (no activity since ${threshold.toISOString()})`);
+    }
   }
 }
