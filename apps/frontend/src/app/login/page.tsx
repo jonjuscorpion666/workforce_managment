@@ -137,8 +137,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Demo accounts card — development / staging only */}
-        {process.env.NODE_ENV !== 'production' && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        {/* Demo accounts card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           {/* Header */}
           <div className="flex items-center gap-2.5 mb-4">
             <Key className="w-4 h-4 text-gray-400 flex-shrink-0" />
