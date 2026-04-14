@@ -379,27 +379,44 @@ function ProgramDrawer({ program, surveys, onClose }: {
 
   const advanceMutation = useMutation({
     mutationFn: async () => {
-      // When advancing from SETUP → EXECUTION, publish the linked survey
+      let surveyPublished = false;
+      // When advancing from SETUP → EXECUTION, try to publish the linked survey
       if (program.currentStage === 'SETUP' && program.linkedSurveyId) {
         const linked = surveys.find((s) => s.id === program.linkedSurveyId);
         if (linked && linked.status !== 'ACTIVE') {
-          await api.post(`/surveys/${program.linkedSurveyId}/publish`);
+          try {
+            await api.post(`/surveys/${program.linkedSurveyId}/publish`);
+            surveyPublished = true;
+          } catch (publishErr: any) {
+            // Governance check failed — advance anyway, survey must be published separately
+            const msg = publishErr?.response?.data?.message;
+            toast.error(msg ? `Survey: ${msg}` : 'Survey could not be published — publish it separately before execution begins');
+          }
+        } else if (linked?.status === 'ACTIVE') {
+          surveyPublished = true;
         }
       }
-      return api.post(`/programs/${program.id}/advance`);
+      const result = await api.post(`/programs/${program.id}/advance`);
+      return { result, surveyPublished };
     },
-    onSuccess: () => {
+    onSuccess: ({ surveyPublished }) => {
       qc.invalidateQueries({ queryKey: ['programs'] });
       qc.invalidateQueries({ queryKey: ['surveys'] });
       if (program.currentStage === 'SETUP') {
-        toast.success('Survey published — program moved to Execution');
-        // Auto-tick surveyLaunched
-        execChecklistMutation.mutate({ surveyLaunched: true });
+        if (surveyPublished) {
+          toast.success('Survey published — program moved to Execution');
+          execChecklistMutation.mutate({ surveyLaunched: true });
+        } else {
+          toast.success('Program moved to Execution — publish the survey when ready');
+        }
       } else {
         toast.success('Stage advanced');
       }
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Failed to advance stage'),
+    onError: (e: any) => {
+      const msg = e?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Failed to advance stage');
+    },
   });
 
   const linkSurveyMutation = useMutation({
