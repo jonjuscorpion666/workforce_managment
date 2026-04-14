@@ -458,7 +458,60 @@ function ProgramDrawer({ program, surveys, onClose }: {
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Setup Checklist</p>
             <div className="space-y-1.5">
-              {CHECKLIST_ITEMS.map(({ key, label }) => {
+
+              {/* Meeting — auto-ticks when date is entered */}
+              <div className={`rounded-lg border overflow-hidden ${program.setupChecklist?.meetingScheduled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                {/* Checklist row — read-only, driven by meeting details */}
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                    program.setupChecklist?.meetingScheduled ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                  }`}>
+                    {program.setupChecklist?.meetingScheduled && <Check className="w-2.5 h-2.5 text-white" />}
+                  </div>
+                  <span className={`text-sm flex-1 ${program.setupChecklist?.meetingScheduled ? 'text-green-700 line-through' : 'text-gray-700'}`}>
+                    Kickoff meeting scheduled
+                  </span>
+                  <span className="text-[10px] text-gray-400">auto</span>
+                </div>
+
+                {/* Meeting details — always visible */}
+                <div className="border-t border-gray-100 bg-blue-50/50 px-3 py-2.5 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">Date <span className="text-blue-400">→ ticks above</span></p>
+                      <input type="date"
+                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        value={program.setupChecklist?.meetingDate ?? ''}
+                        onChange={(e) => checklistMutation.mutate({
+                          meetingDate:      e.target.value,
+                          meetingScheduled: !!e.target.value,
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 mb-0.5">Attendees</p>
+                      <input type="text"
+                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        placeholder="Names / roles"
+                        value={program.setupChecklist?.meetingAttendees ?? ''}
+                        onChange={(e) => checklistMutation.mutate({ meetingAttendees: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Notes</p>
+                    <textarea rows={2}
+                      className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      placeholder="Key decisions made…"
+                      value={program.setupChecklist?.meetingNotes ?? ''}
+                      onChange={(e) => checklistMutation.mutate({ meetingNotes: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Other checklist items — manually ticked */}
+              {CHECKLIST_ITEMS.filter(({ key }) => key !== 'meetingScheduled').map(({ key, label }) => {
                 const checked = !!(program.setupChecklist?.[key]);
                 return (
                   <button key={key} type="button"
@@ -478,41 +531,6 @@ function ProgramDrawer({ program, surveys, onClose }: {
                 );
               })}
             </div>
-
-            {/* Meeting details */}
-            {program.setupChecklist?.meetingScheduled && (
-              <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-2">
-                <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Meeting Details</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">Date</p>
-                    <input type="date"
-                      className="w-full text-xs border border-blue-200 rounded px-2 py-1 bg-white"
-                      value={program.setupChecklist?.meetingDate ?? ''}
-                      onChange={(e) => checklistMutation.mutate({ meetingDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">Attendees</p>
-                    <input type="text"
-                      className="w-full text-xs border border-blue-200 rounded px-2 py-1 bg-white"
-                      placeholder="Names / roles"
-                      value={program.setupChecklist?.meetingAttendees ?? ''}
-                      onChange={(e) => checklistMutation.mutate({ meetingAttendees: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">Notes</p>
-                  <textarea rows={2}
-                    className="w-full text-xs border border-blue-200 rounded px-2 py-1 bg-white resize-none"
-                    placeholder="Key decisions made…"
-                    value={program.setupChecklist?.meetingNotes ?? ''}
-                    onChange={(e) => checklistMutation.mutate({ meetingNotes: e.target.value })}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Linked survey */}
