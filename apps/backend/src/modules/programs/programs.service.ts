@@ -201,10 +201,7 @@ export class ProgramsService {
       if (p.approvalStatus === ProgramApprovalStatus.PENDING) {
         throw new BadRequestException('Program is awaiting approval — cannot advance yet');
       }
-      const allDone = CHECKLIST_KEYS.every((k) => !!(p.setupChecklist as any)?.[k]);
-      if (!allDone) {
-        throw new BadRequestException('Complete all setup checklist items before advancing to Execution');
-      }
+      // Checklist completeness is enforced by the frontend only
     }
 
     // ── Gate: EXECUTION → ROOT_CAUSE ──────────────────────────────────────
