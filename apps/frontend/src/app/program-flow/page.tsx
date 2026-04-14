@@ -377,11 +377,22 @@ function ProgramDrawer({ program, surveys, onClose }: {
 
   const linkSurveyMutation = useMutation({
     mutationFn: (surveyId: string) => api.patch(`/programs/${program.id}/survey`, { surveyId }),
-    onSuccess: () => {
-      checklistMutation.mutate({ questionsDrafted: true });
+    onSuccess: (_, surveyId) => {
+      const linked = surveys.find((s) => s.id === surveyId);
+      const scopeDefined = !!(
+        linked?.targetOrgUnitIds?.length ||
+        linked?.targetRoles?.length ||
+        linked?.focusGroupUserIds?.length ||
+        linked?.targetShifts?.length ||
+        (linked?.targetScope && linked.targetScope !== 'SYSTEM')
+      );
+      checklistMutation.mutate({
+        questionsDrafted:    true,
+        employeeScopeDefined: scopeDefined,
+      });
       qc.invalidateQueries({ queryKey: ['programs'] });
       setSurveyPicker(false);
-      toast.success('Survey linked');
+      toast.success(scopeDefined ? 'Survey linked — scope auto-detected' : 'Survey linked');
     },
     onError: () => toast.error('Failed to link survey'),
   });
@@ -516,9 +527,20 @@ function ProgramDrawer({ program, surveys, onClose }: {
               </div>
 
               {/* Other checklist items */}
-              {CHECKLIST_ITEMS.filter(({ key }) => key !== 'meetingScheduled').map(({ key, label }) => {
+              {(() => {
+                const linkedSurvey = surveys.find((s: any) => s.id === program.linkedSurveyId);
+                const surveyHasScope = !!(
+                  linkedSurvey?.targetOrgUnitIds?.length ||
+                  linkedSurvey?.targetRoles?.length ||
+                  linkedSurvey?.focusGroupUserIds?.length ||
+                  linkedSurvey?.targetShifts?.length ||
+                  (linkedSurvey?.targetScope && linkedSurvey.targetScope !== 'SYSTEM')
+                );
+                return CHECKLIST_ITEMS.filter(({ key }) => key !== 'meetingScheduled').map(({ key, label }) => {
                 const checked  = !!(program.setupChecklist?.[key]);
-                const isAuto   = key === 'questionsDrafted' && !!program.linkedSurveyId;
+                const isAuto   =
+                  (key === 'questionsDrafted'     && !!program.linkedSurveyId) ||
+                  (key === 'employeeScopeDefined' && surveyHasScope);
                 return (
                   <button key={key} type="button"
                     disabled={isAuto || program.status === 'COMPLETED' || program.status === 'CANCELLED'}
@@ -536,7 +558,8 @@ function ProgramDrawer({ program, surveys, onClose }: {
                     {isAuto && <span className="text-[10px] text-gray-400">auto</span>}
                   </button>
                 );
-              })}
+              });
+              })()}
             </div>
           </div>
 
