@@ -6,7 +6,7 @@ import {
   Plus, ChevronRight, CheckCircle2, Circle, Clock, AlertCircle,
   Building2, Globe, X, Check, ChevronDown, ClipboardList,
   Flag, Users, Calendar, Megaphone, BarChart2, Wrench,
-  ShieldCheck, AlertTriangle,
+  ShieldCheck, AlertTriangle, BellRing, Activity,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -121,10 +121,15 @@ function ProgramCard({ program, onClick }: { program: any; onClick: () => void }
           {/* Stage bar */}
           <StageBar currentStage={program.currentStage} status={program.status} />
 
-          {/* Checklist progress (only in SETUP) */}
+          {/* Checklist progress */}
           {program.currentStage === 'SETUP' && program.checklistProgress && (
             <p className="text-[10px] text-gray-400 mt-1.5">
               Setup checklist: {program.checklistProgress.completed}/{program.checklistProgress.total} done
+            </p>
+          )}
+          {program.currentStage === 'EXECUTION' && program.executionProgress && (
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              Execution: {program.executionProgress.completed}/{program.executionProgress.total} done
             </p>
           )}
 
@@ -373,9 +378,28 @@ function ProgramDrawer({ program, surveys, onClose }: {
   });
 
   const advanceMutation = useMutation({
-    mutationFn: () => api.post(`/programs/${program.id}/advance`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast.success('Stage advanced'); },
-    onError:   () => toast.error('Failed to advance stage'),
+    mutationFn: async () => {
+      // When advancing from SETUP → EXECUTION, publish the linked survey
+      if (program.currentStage === 'SETUP' && program.linkedSurveyId) {
+        const linked = surveys.find((s) => s.id === program.linkedSurveyId);
+        if (linked && linked.status !== 'ACTIVE') {
+          await api.post(`/surveys/${program.linkedSurveyId}/publish`);
+        }
+      }
+      return api.post(`/programs/${program.id}/advance`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['programs'] });
+      qc.invalidateQueries({ queryKey: ['surveys'] });
+      if (program.currentStage === 'SETUP') {
+        toast.success('Survey published — program moved to Execution');
+        // Auto-tick surveyLaunched
+        execChecklistMutation.mutate({ surveyLaunched: true });
+      } else {
+        toast.success('Stage advanced');
+      }
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Failed to advance stage'),
   });
 
   const linkSurveyMutation = useMutation({
@@ -398,6 +422,54 @@ function ProgramDrawer({ program, surveys, onClose }: {
       toast.success(scopeDefined ? 'Survey linked — scope auto-detected' : 'Survey linked');
     },
     onError: () => toast.error('Failed to link survey'),
+  });
+
+  // ── Execution stage ────────────────────────────────────────────────────────
+
+  const { data: participation } = useQuery<{ surveyId: string; responseCount: number }>({
+    queryKey: ['participation', program.linkedSurveyId],
+    queryFn: () => api.get('/responses/participation/status', { params: { surveyId: program.linkedSurveyId } }).then((r) => r.data),
+    enabled: program.currentStage === 'EXECUTION' && !!program.linkedSurveyId,
+    refetchInterval: program.currentStage === 'EXECUTION' ? 30_000 : false,
+  });
+
+  const execChecklistMutation = useMutation({
+    mutationFn: (update: Record<string, any>) => api.patch(`/programs/${program.id}/execution-checklist`, update),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+    onError: () => toast.error('Failed to update execution checklist'),
+  });
+
+  const sendReminderMutation = useMutation({
+    mutationFn: async () => {
+      const audienceMode     = program.scope === 'GLOBAL' ? 'SYSTEM' : 'COMBINATION';
+      const targetOrgUnitIds = program.scope === 'GLOBAL' ? [] : (program.targetHospitalIds ?? []);
+      const { data: ann } = await api.post('/announcements', {
+        title:           `Reminder: Please complete the ${program.name} survey`,
+        body:            `This is a friendly reminder to complete the survey. Your anonymous feedback is important and helps us improve. It only takes a few minutes.`,
+        type:            'SURVEY_LAUNCH',
+        priority:        'HIGH',
+        audienceMode,
+        targetOrgUnitIds,
+        linkedSurveyId:  program.linkedSurveyId,
+      });
+      await api.post(`/announcements/${ann.id}/publish`);
+    },
+    onSuccess: () => {
+      const history = [...(program.executionChecklist?.reminderHistory ?? []), new Date().toISOString()];
+      execChecklistMutation.mutate({ reminderSent: true, reminderHistory: history });
+      toast.success('Reminder sent to employees');
+    },
+    onError: () => toast.error('Failed to send reminder'),
+  });
+
+  const closeSurveyMutation = useMutation({
+    mutationFn: () => api.post(`/surveys/${program.linkedSurveyId}/close`),
+    onSuccess: () => {
+      execChecklistMutation.mutate({ surveyClosed: true });
+      qc.invalidateQueries({ queryKey: ['surveys'] });
+      toast.success('Survey closed');
+    },
+    onError: () => toast.error('Failed to close survey'),
   });
 
   const sendAnnouncementMutation = useMutation({
@@ -424,9 +496,29 @@ function ProgramDrawer({ program, surveys, onClose }: {
     onError: () => toast.error('Failed to send announcement'),
   });
 
-  const stageIdx     = STAGES.findIndex((s) => s.key === program.currentStage);
-  const nextStage    = STAGES[stageIdx + 1];
-  const isLastStage  = stageIdx === STAGES.length - 1;
+  const stageIdx    = STAGES.findIndex((s) => s.key === program.currentStage);
+  const nextStage   = STAGES[stageIdx + 1];
+  const isLastStage = stageIdx === STAGES.length - 1;
+
+  // Gate logic per stage
+  const cl = program.setupChecklist ?? {};
+  const setupAllDone = cl.meetingScheduled && cl.questionsDrafted && cl.employeeScopeDefined && cl.communicationDrafted && cl.employeesNotified;
+
+  const advanceBlockReason: string | null = (() => {
+    if (program.status !== 'ACTIVE') return null; // handled by canAdvance check
+    if (program.currentStage === 'SETUP') {
+      if (!program.linkedSurveyId) return 'Link a survey first';
+      if (!setupAllDone)           return 'Complete all setup checklist items';
+      return null;
+    }
+    if (program.currentStage === 'EXECUTION') {
+      if (!program.executionChecklist?.surveyClosed) return 'Close the survey before advancing';
+      return null;
+    }
+    return null;
+  })();
+
+  const canAdvanceGated = program.status === 'ACTIVE' && !advanceBlockReason;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -662,6 +754,133 @@ function ProgramDrawer({ program, surveys, onClose }: {
             </div>
           </div>
 
+          {/* ── Execution Orchestrator ─────────────────────────────────── */}
+          {program.currentStage === 'EXECUTION' && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Execution Orchestrator</p>
+
+              {/* Live stats card */}
+              {(() => {
+                const responseCount = participation?.responseCount ?? 0;
+                const linkedSurvey  = surveys.find((s) => s.id === program.linkedSurveyId);
+                const closesAt      = linkedSurvey?.closesAt ? new Date(linkedSurvey.closesAt) : null;
+                const daysLeft      = closesAt ? Math.ceil((closesAt.getTime() - Date.now()) / 86_400_000) : null;
+                const ec            = program.executionChecklist ?? {};
+                const surveyLive    = ec.surveyLaunched  ?? linkedSurvey?.status === 'ACTIVE';
+                const surveyClosed  = ec.surveyClosed    ?? linkedSurvey?.status === 'CLOSED';
+                const reminderSent  = ec.reminderSent    ?? false;
+                const reminderHistory: string[] = ec.reminderHistory ?? [];
+
+                return (
+                  <>
+                    {/* Stats bar */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 mb-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide">Responses collected</p>
+                          <p className="text-3xl font-bold text-blue-700 mt-0.5">{responseCount}</p>
+                          {reminderHistory.length > 0 && (
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {reminderHistory.length} reminder{reminderHistory.length !== 1 ? 's' : ''} sent
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className={`flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full ${surveyLive && !surveyClosed ? 'bg-green-100 text-green-700' : surveyClosed ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-700'}`}>
+                            <Activity className="w-3 h-3" />
+                            {surveyClosed ? 'Survey closed' : surveyLive ? 'Live' : 'Not yet live'}
+                          </div>
+                          {closesAt && !surveyClosed && daysLeft !== null && (
+                            <div className="mt-2 text-right">
+                              <p className="text-[10px] text-gray-400">Closes {closesAt.toLocaleDateString()}</p>
+                              <p className={`text-[10px] font-semibold mt-0.5 ${daysLeft <= 1 ? 'text-red-600' : daysLeft <= 3 ? 'text-amber-600' : 'text-gray-500'}`}>
+                                {daysLeft > 0 ? `${daysLeft}d remaining` : daysLeft === 0 ? 'Closes today' : 'Past close date'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Execution checklist */}
+                    <div className="space-y-1.5">
+
+                      {/* 1. Survey is live — auto */}
+                      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${surveyLive ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${surveyLive ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          {surveyLive && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className={`text-sm flex-1 ${surveyLive ? 'text-green-700 line-through' : 'text-gray-700'}`}>Survey is live</span>
+                        <span className="text-[10px] text-gray-400">auto</span>
+                      </div>
+
+                      {/* 2. Responses received — auto */}
+                      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${responseCount > 0 ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${responseCount > 0 ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          {responseCount > 0 && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className={`text-sm flex-1 ${responseCount > 0 ? 'text-green-700 line-through' : 'text-gray-700'}`}>Responses being collected</span>
+                        {responseCount > 0 && <span className="text-[10px] font-bold text-blue-600">{responseCount}</span>}
+                        <span className="text-[10px] text-gray-400">auto</span>
+                      </div>
+
+                      {/* 3. Reminder sent — manual action */}
+                      <div className={`rounded-lg border overflow-hidden ${reminderSent ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${reminderSent ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${reminderSent ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {reminderSent && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${reminderSent ? 'text-green-700 line-through' : 'text-gray-700'}`}>
+                            Reminder sent to non-responders
+                          </span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        {!surveyClosed && (
+                          <div className="border-t border-gray-100 bg-amber-50/40 px-3 py-2">
+                            <button
+                              onClick={() => sendReminderMutation.mutate()}
+                              disabled={sendReminderMutation.isPending || !program.linkedSurveyId}
+                              className="flex items-center gap-2 text-xs font-semibold text-amber-700 hover:text-amber-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <BellRing className="w-3.5 h-3.5" />
+                              {sendReminderMutation.isPending
+                                ? 'Sending…'
+                                : reminderHistory.length > 0
+                                  ? `Send another reminder (${reminderHistory.length} sent so far)`
+                                  : 'Send reminder announcement'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Survey closed — auto + manual close */}
+                      <div className={`rounded-lg border overflow-hidden ${surveyClosed ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${surveyClosed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {surveyClosed && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${surveyClosed ? 'text-green-700 line-through' : 'text-gray-700'}`}>Survey closed</span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        {!surveyClosed && (
+                          <div className="border-t border-gray-100 px-3 py-2">
+                            <button
+                              onClick={() => closeSurveyMutation.mutate()}
+                              disabled={closeSurveyMutation.isPending || !program.linkedSurveyId}
+                              className="text-xs font-semibold text-red-500 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {closeSurveyMutation.isPending ? 'Closing…' : 'Close survey now'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Linked survey */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Linked Survey</p>
@@ -775,16 +994,23 @@ function ProgramDrawer({ program, surveys, onClose }: {
           )}
 
           {/* Advance stage */}
-          {canAdvance && (
-            <button onClick={() => advanceMutation.mutate()}
-              disabled={advanceMutation.isPending}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
-              {isLastStage ? (
-                <><CheckCircle2 className="w-4 h-4" /> {advanceMutation.isPending ? 'Completing…' : 'Mark Complete'}</>
-              ) : (
-                <><ChevronRight className="w-4 h-4" /> {advanceMutation.isPending ? 'Advancing…' : `Advance to ${nextStage?.label}`}</>
+          {program.status === 'ACTIVE' && (
+            <div className="space-y-1.5">
+              <button onClick={() => canAdvanceGated && advanceMutation.mutate()}
+                disabled={!canAdvanceGated || advanceMutation.isPending}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+                {isLastStage ? (
+                  <><CheckCircle2 className="w-4 h-4" /> {advanceMutation.isPending ? 'Completing…' : 'Mark Complete'}</>
+                ) : (
+                  <><ChevronRight className="w-4 h-4" /> {advanceMutation.isPending ? 'Advancing…' : `Advance to ${nextStage?.label}`}</>
+                )}
+              </button>
+              {advanceBlockReason && (
+                <p className="text-[10px] text-center text-amber-600 flex items-center justify-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> {advanceBlockReason}
+                </p>
               )}
-            </button>
+            </div>
           )}
         </div>
       </div>

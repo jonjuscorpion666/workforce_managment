@@ -45,6 +45,19 @@ export interface SetupChecklist {
   employeesNotified?:     boolean;
 }
 
+export interface ExecutionChecklist {
+  /** Auto-ticked when linked survey status becomes ACTIVE */
+  surveyLaunched?:   boolean;
+  /** Auto-ticked when first response is recorded */
+  responsesReceived?: boolean;
+  /** Auto-ticked after first reminder is sent */
+  reminderSent?:     boolean;
+  /** ISO timestamps of each reminder sent */
+  reminderHistory?:  string[];
+  /** Auto-ticked when linked survey is CLOSED */
+  surveyClosed?:     boolean;
+}
+
 @Entity('programs')
 export class Program {
   @PrimaryGeneratedColumn('uuid')
@@ -106,6 +119,9 @@ export class Program {
 
   @Column({ type: 'jsonb', default: '{}' })
   setupChecklist: SetupChecklist;
+
+  @Column({ type: 'jsonb', default: '{}' })
+  executionChecklist: ExecutionChecklist;
 
   @Column({ nullable: true })
   createdById: string;

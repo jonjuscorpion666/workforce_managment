@@ -48,6 +48,12 @@ export class ProgramsController {
     return this.svc.linkSurvey(id, body.surveyId);
   }
 
+  @Patch(':id/execution-checklist')
+  @ApiOperation({ summary: 'Update execution stage checklist items' })
+  updateExecutionChecklist(@Param('id') id: string, @Body() body: any) {
+    return this.svc.updateExecutionChecklist(id, body);
+  }
+
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Submit program for SVP/CNO approval' })

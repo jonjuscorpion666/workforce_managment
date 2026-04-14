@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import {
   Program, ProgramApprovalStatus, ProgramScope,
-  ProgramStageKey, ProgramStatus, SetupChecklist,
+  ProgramStageKey, ProgramStatus, SetupChecklist, ExecutionChecklist,
 } from './entities/program.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
@@ -119,6 +119,13 @@ export class ProgramsService {
     return this.repo.save(p);
   }
 
+  async updateExecutionChecklist(id: string, update: Partial<ExecutionChecklist>) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    p.executionChecklist = { ...p.executionChecklist, ...update };
+    return this.repo.save(p);
+  }
+
   async linkSurvey(id: string, surveyId: string) {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
@@ -186,6 +193,27 @@ export class ProgramsService {
       throw new BadRequestException('Program must be active to advance stages');
     }
 
+    // ── Gate: SETUP → EXECUTION ────────────────────────────────────────────
+    if (p.currentStage === ProgramStageKey.SETUP) {
+      if (!p.linkedSurveyId) {
+        throw new BadRequestException('Link a survey before advancing to Execution');
+      }
+      if (p.approvalStatus === ProgramApprovalStatus.PENDING) {
+        throw new BadRequestException('Program is awaiting approval — cannot advance yet');
+      }
+      const allDone = CHECKLIST_KEYS.every((k) => !!(p.setupChecklist as any)?.[k]);
+      if (!allDone) {
+        throw new BadRequestException('Complete all setup checklist items before advancing to Execution');
+      }
+    }
+
+    // ── Gate: EXECUTION → ROOT_CAUSE ──────────────────────────────────────
+    if (p.currentStage === ProgramStageKey.EXECUTION) {
+      if (!p.executionChecklist?.surveyClosed) {
+        throw new BadRequestException('Close the survey before advancing to Root Cause');
+      }
+    }
+
     const idx = STAGE_ORDER.indexOf(p.currentStage);
     if (idx === STAGE_ORDER.length - 1) {
       p.status = ProgramStatus.COMPLETED;
@@ -227,14 +255,22 @@ export class ProgramsService {
         total:     CHECKLIST_KEYS.length,
       };
 
+      const EXEC_KEYS: (keyof ExecutionChecklist)[] = ['surveyLaunched', 'responsesReceived', 'reminderSent', 'surveyClosed'];
+      const executionProgress = {
+        completed: EXEC_KEYS.filter((k) => (p.executionChecklist as any)?.[k]).length,
+        total:     EXEC_KEYS.length,
+      };
+
       return {
         ...p,
+        executionChecklist: p.executionChecklist ?? {},
         targetHospitals,
         ownerName:    owner    ? `${(owner as any).firstName} ${(owner as any).lastName}`    : null,
         approverName: approver ? `${(approver as any).firstName} ${(approver as any).lastName}` : null,
         stageIndex:   STAGE_ORDER.indexOf(p.currentStage),
         totalStages:  STAGE_ORDER.length,
         checklistProgress,
+        executionProgress,
       };
     });
   }
