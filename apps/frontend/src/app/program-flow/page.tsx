@@ -343,6 +343,8 @@ function ProgramDrawer({ program, surveys, onClose }: {
   const [commMessage, setCommMessage]     = useState<string>(
     program.setupChecklist?.communicationMessage ?? '',
   );
+  const [setupOpen, setSetupOpen]         = useState(program.currentStage === 'SETUP');
+  const [execOpen,  setExecOpen]          = useState(program.currentStage === 'EXECUTION');
 
   const canApprove = (
     program.scope === 'GLOBAL'
@@ -606,10 +608,24 @@ function ProgramDrawer({ program, surveys, onClose }: {
             )}
           </div>
 
-          {/* Setup checklist (always visible) */}
+          {/* Setup checklist — collapsible */}
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Setup Checklist</p>
-            <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => setSetupOpen((o) => !o)}
+              className="w-full flex items-center justify-between mb-2 group"
+            >
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Setup Checklist</p>
+                {program.currentStage !== 'SETUP' && program.checklistProgress && (
+                  <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                    {program.checklistProgress.completed}/{program.checklistProgress.total} done
+                  </span>
+                )}
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${setupOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {setupOpen && <div className="space-y-1.5">
 
               {/* Meeting — auto-ticks when date is entered */}
               <div className={`rounded-lg border overflow-hidden ${program.setupChecklist?.meetingScheduled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
@@ -768,16 +784,29 @@ function ProgramDrawer({ program, surveys, onClose }: {
                   </div>
                 );
               })()}
-            </div>
+            </div>}
           </div>
 
           {/* ── Execution Orchestrator ─────────────────────────────────── */}
-          {program.currentStage === 'EXECUTION' && (
+          {(program.currentStage === 'EXECUTION' || program.stageIndex > 1) && (
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Execution Orchestrator</p>
+              <button
+                type="button"
+                onClick={() => setExecOpen((o) => !o)}
+                className="w-full flex items-center justify-between mb-2 group"
+              >
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Execution Orchestrator</p>
+                  {program.currentStage !== 'EXECUTION' && program.executionProgress && (
+                    <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                      {program.executionProgress.completed}/{program.executionProgress.total} done
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${execOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-              {/* Live stats card */}
-              {(() => {
+              {execOpen && (() => {
                 const responseCount = participation?.responseCount ?? 0;
                 const linkedSurvey  = surveys.find((s) => s.id === program.linkedSurveyId);
                 const closesAt      = linkedSurvey?.closesAt ? new Date(linkedSurvey.closesAt) : null;
