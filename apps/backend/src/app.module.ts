@@ -21,6 +21,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { OrgModule } from './modules/org/org.module';
 import { ProgramFlowModule } from './modules/program-flow/program-flow.module';
+import { ProgramsModule } from './modules/programs/programs.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { ProgramFlowModule } from './modules/program-flow/program-flow.module';
     AdminModule,
     OrgModule,
     ProgramFlowModule,
+    ProgramsModule,
   ],
 })
 export class AppModule {}

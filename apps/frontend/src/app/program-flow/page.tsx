@@ -3,749 +3,642 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CheckCircle2, Clock, AlertCircle, Circle, ChevronDown, ChevronRight,
-  RefreshCw, Plus, Zap, X, User, Flag, AlertTriangle,
-  Activity, BarChart3, ClipboardCheck, Settings, Building2,
+  Plus, ChevronRight, CheckCircle2, Circle, Clock, AlertCircle,
+  Building2, Globe, X, Check, ChevronDown, ClipboardList,
+  Flag, Users, Calendar, Megaphone, BarChart2, Wrench,
+  ShieldCheck, AlertTriangle,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type StageState = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const STAGES = [
-  { key: 'SURVEY_SETUP',     label: 'Survey Setup',   short: 'Setup' },
-  { key: 'SURVEY_EXECUTION', label: 'Execution',      short: 'Execute' },
-  { key: 'ROOT_CAUSE',       label: 'Root Cause',     short: 'Root Cause' },
-  { key: 'REMEDIATION',      label: 'Remediation',    short: 'Remediate' },
-  { key: 'COMMUNICATION',    label: 'Communication',  short: 'Comms' },
-  { key: 'VALIDATION',       label: 'Validation',     short: 'Validate' },
+  { key: 'SETUP',         label: 'Survey Setup',   short: 'Setup',     icon: ClipboardList },
+  { key: 'EXECUTION',     label: 'Execution',      short: 'Execute',   icon: BarChart2 },
+  { key: 'ROOT_CAUSE',    label: 'Root Cause',     short: 'Root Cause',icon: Flag },
+  { key: 'REMEDIATION',   label: 'Remediation',    short: 'Remediate', icon: Wrench },
+  { key: 'COMMUNICATION', label: 'Communication',  short: 'Comms',     icon: Megaphone },
+  { key: 'VALIDATION',    label: 'Validation',     short: 'Validate',  icon: ShieldCheck },
 ] as const;
 
-const STATE_META: Record<StageState, { label: string; textColor: string; bgColor: string; borderColor: string; icon: any }> = {
-  NOT_STARTED: { label: 'Not Started', textColor: 'text-gray-500',    bgColor: 'bg-gray-50',    borderColor: 'border-gray-200',   icon: Circle },
-  IN_PROGRESS: { label: 'In Progress', textColor: 'text-amber-700',   bgColor: 'bg-amber-50',   borderColor: 'border-amber-300',  icon: Clock },
-  COMPLETED:   { label: 'Completed',   textColor: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-300',icon: CheckCircle2 },
-  BLOCKED:     { label: 'Blocked',     textColor: 'text-red-800',     bgColor: 'bg-red-100',    borderColor: 'border-red-500',    icon: AlertCircle },
+const CHECKLIST_ITEMS = [
+  { key: 'meetingScheduled',     label: 'Kickoff meeting scheduled' },
+  { key: 'questionsDrafted',     label: 'Survey questions drafted from objective' },
+  { key: 'employeeScopeDefined', label: 'Employee scope defined' },
+  { key: 'communicationDrafted', label: 'Communication message drafted' },
+  { key: 'employeesNotified',    label: 'Employees notified & explained' },
+] as const;
+
+const STATUS_STYLES: Record<string, string> = {
+  DRAFT:            'bg-gray-100 text-gray-600',
+  PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
+  ACTIVE:           'bg-green-100 text-green-700',
+  REJECTED:         'bg-red-100 text-red-700',
+  COMPLETED:        'bg-blue-100 text-blue-700',
+  CANCELLED:        'bg-gray-100 text-gray-400',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const STATUS_ACCENT: Record<string, string> = {
+  DRAFT:            'border-l-gray-300',
+  PENDING_APPROVAL: 'border-l-amber-400',
+  ACTIVE:           'border-l-green-500',
+  REJECTED:         'border-l-red-500',
+  COMPLETED:        'border-l-blue-500',
+  CANCELLED:        'border-l-gray-200',
+};
 
-function ownerInitials(name: string | null | undefined) {
-  if (!name) return null;
-  return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
-}
+// ── Stage progress bar ────────────────────────────────────────────────────────
 
-function fmtDate(date: string | null | undefined) {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function relativeDate(date: string | null | undefined) {
-  if (!date) return null;
-  const d = new Date(date);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
-  if (diff === 0) return 'today';
-  if (diff === 1) return 'yesterday';
-  if (diff < 7) return `${diff}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-// ── Stage step circle ─────────────────────────────────────────────────────────
-
-function StageCircle({
-  stageIndex, state, daysInStage, isOverSla, isStale, onClick,
-}: {
-  stageIndex: number; state: StageState;
-  daysInStage?: number; isOverSla?: boolean; isStale?: boolean;
-  onClick: () => void;
-}) {
-  const base = 'relative flex flex-col items-center gap-1 cursor-pointer group';
-
-  const circleStyle =
-    state === 'COMPLETED'   ? 'w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-sm ring-2 ring-emerald-200'
-    : state === 'IN_PROGRESS' ? `w-9 h-9 rounded-full flex items-center justify-center shadow-sm ring-2 ${isOverSla ? 'bg-red-500 text-white ring-red-200' : isStale ? 'bg-amber-400 text-white ring-amber-200' : 'bg-amber-400 text-white ring-amber-200'}`
-    : state === 'BLOCKED'   ? 'w-9 h-9 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm ring-2 ring-red-200'
-    : 'w-9 h-9 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center border-2 border-dashed border-gray-300';
-
-  const tooltip =
-    state === 'COMPLETED'   ? 'Completed'
-    : state === 'IN_PROGRESS' ? isOverSla ? `Over SLA — ${daysInStage}d in stage` : `${daysInStage ?? 0}d in stage`
-    : state === 'BLOCKED'   ? 'Blocked'
-    : 'Not started';
+function StageBar({ currentStage, status }: { currentStage: string; status: string }) {
+  const currentIdx = STAGES.findIndex((s) => s.key === currentStage);
+  const isCompleted = status === 'COMPLETED';
 
   return (
-    <div className={base} onClick={onClick} title={tooltip}>
-      <div className={`${circleStyle} hover:scale-110 transition-transform`}>
-        {state === 'COMPLETED'   && <CheckCircle2 className="w-4 h-4" />}
-        {state === 'IN_PROGRESS' && <span className="text-xs font-bold">{stageIndex + 1}</span>}
-        {state === 'BLOCKED'     && <AlertCircle className="w-4 h-4" />}
-        {state === 'NOT_STARTED' && <span className="text-xs font-semibold text-gray-400">{stageIndex + 1}</span>}
-      </div>
-      {/* SLA / stale dot */}
-      {(isOverSla || isStale) && state === 'IN_PROGRESS' && (
-        <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isOverSla ? 'bg-red-500' : 'bg-amber-400'}`} />
-      )}
-    </div>
-  );
-}
-
-// ── Stage connector line ──────────────────────────────────────────────────────
-
-function Connector({ leftDone }: { leftDone: boolean }) {
-  return (
-    <div className={`flex-1 h-0.5 mt-[18px] ${leftDone ? 'bg-emerald-400' : 'bg-gray-200'}`} />
-  );
-}
-
-// ── Unit progress row ─────────────────────────────────────────────────────────
-
-function UnitRow({ unit, cycleId, onDrillDown }: { unit: any; cycleId: string; onDrillDown: (info: any) => void }) {
-  const hasBlocked = Object.values(unit.stages ?? {}).some((s: any) => s?.state === 'BLOCKED');
-  const hasOverSla = Object.values(unit.stages ?? {}).some((s: any) => s?.isOverSla);
-
-  // Find current active stage index for the progress label
-  const currentStageIdx = STAGES.findIndex((s) => {
-    const cell = unit.stages?.[s.key];
-    return cell?.state === 'IN_PROGRESS' || cell?.state === 'BLOCKED';
-  });
-  const completedCount = STAGES.filter((s) => unit.stages?.[s.key]?.state === 'COMPLETED').length;
-
-  return (
-    <div className={`px-5 py-3 border-t border-gray-100 ${hasBlocked ? 'bg-red-50/40' : 'hover:bg-gray-50/60'} transition-colors`}>
-      <div className="flex items-center gap-4">
-        {/* Unit name */}
-        <div className="w-44 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-            <span className="text-sm text-gray-800 font-medium truncate">{unit.orgUnitName}</span>
+    <div className="flex items-center gap-0.5 mt-2">
+      {STAGES.map((s, i) => {
+        const done    = isCompleted || i < currentIdx;
+        const active  = !isCompleted && i === currentIdx;
+        return (
+          <div key={s.key} className="flex items-center gap-0.5 flex-1">
+            <div title={s.label} className={`h-1.5 w-full rounded-full transition-colors ${
+              done   ? 'bg-green-500' :
+              active ? 'bg-amber-400' :
+                       'bg-gray-200'
+            }`} />
           </div>
-          {hasBlocked && (
-            <span className="ml-3.5 text-xs font-semibold text-red-600">⚠ blocked</span>
-          )}
-        </div>
-
-        {/* Stage circles + connectors */}
-        <div className="flex-1 flex items-center min-w-0">
-          {STAGES.map((s, i) => {
-            const cell = unit.stages?.[s.key];
-            const state: StageState = cell?.state ?? 'NOT_STARTED';
-            return (
-              <div key={s.key} className="flex items-center flex-1">
-                <StageCircle
-                  stageIndex={i}
-                  state={state}
-                  daysInStage={cell?.daysInStage}
-                  isOverSla={cell?.isOverSla}
-                  isStale={cell?.isStale}
-                  onClick={() => onDrillDown({ cycleId, orgUnitId: unit.orgUnitId, stageKey: s.key, stageLabel: s.label, cell })}
-                />
-                {i < STAGES.length - 1 && (
-                  <Connector leftDone={state === 'COMPLETED'} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Stage label */}
-        <div className="w-28 flex-shrink-0 text-right">
-          {currentStageIdx >= 0 ? (
-            <div>
-              <p className="text-xs font-semibold text-gray-700">{STAGES[currentStageIdx].short}</p>
-              {unit.stages?.[STAGES[currentStageIdx].key]?.daysInStage != null && (
-                <p className={`text-xs ${unit.stages?.[STAGES[currentStageIdx].key]?.isOverSla ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
-                  {unit.stages?.[STAGES[currentStageIdx].key]?.daysInStage}d in stage
-                </p>
-              )}
-            </div>
-          ) : completedCount === STAGES.length ? (
-            <span className="text-xs font-semibold text-emerald-600">All done ✓</span>
-          ) : (
-            <span className="text-xs text-gray-400">Not started</span>
-          )}
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── Hospital card ─────────────────────────────────────────────────────────────
+// ── Program card ──────────────────────────────────────────────────────────────
 
-function HospitalCard({ hospital, cycleId, onDrillDown }: {
-  hospital: any; cycleId: string;
-  onDrillDown: (info: any) => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-
-  const units: any[] = hospital.unitRows ?? [];
-  const completedUnits = units.filter((u) => STAGES.every((s) => u.stages?.[s.key]?.state === 'COMPLETED')).length;
-  const blockedUnits   = units.filter((u) => Object.values(u.stages ?? {}).some((s: any) => s?.state === 'BLOCKED')).length;
-  const stuckUnits     = units.filter((u) => Object.values(u.stages ?? {}).some((s: any) => s?.isStuck)).length;
-  const progressPct    = units.length ? Math.round((completedUnits / units.length) * 100) : 0;
-
-  // Aggregate: find the stage most units are currently on
-  const stageCounts = STAGES.map((s) => ({
-    ...s,
-    inProgress: units.filter((u) => u.stages?.[s.key]?.state === 'IN_PROGRESS').length,
-    completed:  units.filter((u) => u.stages?.[s.key]?.state === 'COMPLETED').length,
-    blocked:    units.filter((u) => u.stages?.[s.key]?.state === 'BLOCKED').length,
-  }));
+function ProgramCard({ program, onClick }: { program: any; onClick: () => void }) {
+  const currentStageLabel = STAGES.find((s) => s.key === program.currentStage)?.label ?? program.currentStage;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      {/* Hospital header */}
-      <button
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
-        onClick={() => setExpanded((x) => !x)}
-      >
-        <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-          <Building2 className="w-4 h-4 text-blue-600" />
-        </div>
-
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left bg-white rounded-xl border-l-4 border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all p-4 ${STATUS_ACCENT[program.status] ?? 'border-l-gray-300'}`}
+    >
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-gray-900 text-sm">{hospital.hospitalName}</p>
-            {blockedUnits > 0 && (
-              <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                {blockedUnits} blocked
+          {/* Top row */}
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-[10px] font-bold font-mono bg-gray-900 text-gray-100 px-2 py-0.5 rounded">
+              {program.programId}
+            </span>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[program.status] ?? 'bg-gray-100 text-gray-500'}`}>
+              {program.status.replace(/_/g, ' ')}
+            </span>
+            {program.scope === 'GLOBAL' ? (
+              <span className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                <Globe className="w-2.5 h-2.5" /> Global
               </span>
-            )}
-            {stuckUnits > 0 && blockedUnits === 0 && (
-              <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
-                {stuckUnits} stuck
+            ) : (
+              <span className="flex items-center gap-1 text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">
+                <Building2 className="w-2.5 h-2.5" />
+                {program.targetHospitals?.map((h: any) => h.name).join(', ') || 'Hospital'}
               </span>
             )}
           </div>
-          {/* Mini progress bar */}
-          <div className="flex items-center gap-2 mt-1.5">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-emerald-400 rounded-full transition-all"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-400 flex-shrink-0">{completedUnits}/{units.length} units</span>
+
+          {/* Name */}
+          <p className="font-semibold text-gray-900 text-sm truncate">{program.name}</p>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+            <span>{currentStageLabel}</span>
+            {program.ownerName && <span>· {program.ownerName}</span>}
+            <span>· {formatDate(program.createdAt)}</span>
           </div>
+
+          {/* Stage bar */}
+          <StageBar currentStage={program.currentStage} status={program.status} />
+
+          {/* Checklist progress (only in SETUP) */}
+          {program.currentStage === 'SETUP' && program.checklistProgress && (
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              Setup checklist: {program.checklistProgress.completed}/{program.checklistProgress.total} done
+            </p>
+          )}
+
+          {/* Pending approval callout */}
+          {program.status === 'PENDING_APPROVAL' && (
+            <p className="text-[10px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Awaiting {program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} approval
+            </p>
+          )}
+          {program.status === 'REJECTED' && program.rejectionReason && (
+            <p className="text-[10px] text-red-500 mt-1 truncate">↩ {program.rejectionReason}</p>
+          )}
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
+      </div>
+    </button>
+  );
+}
+
+// ── Create Program modal ──────────────────────────────────────────────────────
+
+function CreateProgramModal({ hospitals, onClose, onCreated }: {
+  hospitals: any[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: '', scope: 'HOSPITAL_SPECIFIC', targetHospitalIds: [] as string[],
+    problemStatement: '', objective: '', successCriteria: '',
+    targetLaunchDate: '', targetCompletionDate: '',
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/programs', {
+      ...form,
+      targetHospitalIds: form.scope === 'GLOBAL' ? [] : form.targetHospitalIds,
+      targetLaunchDate:      form.targetLaunchDate || undefined,
+      targetCompletionDate:  form.targetCompletionDate || undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['programs'] });
+      toast.success('Program created');
+      onCreated();
+    },
+    onError: () => toast.error('Failed to create program'),
+  });
+
+  function toggleHospital(id: string) {
+    setForm((f) => ({
+      ...f,
+      targetHospitalIds: f.targetHospitalIds.includes(id)
+        ? f.targetHospitalIds.filter((h) => h !== id)
+        : [...f.targetHospitalIds, id],
+    }));
+  }
+
+  const canSubmit = form.name.trim() && form.problemStatement.trim() && form.objective.trim() &&
+    (form.scope === 'GLOBAL' || form.targetHospitalIds.length > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900">New Program</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Stage mini-summary */}
-        <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
-          {stageCounts.map((s) => (
-            <div key={s.key} className="flex flex-col items-center gap-0.5 w-10">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold
-                ${s.blocked > 0 ? 'bg-red-100 text-red-600'
-                  : s.inProgress > 0 ? 'bg-amber-100 text-amber-700'
-                  : s.completed === units.length && units.length > 0 ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-gray-100 text-gray-400'}`}>
-                {s.blocked > 0 ? s.blocked : s.inProgress > 0 ? s.inProgress : s.completed > 0 ? '✓' : '—'}
-              </div>
-              <p className="text-[9px] text-gray-400 text-center leading-tight whitespace-nowrap">{s.short}</p>
-            </div>
-          ))}
-        </div>
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Program name <span className="text-red-500">*</span></label>
+            <input
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="e.g. Q2 Nurse Engagement — Carmel Hospital"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            />
+          </div>
 
-        <div className="flex-shrink-0 ml-2 text-gray-400">
-          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </div>
-      </button>
-
-      {/* Unit rows */}
-      {expanded && (
-        <>
-          {/* Stage header */}
-          <div className="flex items-center gap-4 px-5 py-2 bg-gray-50 border-t border-gray-100">
-            <div className="w-44 flex-shrink-0" />
-            <div className="flex-1 flex items-center">
-              {STAGES.map((s, i) => (
-                <div key={s.key} className="flex items-center flex-1">
-                  <div className="flex flex-col items-center w-9">
-                    <span className="text-[10px] font-semibold text-gray-500 text-center leading-tight">{s.short}</span>
-                  </div>
-                  {i < STAGES.length - 1 && <div className="flex-1" />}
-                </div>
+          {/* Scope */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Scope <span className="text-red-500">*</span></label>
+            <div className="flex gap-2">
+              {[
+                { value: 'HOSPITAL_SPECIFIC', label: 'Hospital-specific', icon: Building2 },
+                { value: 'GLOBAL',            label: 'Global (all hospitals)', icon: Globe },
+              ].map(({ value, label, icon: Icon }) => (
+                <button key={value} type="button"
+                  onClick={() => setForm((f) => ({ ...f, scope: value }))}
+                  className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                    form.scope === value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}>
+                  <Icon className="w-4 h-4" /> {label}
+                </button>
               ))}
             </div>
-            <div className="w-28 flex-shrink-0" />
           </div>
 
-          {units.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-gray-400 italic border-t border-gray-100">No units configured for this hospital.</div>
-          ) : (
-            units.map((unit) => (
-              <UnitRow key={unit.orgUnitId} unit={unit} cycleId={cycleId} onDrillDown={onDrillDown} />
-            ))
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── KPI card ──────────────────────────────────────────────────────────────────
-
-function KpiCard({ label, value, sub, color = 'text-gray-900', icon: Icon, pulse = false }: {
-  label: string; value: string | number; sub?: string;
-  color?: string; icon: any; pulse?: boolean;
-}) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${pulse ? 'bg-red-100' : 'bg-blue-50'}`}>
-        <Icon className={`w-5 h-5 ${pulse ? 'text-red-500' : 'text-blue-500'}`} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-500 truncate">{label}</p>
-        <p className={`text-2xl font-bold leading-tight ${color}`}>{value}</p>
-        {sub && <p className="text-[11px] text-gray-400 truncate">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-// ── Alert banner ──────────────────────────────────────────────────────────────
-
-function AlertBanner({ alerts }: { alerts: any[] }) {
-  const [collapsed, setCollapsed] = useState(false);
-  if (!alerts?.length) return null;
-  return (
-    <div className="rounded-2xl border border-red-200 bg-red-50 overflow-hidden">
-      <button
-        onClick={() => setCollapsed((x) => !x)}
-        className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-red-100/50 transition-colors"
-      >
-        <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-        <span className="text-sm font-semibold text-red-800 flex-1">
-          {alerts.length} alert{alerts.length !== 1 ? 's' : ''} need attention
-        </span>
-        {collapsed ? <ChevronRight className="w-4 h-4 text-red-400" /> : <ChevronDown className="w-4 h-4 text-red-400" />}
-      </button>
-      {!collapsed && (
-        <div className="px-5 pb-4 space-y-2">
-          {alerts.map((a, i) => {
-            const colors = a.severity === 'critical'
-              ? { bg: 'bg-red-100', text: 'text-red-800', dot: 'bg-red-500' }
-              : a.severity === 'high'
-              ? { bg: 'bg-orange-100', text: 'text-orange-800', dot: 'bg-orange-500' }
-              : { bg: 'bg-amber-100', text: 'text-amber-800', dot: 'bg-amber-400' };
-            return (
-              <div key={i} className={`flex items-start gap-3 p-3 rounded-xl ${colors.bg}`}>
-                <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${colors.dot}`} />
-                <div>
-                  <p className={`text-sm font-medium ${colors.text}`}>{a.message}</p>
-                  {a.unitNames?.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {a.unitNames.join(', ')}{a.count > a.unitNames.length ? ` +${a.count - a.unitNames.length} more` : ''}
-                    </p>
-                  )}
-                </div>
-                <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full flex-shrink-0 ${colors.text} bg-white/60`}>
-                  {a.severity}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Stage drawer ──────────────────────────────────────────────────────────────
-
-function StageDrawer({ info, cycleId, onClose }: {
-  info: { cycleId: string; orgUnitId: string; stageKey: string; stageLabel: string; cell?: any };
-  cycleId: string; onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [editMode, setEditMode]     = useState(false);
-  const [editState, setEditState]   = useState<StageState>(info.cell?.state ?? 'NOT_STARTED');
-  const [editNote, setEditNote]     = useState(info.cell?.note ?? '');
-  const [editOwner, setEditOwner]   = useState(info.cell?.ownerName ?? '');
-  const [editRole, setEditRole]     = useState(info.cell?.ownerRole ?? '');
-  const [editDue, setEditDue]       = useState(info.cell?.dueDate ? String(info.cell.dueDate).slice(0, 10) : '');
-
-  const { data: detail, isLoading } = useQuery({
-    queryKey: ['stage-detail', cycleId, info.orgUnitId, info.stageKey],
-    queryFn: () =>
-      api.get(`/program-flow/cycles/${cycleId}/units/${info.orgUnitId}/stage/${info.stageKey}/detail`)
-        .then((r) => r.data),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      api.patch(`/program-flow/cycles/${cycleId}/units/${info.orgUnitId}/stage`, {
-        stage: info.stageKey, state: editState, note: editNote,
-        ownerName: editOwner, ownerRole: editRole, dueDate: editDue || undefined,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['program-flow-pipeline', cycleId] });
-      qc.invalidateQueries({ queryKey: ['stage-detail', cycleId, info.orgUnitId, info.stageKey] });
-      setEditMode(false);
-      toast.success('Stage updated');
-    },
-    onError: () => toast.error('Failed to update stage'),
-  });
-
-  const d = detail;
-  const state: StageState = d?.state ?? info.cell?.state ?? 'NOT_STARTED';
-  const m = STATE_META[state];
-  const StatusIcon = m.icon;
-
-  const statusColors: Record<string, string> = {
-    OPEN: 'bg-blue-100 text-blue-700', IN_PROGRESS: 'bg-amber-100 text-amber-700',
-    BLOCKED: 'bg-red-100 text-red-700', RESOLVED: 'bg-emerald-100 text-emerald-700',
-    CLOSED: 'bg-gray-100 text-gray-600', ACTION_PLANNED: 'bg-purple-100 text-purple-700',
-    AWAITING_VALIDATION: 'bg-indigo-100 text-indigo-700',
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/30" onClick={onClose} />
-      <div className="w-[480px] bg-white shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className={`px-6 py-5 border-b ${m.bgColor}`}>
-          <div className="flex items-start justify-between gap-3">
+          {/* Hospital picker */}
+          {form.scope === 'HOSPITAL_SPECIFIC' && (
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{info.stageLabel}</span>
-                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${m.bgColor} ${m.textColor} border ${m.borderColor}`}>
-                  <StatusIcon className="w-3 h-3" /> {m.label}
-                </span>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Target hospital(s) <span className="text-red-500">*</span>
+              </label>
+              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                {hospitals.map((h) => (
+                  <button key={h.id} type="button"
+                    onClick={() => toggleHospital(h.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 ${
+                      form.targetHospitalIds.includes(h.id) ? 'bg-blue-50' : ''
+                    }`}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      form.targetHospitalIds.includes(h.id) ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
+                    }`}>
+                      {form.targetHospitalIds.includes(h.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                    {h.name}
+                  </button>
+                ))}
               </div>
-              <h2 className="text-base font-semibold text-gray-900">{d?.orgUnit?.name ?? '…'}</h2>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 mt-0.5"><X className="w-5 h-5" /></button>
+          )}
+
+          {/* Problem statement */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Problem statement <span className="text-red-500">*</span></label>
+            <textarea rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              placeholder="e.g. ICU turnover rose 18% last quarter"
+              value={form.problemStatement}
+              onChange={(e) => setForm((f) => ({ ...f, problemStatement: e.target.value }))}
+            />
+          </div>
+
+          {/* Objective */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Objective <span className="text-red-500">*</span></label>
+            <textarea rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              placeholder="e.g. Identify root causes of disengagement in night shift nurses"
+              value={form.objective}
+              onChange={(e) => setForm((f) => ({ ...f, objective: e.target.value }))}
+            />
+          </div>
+
+          {/* Success criteria */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Success criteria <span className="text-gray-400">(optional)</span></label>
+            <input
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="e.g. Response rate >60%, actionable themes identified"
+              value={form.successCriteria}
+              onChange={(e) => setForm((f) => ({ ...f, successCriteria: e.target.value }))}
+            />
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Target launch</label>
+              <input type="date"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={form.targetLaunchDate}
+                onChange={(e) => setForm((f) => ({ ...f, targetLaunchDate: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Target completion</label>
+              <input type="date"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={form.targetCompletionDate}
+                onChange={(e) => setForm((f) => ({ ...f, targetCompletionDate: e.target.value }))}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-40 text-gray-400 text-sm">Loading…</div>
-          ) : (
-            <div className="p-5 space-y-4">
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={!canSubmit || mutation.isPending}
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            {mutation.isPending ? 'Creating…' : 'Create Program'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-              {/* Timeline strip */}
-              <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-xl p-3">
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Started</p>
-                  <p className="text-sm font-semibold text-gray-800">{fmtDate(d?.startedAt)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Days In Stage</p>
-                  <p className={`text-sm font-semibold ${(d?.daysInStage ?? 0) > (d?.stageSla ?? 99) ? 'text-red-600' : 'text-gray-800'}`}>
-                    {d?.daysInStage ?? '—'}{d?.daysInStage != null ? 'd' : ''}
-                    {(d?.daysOverSla ?? 0) > 0 && <span className="ml-1 text-xs text-red-500">(+{d.daysOverSla}d SLA)</span>}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Target Date</p>
-                  <p className="text-sm font-semibold text-gray-800">{fmtDate(d?.dueDate)}</p>
-                </div>
-              </div>
+// ── Program detail drawer ─────────────────────────────────────────────────────
 
-              {/* Blocked reason */}
-              {state === 'BLOCKED' && (
-                <div className="p-3 bg-red-50 border-l-4 border-red-500 rounded-r-xl">
-                  <p className="text-[10px] font-bold text-red-600 uppercase tracking-wide mb-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> Why Blocked
-                  </p>
-                  <p className="text-sm text-red-900 font-medium">
-                    {d?.blockedReason ?? 'No reason recorded.'}
-                  </p>
-                </div>
-              )}
+function ProgramDrawer({ program, surveys, onClose }: {
+  program: any;
+  surveys: any[];
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const { user, hasRole } = useAuth();
+  const [rejectReason, setRejectReason] = useState('');
+  const [showReject, setShowReject]     = useState(false);
+  const [surveyPicker, setSurveyPicker] = useState(false);
 
-              {/* Owner */}
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
-                  {ownerInitials(d?.ownerName) ?? <User className="w-4 h-4 text-gray-400" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900">{d?.ownerName ?? 'No owner assigned'}</p>
-                  <p className="text-xs text-gray-500">{d?.ownerRole ?? '—'}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[10px] text-gray-400">Last updated</p>
-                  <p className="text-xs font-medium text-gray-600">{relativeDate(d?.updatedAt)}</p>
-                </div>
-              </div>
+  const canApprove = (
+    program.scope === 'GLOBAL'
+      ? hasRole('SVP') || hasRole('SUPER_ADMIN')
+      : hasRole('CNO') || hasRole('SVP') || hasRole('SUPER_ADMIN')
+  ) && program.status === 'PENDING_APPROVAL';
 
-              {/* Stale warning */}
-              {d?.isStale && (
-                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                  <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                  <p className="text-xs text-amber-800">
-                    <span className="font-semibold">Stale — </span>
-                    no update in {d.daysSinceUpdate}d.
-                  </p>
-                </div>
-              )}
+  const canAdvance = program.status === 'ACTIVE';
+  const canSubmit  = program.status === 'DRAFT';
 
-              {/* Next action */}
-              {d?.nextAction && (
-                <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-                  <Zap className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-0.5">Recommended Action</p>
-                    <p className="text-sm text-blue-900">{d.nextAction}</p>
-                  </div>
-                </div>
-              )}
+  const checklistMutation = useMutation({
+    mutationFn: (update: Record<string, any>) => api.patch(`/programs/${program.id}/checklist`, update),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+    onError: () => toast.error('Failed to update checklist'),
+  });
 
-              {/* Note */}
-              {d?.note && state !== 'BLOCKED' && (
-                <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-900">
-                  <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1">Note</p>
-                  {d.note}
-                </div>
-              )}
+  const submitMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${program.id}/submit`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast.success('Submitted for approval'); },
+    onError:   () => toast.error('Failed to submit'),
+  });
 
-              {/* Summary counters */}
-              {d?.summary && (
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  {[
-                    { label: 'Issues',  value: d.summary.totalIssues,      warn: d.summary.openIssues > 0 },
-                    { label: 'Tasks',   value: d.summary.totalTasks,       warn: false },
-                    { label: 'Overdue', value: d.summary.overdueTasks,     warn: d.summary.overdueTasks > 0 },
-                    { label: 'Plans',   value: d.summary.totalActionPlans, warn: false },
-                  ].map((c) => (
-                    <div key={c.label} className="rounded-xl bg-gray-50 p-2.5">
-                      <p className={`text-lg font-bold ${c.warn && c.value > 0 ? 'text-red-600' : 'text-gray-800'}`}>{c.value}</p>
-                      <p className="text-[10px] text-gray-500">{c.label}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+  const approveMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${program.id}/approve`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast.success('Program approved'); },
+    onError:   () => toast.error('Failed to approve'),
+  });
 
-              {/* Issues list */}
-              {d?.issues?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Issues ({d.issues.length})</p>
-                  <div className="space-y-1.5">
-                    {d.issues.map((issue: any) => (
-                      <div key={issue.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 bg-white">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{issue.title}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{issue.daysOpen}d open · {issue.severity}</p>
-                        </div>
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${statusColors[issue.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {issue.status.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+  const rejectMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${program.id}/reject`, { reason: rejectReason }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); setShowReject(false); toast.success('Program rejected'); },
+    onError:   () => toast.error('Failed to reject'),
+  });
 
-              {/* Tasks list */}
-              {d?.tasks?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Tasks ({d.tasks.length})
-                    {d.summary?.overdueTasks > 0 && <span className="ml-2 text-red-600 normal-case">⚠ {d.summary.overdueTasks} overdue</span>}
-                  </p>
-                  <div className="space-y-1.5">
-                    {d.tasks.map((task: any) => (
-                      <div key={task.id} className={`flex items-center gap-2 p-2.5 rounded-xl border ${task.isOverdue ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-white'}`}>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${task.status === 'DONE' ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.title}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {task.priority}{task.dueDate && ` · Due ${fmtDate(task.dueDate)}`}
-                            {task.isOverdue && ` · ${task.daysOverdue}d overdue`}
-                          </p>
-                        </div>
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
-                          task.status === 'DONE' ? 'bg-emerald-100 text-emerald-700'
-                          : task.isOverdue ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'}`}>
-                          {task.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+  const advanceMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${program.id}/advance`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); toast.success('Stage advanced'); },
+    onError:   () => toast.error('Failed to advance stage'),
+  });
+
+  const linkSurveyMutation = useMutation({
+    mutationFn: (surveyId: string) => api.patch(`/programs/${program.id}/survey`, { surveyId }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); setSurveyPicker(false); toast.success('Survey linked'); },
+    onError:   () => toast.error('Failed to link survey'),
+  });
+
+  const stageIdx     = STAGES.findIndex((s) => s.key === program.currentStage);
+  const nextStage    = STAGES[stageIdx + 1];
+  const isLastStage  = stageIdx === STAGES.length - 1;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-y-auto">
+
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-start justify-between z-10">
+          <div>
+            <p className="text-[10px] font-bold font-mono text-gray-400">{program.programId}</p>
+            <h2 className="font-bold text-gray-900 mt-0.5">{program.name}</h2>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[program.status] ?? ''}`}>
+                {program.status.replace(/_/g, ' ')}
+              </span>
+              {program.scope === 'GLOBAL'
+                ? <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> Global</span>
+                : <span className="text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Building2 className="w-2.5 h-2.5" />{program.targetHospitals?.map((h: any) => h.name).join(', ')}</span>
+              }
             </div>
-          )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-1"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Edit footer */}
-        {editMode ? (
-          <div className="border-t bg-gray-50 p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Update Stage</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED'] as StageState[]).map((s) => {
-                const mm = STATE_META[s];
+        <div className="flex-1 px-5 py-4 space-y-5">
+
+          {/* Stage progress */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Stage Progress</p>
+            <div className="space-y-1.5">
+              {STAGES.map((s, i) => {
+                const done    = program.status === 'COMPLETED' || i < stageIdx;
+                const active  = program.status !== 'COMPLETED' && i === stageIdx;
+                const Icon    = s.icon;
                 return (
-                  <button key={s} onClick={() => setEditState(s)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
-                      editState === s ? `ring-2 ring-blue-400 ${mm.bgColor} ${mm.textColor} border-transparent` : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
-                    <mm.icon className="w-3.5 h-3.5" /> {mm.label}
+                  <div key={s.key} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${active ? 'bg-amber-50 border border-amber-200' : done ? 'bg-green-50' : 'bg-gray-50'}`}>
+                    {done
+                      ? <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      : active
+                        ? <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        : <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                    }
+                    <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${done ? 'text-green-500' : active ? 'text-amber-500' : 'text-gray-300'}`} />
+                    <span className={`text-sm font-medium ${done ? 'text-green-700' : active ? 'text-amber-700' : 'text-gray-400'}`}>{s.label}</span>
+                    {active && <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">Current</span>}
+                    {done  && <CheckCircle2 className="ml-auto w-3.5 h-3.5 text-green-400" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Problem & Objective */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Problem</p>
+              <p className="text-sm text-gray-800">{program.problemStatement}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Objective</p>
+              <p className="text-sm text-gray-800">{program.objective}</p>
+            </div>
+            {program.successCriteria && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Success Criteria</p>
+                <p className="text-sm text-gray-800">{program.successCriteria}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Setup checklist (always visible) */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Setup Checklist</p>
+            <div className="space-y-1.5">
+              {CHECKLIST_ITEMS.map(({ key, label }) => {
+                const checked = !!(program.setupChecklist?.[key]);
+                return (
+                  <button key={key} type="button"
+                    disabled={program.status === 'COMPLETED' || program.status === 'CANCELLED'}
+                    onClick={() => checklistMutation.mutate({ [key]: !checked })}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                      checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      checked ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                    }`}>
+                      {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                    <span className={`text-sm ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>{label}</span>
                   </button>
                 );
               })}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input className="border rounded-xl px-3 py-2 text-sm" value={editOwner} onChange={(e) => setEditOwner(e.target.value)} placeholder="Owner name" />
-              <select className="border rounded-xl px-3 py-2 text-sm" value={editRole} onChange={(e) => setEditRole(e.target.value)}>
-                <option value="">Role…</option>
-                <option>Manager</option><option>Director</option><option>CNO</option><option>SVP</option>
-              </select>
+
+            {/* Meeting details */}
+            {program.setupChecklist?.meetingScheduled && (
+              <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3 space-y-2">
+                <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Meeting Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Date</p>
+                    <input type="date"
+                      className="w-full text-xs border border-blue-200 rounded px-2 py-1 bg-white"
+                      value={program.setupChecklist?.meetingDate ?? ''}
+                      onChange={(e) => checklistMutation.mutate({ meetingDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">Attendees</p>
+                    <input type="text"
+                      className="w-full text-xs border border-blue-200 rounded px-2 py-1 bg-white"
+                      placeholder="Names / roles"
+                      value={program.setupChecklist?.meetingAttendees ?? ''}
+                      onChange={(e) => checklistMutation.mutate({ meetingAttendees: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">Notes</p>
+                  <textarea rows={2}
+                    className="w-full text-xs border border-blue-200 rounded px-2 py-1 bg-white resize-none"
+                    placeholder="Key decisions made…"
+                    value={program.setupChecklist?.meetingNotes ?? ''}
+                    onChange={(e) => checklistMutation.mutate({ meetingNotes: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Linked survey */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Linked Survey</p>
+            {program.linkedSurveyId ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                <p className="text-sm text-green-700 flex-1 truncate">
+                  {surveys.find((s) => s.id === program.linkedSurveyId)?.title ?? 'Survey linked'}
+                </p>
+              </div>
+            ) : (
+              <div>
+                {!surveyPicker ? (
+                  <button onClick={() => setSurveyPicker(true)}
+                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <Plus className="w-4 h-4" /> Link a survey
+                  </button>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
+                    {surveys.filter((s) => s.status !== 'ARCHIVED').map((s) => (
+                      <button key={s.id} type="button"
+                        onClick={() => linkSurveyMutation.mutate(s.id)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                        <p className="font-medium text-gray-800 truncate">{s.title}</p>
+                        <p className="text-xs text-gray-400">{s.status} · {s.type}</p>
+                      </button>
+                    ))}
+                    {surveys.length === 0 && (
+                      <p className="text-sm text-gray-400 px-3 py-3">No surveys available</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Meta */}
+          <div className="grid grid-cols-2 gap-3 text-xs text-gray-500">
+            {program.ownerName && (
+              <div><p className="font-semibold text-gray-400 mb-0.5">Owner</p><p>{program.ownerName}</p></div>
+            )}
+            {program.targetLaunchDate && (
+              <div><p className="font-semibold text-gray-400 mb-0.5">Target launch</p><p>{formatDate(program.targetLaunchDate)}</p></div>
+            )}
+            {program.targetCompletionDate && (
+              <div><p className="font-semibold text-gray-400 mb-0.5">Target completion</p><p>{formatDate(program.targetCompletionDate)}</p></div>
+            )}
+            {program.approverName && (
+              <div><p className="font-semibold text-gray-400 mb-0.5">Approved by</p><p>{program.approverName}</p></div>
+            )}
+          </div>
+
+          {/* Rejection reason */}
+          {program.status === 'REJECTED' && program.rejectionReason && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-red-700 mb-0.5">Rejected</p>
+              <p className="text-sm text-red-700">{program.rejectionReason}</p>
             </div>
-            <input type="date" className="w-full border rounded-xl px-3 py-2 text-sm" value={editDue} onChange={(e) => setEditDue(e.target.value)} />
-            <div>
-              <label className={`block text-xs font-medium mb-1 ${editState === 'BLOCKED' ? 'text-red-600' : 'text-gray-600'}`}>
-                {editState === 'BLOCKED' ? 'Why is it blocked?' : 'Note'}
-              </label>
-              <textarea rows={2} className={`w-full border rounded-xl px-3 py-2 text-sm resize-none ${editState === 'BLOCKED' ? 'border-red-300 bg-red-50' : ''}`}
-                value={editNote} onChange={(e) => setEditNote(e.target.value)}
-                placeholder={editState === 'BLOCKED' ? 'Describe the blocker…' : 'Add a note…'} />
-            </div>
+          )}
+        </div>
+
+        {/* Action footer */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 space-y-2">
+
+          {/* Submit for approval */}
+          {canSubmit && (
+            <button onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending}
+              className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+              <ShieldCheck className="w-4 h-4" />
+              {submitMutation.isPending ? 'Submitting…' : `Submit for ${program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} Approval`}
+            </button>
+          )}
+
+          {/* Approve / Reject */}
+          {canApprove && !showReject && (
             <div className="flex gap-2">
-              <button onClick={() => setEditMode(false)} className="btn-secondary flex-1 text-sm">Cancel</button>
-              <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="btn-primary flex-1 text-sm">
-                {updateMutation.isPending ? 'Saving…' : 'Save'}
+              <button onClick={() => approveMutation.mutate()}
+                disabled={approveMutation.isPending}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+                <CheckCircle2 className="w-4 h-4" />
+                {approveMutation.isPending ? 'Approving…' : 'Approve'}
+              </button>
+              <button onClick={() => setShowReject(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-xl text-sm border border-red-200 transition-colors">
+                <X className="w-4 h-4" /> Reject
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="border-t px-5 py-3">
-            <button onClick={() => setEditMode(true)} className="btn-primary w-full text-sm py-2.5">
-              Update Stage
+          )}
+
+          {/* Reject form */}
+          {canApprove && showReject && (
+            <div className="space-y-2">
+              <textarea rows={2} placeholder="Reason for rejection…"
+                className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button onClick={() => { rejectMutation.mutate(); }}
+                  disabled={!rejectReason.trim() || rejectMutation.isPending}
+                  className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold py-2 rounded-xl text-sm transition-colors">
+                  {rejectMutation.isPending ? 'Rejecting…' : 'Confirm Reject'}
+                </button>
+                <button onClick={() => setShowReject(false)}
+                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Advance stage */}
+          {canAdvance && (
+            <button onClick={() => advanceMutation.mutate()}
+              disabled={advanceMutation.isPending}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+              {isLastStage ? (
+                <><CheckCircle2 className="w-4 h-4" /> {advanceMutation.isPending ? 'Completing…' : 'Mark Complete'}</>
+              ) : (
+                <><ChevronRight className="w-4 h-4" /> {advanceMutation.isPending ? 'Advancing…' : `Advance to ${nextStage?.label}`}</>
+              )}
             </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── SLA config modal ──────────────────────────────────────────────────────────
-
-const STAGE_LABELS: Record<string, string> = {
-  SURVEY_SETUP: 'Survey Setup', SURVEY_EXECUTION: 'Survey Execution',
-  ROOT_CAUSE: 'Root Cause Analysis', REMEDIATION: 'Remediation',
-  COMMUNICATION: 'Communication', VALIDATION: 'Validation',
-};
-
-function SlaConfigModal({ cycleId, currentSla, onClose }: { cycleId: string; currentSla: Record<string, number>; onClose: () => void }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(Object.entries(currentSla).map(([k, v]) => [k, String(v)])),
-  );
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.patch(`/program-flow/cycles/${cycleId}/sla`,
-        Object.fromEntries(Object.entries(values).map(([k, v]) => [k, parseInt(v, 10)])),
-      ),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['program-flow-pipeline', cycleId] }); toast.success('SLA saved'); onClose(); },
-    onError: () => toast.error('Failed to save SLA'),
-  });
-
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="p-5 border-b flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-gray-800">SLA Configuration</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Max days per stage before flagging as overdue</p>
-          </div>
-          <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
-        </div>
-        <div className="p-5 space-y-3">
-          {Object.keys(STAGE_LABELS).map((stage) => (
-            <div key={stage} className="flex items-center gap-3">
-              <p className="text-sm text-gray-700 flex-1">{STAGE_LABELS[stage]}</p>
-              <input type="number" min={1} max={365} className="w-20 border rounded-xl px-3 py-1.5 text-sm text-right"
-                value={values[stage] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [stage]: e.target.value }))} />
-              <span className="text-sm text-gray-400 w-8">days</span>
-            </div>
-          ))}
-        </div>
-        <div className="p-5 border-t flex gap-2 justify-end">
-          <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary text-sm">
-            {mutation.isPending ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Create cycle modal ────────────────────────────────────────────────────────
-
-function CreateCycleModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [name, setName]               = useState('');
-  const [surveyId, setSurveyId]       = useState('');
-  const [startDate, setStartDate]     = useState(new Date().toISOString().slice(0, 10));
-  const [targetEndDate, setTargetEnd] = useState('');
-  const [error, setError]             = useState<string | null>(null);
-
-  const { data: surveys } = useQuery({
-    queryKey: ['surveys-list'],
-    queryFn: () => api.get('/surveys').then((r) => r.data),
-  });
-  const surveyList = Array.isArray(surveys) ? surveys : (surveys?.data ?? []);
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.post('/program-flow/cycles', { name, surveyId: surveyId || undefined, startDate, targetEndDate: targetEndDate || undefined }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['program-flow-cycles'] }); toast.success('Cycle created'); onClose(); },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to create cycle';
-      setError(Array.isArray(msg) ? msg.join(', ') : msg);
-    },
-  });
-
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="p-6 border-b flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">New Program Cycle</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Track all 6 stages across every hospital</p>
-          </div>
-          <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
-        </div>
-        <div className="p-6 space-y-4">
-          {error && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{error}</div>}
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Cycle Name <span className="text-red-500">*</span></label>
-            <input className="w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="e.g. Q1 2025 Engagement Cycle" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Linked Survey</label>
-            <select className="w-full border rounded-xl px-3 py-2.5 text-sm" value={surveyId} onChange={(e) => setSurveyId(e.target.value)}>
-              <option value="">Select survey…</option>
-              {surveyList.map((s: any) => <option key={s.id} value={s.id}>{s.title}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Start Date</label>
-              <input type="date" className="w-full border rounded-xl px-3 py-2.5 text-sm" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Target End Date</label>
-              <input type="date" className="w-full border rounded-xl px-3 py-2.5 text-sm" value={targetEndDate} onChange={(e) => setTargetEnd(e.target.value)} />
-            </div>
-          </div>
-        </div>
-        <div className="p-6 border-t flex gap-3 justify-end">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !name.trim()} className="btn-primary">
-            {mutation.isPending ? 'Creating…' : 'Create Cycle'}
-          </button>
+          )}
         </div>
       </div>
     </div>
@@ -755,174 +648,154 @@ function CreateCycleModal({ onClose }: { onClose: () => void }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ProgramFlowPage() {
-  const qc = useQueryClient();
   const { hasRole } = useAuth();
-  const toast = useToast();
-  const isCNO = hasRole('CNO');
-  const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
-  const [showCreateCycle, setShowCreateCycle] = useState(false);
-  const [showSlaConfig, setShowSlaConfig]     = useState(false);
-  const [drawerInfo, setDrawerInfo]           = useState<any | null>(null);
+  const [hospitalFilter, setHospitalFilter] = useState('');
+  const [statusFilter, setStatusFilter]     = useState('');
+  const [showCreate, setShowCreate]         = useState(false);
+  const [selected, setSelected]             = useState<any>(null);
 
-  const { data: profile } = useQuery<any>({
-    queryKey: ['profile'],
-    queryFn: () => api.get('/auth/profile').then((r) => r.data),
-    enabled: isCNO,
-  });
-  const cnoHospitalId = isCNO ? profile?.hospital?.id : null;
+  const canCreate = hasRole('SVP') || hasRole('SUPER_ADMIN') || hasRole('CNO') || hasRole('DIRECTOR');
 
-  const { data: cyclesData } = useQuery({
-    queryKey: ['program-flow-cycles'],
-    queryFn: () => api.get('/program-flow/cycles').then((r) => r.data),
-  });
-  const cycles: any[] = Array.isArray(cyclesData) ? cyclesData : (cyclesData?.data ?? []);
-  const activeCycleId = selectedCycleId ?? cycles[0]?.id ?? null;
-
-  const { data: pipeline, isLoading } = useQuery({
-    queryKey: ['program-flow-pipeline', activeCycleId],
-    queryFn: () => api.get(`/program-flow/cycles/${activeCycleId}/pipeline`).then((r) => r.data),
-    enabled: !!activeCycleId,
-    refetchInterval: 60000,
+  const { data: programs = [], isLoading } = useQuery<any[]>({
+    queryKey: ['programs', hospitalFilter, statusFilter],
+    queryFn: () => api.get('/programs', {
+      params: {
+        ...(hospitalFilter ? { hospitalId: hospitalFilter } : {}),
+        ...(statusFilter   ? { status:     statusFilter   } : {}),
+      },
+    }).then((r) => r.data),
+    refetchInterval: 30_000,
   });
 
-  const autoCompute = useMutation({
-    mutationFn: () => api.post(`/program-flow/cycles/${activeCycleId}/auto-compute`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['program-flow-pipeline', activeCycleId] }); toast.success('Auto-compute done'); },
-    onError: () => toast.error('Auto-compute failed'),
+  const { data: orgUnits = [] } = useQuery<any[]>({
+    queryKey: ['org-units'],
+    queryFn: () => api.get('/org/units').then((r) => r.data),
+    staleTime: 10 * 60_000,
   });
 
-  const kpis   = pipeline?.kpis   ?? {};
-  const alerts = pipeline?.alerts ?? [];
-  const visibleHospitals = (pipeline?.hospitals ?? [])
-    .filter((h: any) => !cnoHospitalId || h.hospitalId === cnoHospitalId);
+  const { data: surveys = [] } = useQuery<any[]>({
+    queryKey: ['surveys'],
+    queryFn: () => api.get('/surveys').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+
+  const hospitals = (orgUnits as any[]).filter((u) => u.level === 'HOSPITAL');
+
+  // Keep drawer in sync with latest data
+  const selectedProgram = selected
+    ? (programs.find((p) => p.id === selected.id) ?? selected)
+    : null;
+
+  const pending = programs.filter((p) => p.status === 'PENDING_APPROVAL').length;
+  const active  = programs.filter((p) => p.status === 'ACTIVE').length;
 
   return (
-    <div className="space-y-6">
-
-      {/* Header */}
-      <div className="flex items-start justify-between">
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Program Flow</h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            {pipeline?.cycle?.name
-              ? `${pipeline.cycle.name} · ${pipeline.cycle.surveyTitle ?? 'No survey linked'}`
-              : 'Track your 6-stage improvement cycle across all hospitals'}
-          </p>
+          <p className="text-sm text-gray-500 mt-0.5">Manage engagement programs across their full lifecycle</p>
         </div>
-        <div className="flex items-center gap-2">
-          {activeCycleId && (
-            <>
-              <button onClick={() => autoCompute.mutate()} disabled={autoCompute.isPending}
-                className="btn-secondary flex items-center gap-1.5 text-sm">
-                <Zap className="w-3.5 h-3.5" />
-                {autoCompute.isPending ? 'Computing…' : 'Auto-Compute'}
-              </button>
-              <button onClick={() => setShowSlaConfig(true)} className="btn-secondary flex items-center gap-1.5 text-sm">
-                <Settings className="w-3.5 h-3.5" /> SLA
-              </button>
-              <button onClick={() => qc.invalidateQueries({ queryKey: ['program-flow-pipeline', activeCycleId] })}
-                className="btn-secondary p-2">
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            </>
-          )}
-          <button onClick={() => setShowCreateCycle(true)} className="btn-primary flex items-center gap-1.5 text-sm">
-            <Plus className="w-4 h-4" /> New Cycle
+        {canCreate && (
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-colors">
+            <Plus className="w-4 h-4" /> New Program
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Cycle tabs */}
-      {cycles.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {cycles.map((c) => (
-            <button key={c.id} onClick={() => setSelectedCycleId(c.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                activeCycleId === c.id ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:border-blue-300 bg-white'}`}>
-              {c.name}
-            </button>
+      {/* Stats strip */}
+      {programs.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: 'Total',    value: programs.length,                                         color: 'text-gray-700' },
+            { label: 'Active',   value: active,                                                  color: 'text-green-600' },
+            { label: 'Pending',  value: pending,                                                 color: 'text-amber-600' },
+            { label: 'Complete', value: programs.filter((p) => p.status === 'COMPLETED').length, color: 'text-blue-600' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
+              <p className={`text-xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+            </div>
           ))}
         </div>
       )}
 
-      {activeCycleId && pipeline ? (
-        <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm col-span-2 md:col-span-1">
-              <p className="text-xs text-gray-500 mb-1">Overall Progress</p>
-              <p className="text-3xl font-bold text-blue-600">{kpis.overallCompletion ?? 0}%</p>
-              <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${kpis.overallCompletion ?? 0}%` }} />
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1">{kpis.totalUnits ?? 0} units tracked</p>
-            </div>
-            <KpiCard label="Hospitals Active"  value={kpis.hospitalsActive ?? 0}  icon={Activity}      sub={`${kpis.totalUnits ?? 0} units`} />
-            <KpiCard label="Units Stuck"       value={kpis.unitsStuck ?? 0}       icon={AlertCircle}   color={(kpis.unitsStuck ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'} pulse={(kpis.unitsStuck ?? 0) > 0} />
-            <KpiCard label="Overdue Tasks"     value={kpis.overdueTasks ?? 0}     icon={Flag}          color={(kpis.overdueTasks ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'} pulse={(kpis.overdueTasks ?? 0) > 0} />
-            <KpiCard label="Chronic Issues"    value={kpis.chronicIssues ?? 0}    icon={AlertTriangle} color={(kpis.chronicIssues ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600'} />
-            <KpiCard label="Avg Days / Stage"  value={kpis.avgDaysPerStage != null ? `${kpis.avgDaysPerStage}d` : '—'} icon={BarChart3} />
-          </div>
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          value={hospitalFilter}
+          onChange={(e) => setHospitalFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">All hospitals</option>
+          {hospitals.map((h) => (
+            <option key={h.id} value={h.id}>{h.name}</option>
+          ))}
+        </select>
 
-          {/* Alerts */}
-          {alerts.length > 0 && <AlertBanner alerts={alerts} />}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">All statuses</option>
+          {['DRAFT','PENDING_APPROVAL','ACTIVE','REJECTED','COMPLETED','CANCELLED'].map((s) => (
+            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
 
-          {/* Stage legend */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-shrink-0">
-            {STAGES.map((s, i) => (
-              <div key={s.key} className="flex items-center flex-shrink-0">
-                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">{i + 1}</div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-700 whitespace-nowrap">{s.label}</p>
-                    <p className="text-[10px] text-gray-400">SLA: {pipeline.stageSla?.[s.key] ?? '—'}d</p>
-                  </div>
-                </div>
-                {i < STAGES.length - 1 && <ChevronRight className="w-4 h-4 text-gray-300 mx-1" />}
-              </div>
-            ))}
-          </div>
-
-          {/* Hospital cards */}
-          {isLoading ? (
-            <div className="bg-white rounded-2xl border border-gray-200 py-20 text-center text-gray-400 text-sm">Loading pipeline…</div>
-          ) : visibleHospitals.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-200 py-20 text-center text-gray-400 text-sm">
-              No hospitals found for this cycle.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {visibleHospitals.map((hospital: any) => (
-                <HospitalCard
-                  key={hospital.hospitalId}
-                  hospital={hospital}
-                  cycleId={activeCycleId}
-                  onDrillDown={setDrawerInfo}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      ) : !isLoading && (
-        <div className="text-center py-24 text-gray-400 bg-white rounded-2xl border border-gray-200">
-          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-            <ClipboardCheck className="w-8 h-8 text-gray-300" />
-          </div>
-          <p className="font-semibold text-gray-600 mb-1">No program cycle yet</p>
-          <p className="text-sm mb-6">Create a cycle to start tracking your 6-stage improvement process.</p>
-          <button onClick={() => setShowCreateCycle(true)} className="btn-primary inline-flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Create First Cycle
+        {(hospitalFilter || statusFilter) && (
+          <button onClick={() => { setHospitalFilter(''); setStatusFilter(''); }}
+            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+            <X className="w-3.5 h-3.5" /> Clear
           </button>
+        )}
+      </div>
+
+      {/* Programs list */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 h-24 animate-pulse" />
+          ))}
+        </div>
+      ) : programs.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-14 text-center">
+          <ClipboardList className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+          <p className="text-gray-600 font-semibold">No programs yet</p>
+          <p className="text-gray-400 text-sm mt-1">Create the first engagement program to get started.</p>
+          {canCreate && (
+            <button onClick={() => setShowCreate(true)}
+              className="mt-5 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
+              <Plus className="w-4 h-4" /> New Program
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {programs.map((p) => (
+            <ProgramCard key={p.id} program={p} onClick={() => setSelected(p)} />
+          ))}
         </div>
       )}
 
       {/* Modals */}
-      {showCreateCycle && <CreateCycleModal onClose={() => setShowCreateCycle(false)} />}
-      {showSlaConfig && activeCycleId && (
-        <SlaConfigModal cycleId={activeCycleId} currentSla={pipeline?.stageSla ?? {}} onClose={() => setShowSlaConfig(false)} />
+      {showCreate && (
+        <CreateProgramModal
+          hospitals={hospitals}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => setShowCreate(false)}
+        />
       )}
-      {drawerInfo && (
-        <StageDrawer info={drawerInfo} cycleId={activeCycleId!} onClose={() => setDrawerInfo(null)} />
+
+      {selectedProgram && (
+        <ProgramDrawer
+          program={selectedProgram}
+          surveys={surveys}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );
