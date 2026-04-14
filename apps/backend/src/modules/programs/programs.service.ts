@@ -10,6 +10,8 @@ import {
 } from './entities/program.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
+import { Issue } from '../issues/entities/issue.entity';
+import { Task } from '../tasks/entities/task.entity';
 
 const STAGE_ORDER: ProgramStageKey[] = [
   ProgramStageKey.SETUP,
@@ -31,9 +33,11 @@ const CHECKLIST_KEYS: (keyof SetupChecklist)[] = [
 @Injectable()
 export class ProgramsService {
   constructor(
-    @InjectRepository(Program) private readonly repo: Repository<Program>,
+    @InjectRepository(Program) private readonly repo:      Repository<Program>,
     @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
-    @InjectRepository(User)    private readonly userRepo: Repository<User>,
+    @InjectRepository(User)    private readonly userRepo:  Repository<User>,
+    @InjectRepository(Issue)   private readonly issueRepo: Repository<Issue>,
+    @InjectRepository(Task)    private readonly taskRepo:  Repository<Task>,
   ) {}
 
   // ── ID generation ──────────────────────────────────────────────────────────
@@ -250,6 +254,46 @@ export class ProgramsService {
       p.currentStage = STAGE_ORDER[idx + 1];
     }
     return this.repo.save(p);
+  }
+
+  // ── Related work (issues + tasks) ──────────────────────────────────────────
+
+  async getRelatedWork(id: string) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+
+    // Gather issues linked by programId OR by the program's linked survey
+    const conditions: any[] = [{ programId: id }];
+    if (p.linkedSurveyId) conditions.push({ linkedSurveyId: p.linkedSurveyId });
+
+    const issues = await this.issueRepo
+      .createQueryBuilder('i')
+      .where(
+        conditions.map((_, idx) => idx === 0
+          ? 'i."programId" = :programId'
+          : 'i."linkedSurveyId" = :linkedSurveyId'
+        ).join(' OR '),
+        { programId: id, linkedSurveyId: p.linkedSurveyId },
+      )
+      .orderBy('i.createdAt', 'ASC')
+      .getMany();
+
+    if (!issues.length) return [];
+
+    const issueIds = issues.map((i) => i.id);
+    const tasks    = await this.taskRepo.find({ where: { issueId: In(issueIds) }, order: { createdAt: 'ASC' } });
+
+    const tasksByIssue = new Map<string, Task[]>();
+    for (const task of tasks) {
+      const list = tasksByIssue.get(task.issueId) ?? [];
+      list.push(task);
+      tasksByIssue.set(task.issueId, list);
+    }
+
+    return issues.map((issue) => ({
+      ...issue,
+      tasks: tasksByIssue.get(issue.id) ?? [],
+    }));
   }
 
   // ── Enrichment ─────────────────────────────────────────────────────────────

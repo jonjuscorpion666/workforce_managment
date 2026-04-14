@@ -507,12 +507,13 @@ function ProgramDrawer({ program, surveys, onClose }: {
   const inRCOrLater  = ['ROOT_CAUSE','REMEDIATION','COMMUNICATION','VALIDATION','COMPLETED'].includes(program.currentStage) || program.status === 'COMPLETED';
   const inRemOrLater = ['REMEDIATION','COMMUNICATION','VALIDATION','COMPLETED'].includes(program.currentStage) || program.status === 'COMPLETED';
 
-  const { data: programIssues = [] } = useQuery<any[]>({
-    queryKey: ['issues', 'program', program.id],
-    queryFn: () => api.get('/issues', { params: { programId: program.id } }).then((r) => r.data),
+  const { data: relatedWork = [] } = useQuery<any[]>({
+    queryKey: ['related-work', program.id],
+    queryFn: () => api.get(`/programs/${program.id}/related-work`).then((r) => r.data),
     enabled: inRCOrLater,
     refetchInterval: inRCOrLater ? 30_000 : false,
   });
+  const programIssues = relatedWork;
 
   const rootCauseMutation = useMutation({
     mutationFn: (update: Record<string, any>) => api.patch(`/programs/${program.id}/root-cause-checklist`, update),
@@ -1072,16 +1073,29 @@ function ProgramDrawer({ program, surveys, onClose }: {
                         {/* Issue list + create */}
                         <div className="border-t border-gray-100 px-3 py-2.5 space-y-2">
                           {programIssues.map((issue) => (
-                            <a key={issue.id} href={`/issues/${issue.id}`}
-                              className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
-                              <AlertCircle className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
-                              <span className="flex-1 truncate">{issue.title}</span>
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                                issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
-                                issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                                'bg-gray-100 text-gray-500'
-                              }`}>{issue.status.replace(/_/g,' ')}</span>
-                            </a>
+                            <div key={issue.id} className="space-y-0.5">
+                              <a href={`/issues/${issue.id}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
+                                <AlertCircle className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
+                                <span className="flex-1 truncate font-medium">{issue.title}</span>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                  issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
+                                  issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-500'
+                                }`}>{issue.status.replace(/_/g,' ')}</span>
+                              </a>
+                              {(issue.tasks ?? []).map((task: any) => (
+                                <div key={task.id} className="flex items-center gap-2 pl-5 text-xs text-gray-500">
+                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                    task.status === 'DONE' ? 'bg-green-400' :
+                                    task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'
+                                  }`} />
+                                  <span className="flex-1 truncate">{task.title}</span>
+                                  <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>
+                                    {task.status.replace(/_/g,' ')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           ))}
 
                           {!showCreateIssue ? (
@@ -1196,21 +1210,44 @@ function ProgramDrawer({ program, surveys, onClose }: {
                     {programIssues.length > 0 && (
                       <div className="border-t border-gray-100 divide-y divide-gray-50">
                         {programIssues.map((issue) => (
-                          <div key={issue.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50">
-                            <AlertCircle className={`w-3.5 h-3.5 flex-shrink-0 ${
-                              issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'text-green-400' :
-                              issue.status === 'IN_PROGRESS' ? 'text-blue-400' : 'text-gray-300'
-                            }`} />
-                            <span className="flex-1 text-sm text-gray-700 truncate">{issue.title}</span>
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                              issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
-                              issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                              'bg-gray-100 text-gray-500'
-                            }`}>{issue.status.replace(/_/g,' ')}</span>
-                            <a href={`/issues/${issue.id}`}
-                              className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0 ml-1">
-                              <SquarePen className="w-3 h-3" /> Manage tasks
-                            </a>
+                          <div key={issue.id} className="px-3 py-2 space-y-1.5 hover:bg-gray-50">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className={`w-3.5 h-3.5 flex-shrink-0 ${
+                                issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'text-green-400' :
+                                issue.status === 'IN_PROGRESS' ? 'text-blue-400' : 'text-gray-300'
+                              }`} />
+                              <span className="flex-1 text-sm font-medium text-gray-700 truncate">{issue.title}</span>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                                issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
+                                issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-500'
+                              }`}>{issue.status.replace(/_/g,' ')}</span>
+                              <a href={`/issues/${issue.id}`}
+                                className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
+                                <SquarePen className="w-3 h-3" /> Tasks
+                              </a>
+                            </div>
+                            {(issue.tasks ?? []).length > 0 && (
+                              <div className="pl-5 space-y-1">
+                                {(issue.tasks ?? []).map((task: any) => (
+                                  <div key={task.id} className="flex items-center gap-2 text-xs text-gray-500">
+                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                      task.status === 'DONE' ? 'bg-green-400' :
+                                      task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'
+                                    }`} />
+                                    <span className="flex-1 truncate">{task.title}</span>
+                                    <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {task.status.replace(/_/g,' ')}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {(issue.tasks ?? []).length === 0 && (
+                              <a href={`/issues/${issue.id}`} className="pl-5 text-[10px] text-blue-500 hover:text-blue-700">
+                                + Add tasks to this issue
+                              </a>
+                            )}
                           </div>
                         ))}
                       </div>

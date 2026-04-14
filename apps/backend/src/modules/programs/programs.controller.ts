@@ -30,6 +30,12 @@ export class ProgramsController {
     return this.svc.findOne(id);
   }
 
+  @Get(':id/related-work')
+  @ApiOperation({ summary: 'Get all issues + tasks linked to this program or its survey' })
+  getRelatedWork(@Param('id') id: string) {
+    return this.svc.getRelatedWork(id);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update program fields' })
   update(@Param('id') id: string, @Body() body: any) {

@@ -5,9 +5,11 @@ import { ProgramsController } from './programs.controller';
 import { ProgramsService } from './programs.service';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
+import { Issue } from '../issues/entities/issue.entity';
+import { Task } from '../tasks/entities/task.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Program, OrgUnit, User])],
+  imports: [TypeOrmModule.forFeature([Program, OrgUnit, User, Issue, Task])],
   controllers: [ProgramsController],
   providers: [ProgramsService],
   exports: [ProgramsService],
