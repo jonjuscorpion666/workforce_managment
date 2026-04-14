@@ -831,14 +831,11 @@ function ProgramDrawer({ program, surveys, onClose }: {
                         <span className="text-[10px] text-gray-400">auto</span>
                       </div>
 
-                      {/* 2. Responses received — auto */}
-                      <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${responseCount > 0 ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${responseCount > 0 ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
-                          {responseCount > 0 && <Check className="w-2.5 h-2.5 text-white" />}
-                        </div>
-                        <span className={`text-sm flex-1 ${responseCount > 0 ? 'text-green-700 line-through' : 'text-gray-700'}`}>Responses being collected</span>
-                        {responseCount > 0 && <span className="text-[10px] font-bold text-blue-600">{responseCount}</span>}
-                        <span className="text-[10px] text-gray-400">auto</span>
+                      {/* 2. Responses — live metric, not a checkbox */}
+                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-blue-100 bg-blue-50">
+                        <BarChart2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                        <span className="text-sm text-blue-700 flex-1">Responses collected</span>
+                        <span className="text-sm font-bold text-blue-700">{responseCount}</span>
                       </div>
 
                       {/* 3. Reminder sent — manual action */}

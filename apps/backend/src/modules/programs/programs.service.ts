@@ -252,7 +252,7 @@ export class ProgramsService {
         total:     CHECKLIST_KEYS.length,
       };
 
-      const EXEC_KEYS: (keyof ExecutionChecklist)[] = ['surveyLaunched', 'responsesReceived', 'reminderSent', 'surveyClosed'];
+      const EXEC_KEYS: (keyof ExecutionChecklist)[] = ['surveyLaunched', 'reminderSent', 'surveyClosed'];
       const executionProgress = {
         completed: EXEC_KEYS.filter((k) => (p.executionChecklist as any)?.[k]).length,
         total:     EXEC_KEYS.length,
