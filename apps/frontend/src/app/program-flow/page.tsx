@@ -377,8 +377,13 @@ function ProgramDrawer({ program, surveys, onClose }: {
 
   const linkSurveyMutation = useMutation({
     mutationFn: (surveyId: string) => api.patch(`/programs/${program.id}/survey`, { surveyId }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['programs'] }); setSurveyPicker(false); toast.success('Survey linked'); },
-    onError:   () => toast.error('Failed to link survey'),
+    onSuccess: () => {
+      checklistMutation.mutate({ questionsDrafted: true });
+      qc.invalidateQueries({ queryKey: ['programs'] });
+      setSurveyPicker(false);
+      toast.success('Survey linked');
+    },
+    onError: () => toast.error('Failed to link survey'),
   });
 
   const stageIdx     = STAGES.findIndex((s) => s.key === program.currentStage);
@@ -510,23 +515,25 @@ function ProgramDrawer({ program, surveys, onClose }: {
                 </div>
               </div>
 
-              {/* Other checklist items — manually ticked */}
+              {/* Other checklist items */}
               {CHECKLIST_ITEMS.filter(({ key }) => key !== 'meetingScheduled').map(({ key, label }) => {
-                const checked = !!(program.setupChecklist?.[key]);
+                const checked  = !!(program.setupChecklist?.[key]);
+                const isAuto   = key === 'questionsDrafted' && !!program.linkedSurveyId;
                 return (
                   <button key={key} type="button"
-                    disabled={program.status === 'COMPLETED' || program.status === 'CANCELLED'}
-                    onClick={() => checklistMutation.mutate({ [key]: !checked })}
+                    disabled={isAuto || program.status === 'COMPLETED' || program.status === 'CANCELLED'}
+                    onClick={() => !isAuto && checklistMutation.mutate({ [key]: !checked })}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all ${
                       checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-gray-300'
-                    }`}
+                    } ${isAuto ? 'cursor-default' : ''}`}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                       checked ? 'bg-green-500 border-green-500' : 'border-gray-300'
                     }`}>
                       {checked && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
-                    <span className={`text-sm ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>{label}</span>
+                    <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>{label}</span>
+                    {isAuto && <span className="text-[10px] text-gray-400">auto</span>}
                   </button>
                 );
               })}
