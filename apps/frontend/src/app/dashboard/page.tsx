@@ -1,16 +1,19 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import {
   AlertTriangle, CheckSquare, ClipboardList, ArrowUpCircle,
   ShieldCheck, Clock, Users, MessageCircle,
   CheckCircle2, Zap, BarChart2, Eye, UserCircle2,
   Stethoscope, Heart, Star, Megaphone, Building2,
-  ChevronRight, Activity,
+  ChevronRight, Activity, Pencil, Trash2, Plus,
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { formatDate } from '@/lib/utils';
+import { useToast } from '@/components/ui/Toast';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -93,6 +96,136 @@ function getGreetingEmoji() {
   return hour < 12 ? '☀️' : hour < 17 ? '👋' : '🌙';
 }
 
+// ── Announcements panel (SVP / CNO) ──────────────────────────────────────────
+
+const PRIORITY_BAR_DASH: Record<string, string> = {
+  CRITICAL: 'bg-red-500', HIGH: 'bg-orange-400', MEDIUM: 'bg-blue-400', LOW: 'bg-gray-300',
+};
+const PRIORITY_BADGE_DASH: Record<string, string> = {
+  CRITICAL: 'bg-red-100 text-red-700', HIGH: 'bg-orange-100 text-orange-700',
+  MEDIUM: 'bg-blue-100 text-blue-700', LOW: 'bg-gray-100 text-gray-500',
+};
+
+function AnnouncementsPanel({ userId, showAll = false }: { userId: string; showAll?: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
+
+  const { data: announcements = [], isLoading } = useQuery<any[]>({
+    queryKey: ['announcements'],
+    queryFn: () => api.get('/announcements').then((r) => r.data),
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/announcements/${id}/archive`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['announcements'] });
+      setConfirmArchive(null);
+      toast.success('Announcement archived');
+    },
+    onError: () => toast.error('Failed to archive'),
+  });
+
+  const displayed = showAll ? announcements : announcements.slice(0, 4);
+
+  return (
+    <PanelCard
+      title="Announcements"
+      icon={Megaphone}
+      action={
+        <Link href="/announcements/new"
+          className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> New
+        </Link>
+      }
+    >
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />)}
+        </div>
+      ) : announcements.length === 0 ? (
+        <div className="py-3 text-center">
+          <p className="text-sm text-gray-400">No announcements yet</p>
+          <Link href="/announcements/new" className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
+            <Plus className="w-3 h-3" /> Create one
+          </Link>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {displayed.map((a: any) => {
+            const canManage = a.createdById === userId;
+            return (
+              <li key={a.id} className="group">
+                {confirmArchive === a.id ? (
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <p className="text-xs text-red-700 flex-1">Archive this announcement?</p>
+                    <button
+                      onClick={() => archiveMutation.mutate(a.id)}
+                      disabled={archiveMutation.isPending}
+                      className="text-xs bg-red-500 text-white px-2 py-1 rounded font-medium hover:bg-red-600 disabled:opacity-50"
+                    >
+                      Yes
+                    </button>
+                    <button onClick={() => setConfirmArchive(null)} className="text-xs text-gray-500 hover:text-gray-700 px-1">
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <div className={`relative overflow-hidden rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all`}>
+                    <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${PRIORITY_BAR_DASH[a.priority] ?? 'bg-gray-300'}`} />
+                    <div className="pl-3 pr-3 py-2.5 flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/announcements/${a.id}`} className="block">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${PRIORITY_BADGE_DASH[a.priority] ?? 'bg-gray-100 text-gray-500'}`}>
+                              {a.priority}
+                            </span>
+                            {a.status !== 'PUBLISHED' && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                                {a.status}
+                              </span>
+                            )}
+                            {a.isPinned && (
+                              <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">Pinned</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium text-gray-800 truncate group-hover:text-brand-600 transition-colors">{a.title}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{formatDate(a.publishedAt ?? a.createdAt)}</p>
+                        </Link>
+                      </div>
+                      {canManage && (
+                        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Link href={`/announcements/${a.id}`}
+                            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"
+                            title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Link>
+                          <button onClick={() => setConfirmArchive(a.id)}
+                            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Archive">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+          {!showAll && announcements.length > 4 && (
+            <li>
+              <Link href="/announcements" className="text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-0.5">
+                View all {announcements.length} announcements <ChevronRight className="w-3 h-3" />
+              </Link>
+            </li>
+          )}
+        </ul>
+      )}
+    </PanelCard>
+  );
+}
+
 // ── SVP / Super Admin view ──────────────────────────────────────────────────
 
 function SVPView({ user }: { user: any }) {
@@ -107,10 +240,6 @@ function SVPView({ user }: { user: any }) {
   const { data: pendingApprovals = [] } = useQuery<any[]>({
     queryKey: ['surveys', 'pending'],
     queryFn: () => api.get('/surveys/pending-approvals').then((r) => r.data),
-  });
-  const { data: announcements = [] } = useQuery<any[]>({
-    queryKey: ['announcements'],
-    queryFn: () => api.get('/announcements').then((r) => r.data),
   });
 
   if (isLoading) return (
@@ -186,20 +315,7 @@ function SVPView({ user }: { user: any }) {
             )}
           </PanelCard>
 
-          <PanelCard title="Announcements" icon={Megaphone}>
-            {announcements.length === 0 ? (
-              <p className="text-sm text-gray-400">No announcements</p>
-            ) : (
-              <ul className="space-y-2">
-                {announcements.slice(0, 3).map((a: any) => (
-                  <li key={a.id} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />
-                    {a.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PanelCard>
+          <AnnouncementsPanel userId={user?.id ?? ''} />
 
           {pendingApprovals.length > 0 && (
             <PanelCard title="Pending Approval" badge={pendingApprovals.length} icon={ShieldCheck}
@@ -240,11 +356,6 @@ function CNOView({ user }: { user: any }) {
     queryKey: ['profile'],
     queryFn: () => api.get('/auth/profile').then((r) => r.data),
   });
-  const { data: announcements = [] } = useQuery<any[]>({
-    queryKey: ['announcements'],
-    queryFn: () => api.get('/announcements').then((r) => r.data),
-  });
-
   if (isLoading) return (
     <div className="space-y-7">
       <div className="space-y-2">
@@ -317,20 +428,7 @@ function CNOView({ user }: { user: any }) {
           </PanelCard>
         </div>
         <div>
-          <PanelCard title="Announcements" icon={Megaphone}>
-            {announcements.length === 0 ? (
-              <p className="text-sm text-gray-400">No announcements</p>
-            ) : (
-              <ul className="space-y-2">
-                {announcements.slice(0, 4).map((a: any) => (
-                  <li key={a.id} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />
-                    {a.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PanelCard>
+          <AnnouncementsPanel userId={user?.id ?? ''} />
         </div>
       </div>
 

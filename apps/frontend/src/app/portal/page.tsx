@@ -1063,6 +1063,39 @@ export default function NursePortalPage() {
                 </button>
               )}
 
+              {/* Announcements preview */}
+              {feed.length > 0 && (
+                <section>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Megaphone className="w-4 h-4 text-indigo-500" />
+                      <h2 className="text-sm font-bold text-gray-900">Announcements</h2>
+                      {(unreadCount + pendingAckCount) > 0 && (
+                        <span className="text-[10px] bg-blue-500 text-white font-bold px-1.5 py-0.5 rounded-full">
+                          {unreadCount + pendingAckCount} new
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={() => setTab('updates')} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                      View all
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {feed.slice(0, 3).map((ann) => (
+                      <AnnouncementCard key={ann.id} ann={ann}
+                        onMarkRead={(id) => markRead.mutate(id)}
+                        onAcknowledge={(id) => acknowledge.mutate(id)} />
+                    ))}
+                    {feed.length > 3 && (
+                      <button onClick={() => setTab('updates')}
+                        className="w-full text-xs text-center text-blue-500 hover:text-blue-700 py-1.5 font-medium">
+                        + {feed.length - 3} more announcements
+                      </button>
+                    )}
+                  </div>
+                </section>
+              )}
+
               {/* Anonymous reminder */}
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
