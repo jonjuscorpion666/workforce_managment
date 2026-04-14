@@ -8,7 +8,7 @@ import {
   ChevronRight, Mail, UserCheck, MapPin, AlertCircle, Plus, X,
   Save, Building, Layers, Pencil, UserPlus, Lock,
   Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, AlertTriangle,
-  ChevronLeft, Search,
+  ChevronLeft, Search, Trash2,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
@@ -839,9 +839,163 @@ function AddRoleModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Edit Role modal ───────────────────────────────────────────────────────
+
+function EditRoleModal({ role, onClose }: { role: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [name, setName]   = useState(role.name ?? '');
+  const [error, setError] = useState('');
+
+  const save = useMutation({
+    mutationFn: () => api.patch(`/admin/roles/${role.id}`, { name: name.trim().toUpperCase() }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-roles'] }); toast.success('Role updated'); onClose(); },
+    onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to update role'),
+  });
+
+  return (
+    <Modal title={`Edit Role: ${role.name}`} onClose={onClose}>
+      <Field label="Role Name" required hint="Role names are stored in uppercase.">
+        <input className="input uppercase" value={name}
+          onChange={(e) => setName(e.target.value.toUpperCase())} />
+      </Field>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex justify-end gap-3 pt-2">
+        <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
+        <button
+          onClick={() => { if (!name.trim()) { setError('Name is required'); return; } setError(''); save.mutate(); }}
+          disabled={save.isPending}
+          className="btn-primary text-sm flex items-center gap-2">
+          <Save className="w-4 h-4" /> {save.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Confirm Delete modal ──────────────────────────────────────────────────
+
+function ConfirmDeleteModal({
+  title, message, onConfirm, onClose, loading, error,
+}: {
+  title: string; message: string;
+  onConfirm: () => void; onClose: () => void;
+  loading?: boolean; error?: string;
+}) {
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="text-sm text-gray-600">{message}</p>
+      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
+      <div className="flex justify-end gap-3 pt-2">
+        <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
+        <button onClick={onConfirm} disabled={loading}
+          className="text-sm flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-xl transition-colors disabled:opacity-60">
+          <Trash2 className="w-4 h-4" />
+          {loading ? 'Deleting…' : 'Delete'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Edit Hospital modal ───────────────────────────────────────────────────
+
+function EditHospitalModal({ hospital, onClose }: { hospital: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [name,        setName]        = useState(hospital.name        ?? '');
+  const [code,        setCode]        = useState(hospital.code        ?? '');
+  const [address,     setAddress]     = useState(hospital.address     ?? '');
+  const [city,        setCity]        = useState(hospital.city        ?? '');
+  const [state,       setState]       = useState(hospital.state       ?? '');
+  const [zipCode,     setZipCode]     = useState(hospital.zipCode     ?? '');
+  const [phone,       setPhone]       = useState(hospital.phone       ?? '');
+  const [website,     setWebsite]     = useState(hospital.website     ?? '');
+  const [bedCapacity, setBedCapacity] = useState(hospital.bedCapacity?.toString() ?? '');
+  const [timezone,    setTimezone]    = useState(hospital.timezone    ?? '');
+  const [error,       setError]       = useState('');
+
+  const save = useMutation({
+    mutationFn: () => api.patch(`/org/units/${hospital.id}`, {
+      name: name.trim(),
+      code: code.trim() || undefined,
+      address: address.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim() || undefined,
+      zipCode: zipCode.trim() || undefined,
+      location: [city.trim(), state.trim()].filter(Boolean).join(', ') || undefined,
+      phone: phone.trim() || undefined,
+      website: website.trim() || undefined,
+      bedCapacity: bedCapacity ? Number(bedCapacity) : undefined,
+      timezone: timezone.trim() || undefined,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['org-units'] }); toast.success('Hospital updated'); onClose(); },
+    onError: (e: any) => setError(e.response?.data?.message ?? 'Failed to update hospital'),
+  });
+
+  return (
+    <Modal title={`Edit: ${hospital.name}`} onClose={onClose}>
+      <Field label="Hospital Name" required>
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Code">
+          <input className="input" placeholder="e.g. FH-OLYMPIA" value={code} onChange={(e) => setCode(e.target.value)} />
+        </Field>
+        <Field label="Bed Capacity">
+          <input type="number" min="0" className="input" value={bedCapacity} onChange={(e) => setBedCapacity(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Street Address">
+        <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="City">
+          <input className="input" value={city} onChange={(e) => setCity(e.target.value)} />
+        </Field>
+        <Field label="State">
+          <input className="input" value={state} onChange={(e) => setState(e.target.value)} />
+        </Field>
+        <Field label="ZIP Code">
+          <input className="input" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Phone">
+          <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        <Field label="Website">
+          <input className="input" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Timezone">
+        <input className="input" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+      </Field>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex justify-end gap-3 pt-2">
+        <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
+        <button
+          onClick={() => { if (!name.trim()) { setError('Name is required'); return; } setError(''); save.mutate(); }}
+          disabled={save.isPending}
+          className="btn-primary text-sm flex items-center gap-2">
+          <Save className="w-4 h-4" /> {save.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Hospital row ──────────────────────────────────────────────────────────
 
-function HospitalRow({ hospital, cno, units }: { hospital: any; cno: any; units: any[] }) {
+function HospitalRow({
+  hospital, cno, units, canEdit = false,
+  onEdit, onDelete,
+}: {
+  hospital: any; cno: any; units: any[];
+  canEdit?: boolean;
+  onEdit?: (h: any) => void;
+  onDelete?: (h: any) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -877,6 +1031,22 @@ function HospitalRow({ hospital, cno, units }: { hospital: any; cno: any; units:
           {units.length} unit{units.length !== 1 ? 's' : ''}
           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </div>
+        {canEdit && (
+          <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => onEdit?.(hospital)}
+              className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              title="Edit hospital">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => onDelete?.(hospital)}
+              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+              title="Delete hospital">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
       {open && (
         <div className="border-t border-gray-100 bg-gray-50 px-5 py-3 space-y-2">
@@ -1094,8 +1264,13 @@ export default function AdminPage() {
   const canAccessConfig   = hasRole('SVP') || hasRole('SUPER_ADMIN');
   const isManager         = hasRole('MANAGER');
   const [tab,          setTab]          = useState<Tab>('hospitals');
-  const [modal,        setModal]        = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | null>(null);
+  const [modal,        setModal]        = useState<'hospital' | 'unit' | 'role' | 'user' | 'bulk' | 'editHospital' | 'deleteHospital' | 'editRole' | 'deleteRole' | null>(null);
   const [editUser,     setEditUser]     = useState<any>(null);
+  const [editHospital, setEditHospital] = useState<any>(null);
+  const [deleteHospital, setDeleteHospital] = useState<any>(null);
+  const [editRole,     setEditRole]     = useState<any>(null);
+  const [deleteRole,   setDeleteRole]   = useState<any>(null);
+  const [deleteError,  setDeleteError]  = useState('');
   const [userSearch,   setUserSearch]   = useState('');
   const [serverSearch, setServerSearch] = useState('');
   const [roleFilter,   setRoleFilter]   = useState('');
@@ -1202,10 +1377,65 @@ export default function AdminPage() {
     setEditUser(null);
   }
 
+  const qc = useQueryClient();
+  const toast = useToast();
+
+  const deleteHospitalMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/org/units/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['org-units'] });
+      toast.success('Hospital deleted');
+      setModal(null);
+      setDeleteHospital(null);
+      setDeleteError('');
+    },
+    onError: (e: any) => setDeleteError(e.response?.data?.message ?? 'Failed to delete hospital'),
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/roles/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-roles'] });
+      toast.success('Role deleted');
+      setModal(null);
+      setDeleteRole(null);
+      setDeleteError('');
+    },
+    onError: (e: any) => setDeleteError(e.response?.data?.message ?? 'Failed to delete role'),
+  });
+
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
+
   return (
     <div className="space-y-6">
       {/* Modals */}
-      {modal === 'hospital' && <AddHospitalModal onClose={() => setModal(null)} />}
+      {modal === 'hospital'       && <AddHospitalModal onClose={() => setModal(null)} />}
+      {modal === 'editHospital'   && editHospital && (
+        <EditHospitalModal hospital={editHospital} onClose={() => { setModal(null); setEditHospital(null); }} />
+      )}
+      {modal === 'deleteHospital' && deleteHospital && (
+        <ConfirmDeleteModal
+          title="Delete Hospital"
+          message={`Are you sure you want to delete "${deleteHospital.name}"? This cannot be undone. The hospital must have no departments or units.`}
+          onConfirm={() => deleteHospitalMutation.mutate(deleteHospital.id)}
+          onClose={() => { setModal(null); setDeleteHospital(null); setDeleteError(''); }}
+          loading={deleteHospitalMutation.isPending}
+          error={deleteError}
+        />
+      )}
+      {modal === 'editRole'   && editRole && (
+        <EditRoleModal role={editRole} onClose={() => { setModal(null); setEditRole(null); }} />
+      )}
+      {modal === 'deleteRole' && deleteRole && (
+        <ConfirmDeleteModal
+          title="Delete Role"
+          message={`Are you sure you want to delete the role "${deleteRole.name}"? This cannot be undone. The role must have no users assigned.`}
+          onConfirm={() => deleteRoleMutation.mutate(deleteRole.id)}
+          onClose={() => { setModal(null); setDeleteRole(null); setDeleteError(''); }}
+          loading={deleteRoleMutation.isPending}
+          error={deleteError}
+        />
+      )}
       {modal === 'unit'     && (
         <AddUnitModal
           hospitals={hospitals}
@@ -1372,7 +1602,15 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-3">
                 {visibleHospitals.sort((a, b) => a.name.localeCompare(b.name)).map((h) => (
-                  <HospitalRow key={h.id} hospital={h} cno={getCno(h.id)} units={getVisibleUnits(h.id)} />
+                  <HospitalRow
+                    key={h.id}
+                    hospital={h}
+                    cno={getCno(h.id)}
+                    units={getVisibleUnits(h.id)}
+                    canEdit={isSuperAdmin}
+                    onEdit={(h) => { setEditHospital(h); setModal('editHospital'); }}
+                    onDelete={(h) => { setDeleteHospital(h); setDeleteError(''); setModal('deleteHospital'); }}
+                  />
                 ))}
               </div>
             )}
@@ -1508,11 +1746,29 @@ export default function AdminPage() {
           </div>
           <div className="space-y-2">
             {roles.map((r: any) => (
-              <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0 group">
                 <span className="text-sm font-semibold text-gray-800">{r.name}</span>
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                  {r.permissions?.length ?? 0} permissions
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                    {r.permissions?.length ?? 0} permissions
+                  </span>
+                  {isSuperAdmin && (
+                    <>
+                      <button
+                        onClick={() => { setEditRole(r); setModal('editRole'); }}
+                        className="p-1.5 text-gray-300 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Rename role">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { setDeleteRole(r); setDeleteError(''); setModal('deleteRole'); }}
+                        className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete role">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
             {roles.length === 0 && <p className="text-gray-400 text-sm">No roles yet.</p>}

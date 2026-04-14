@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -28,6 +28,23 @@ export class AdminService {
   getConfig(key: string) { return this.configRepo.findOne({ where: { key } }); }
   getRoles() { return this.roleRepo.find({ relations: ['permissions'] }); }
   createRole(data: any) { return this.roleRepo.save(this.roleRepo.create(data)); }
+
+  async updateRole(id: string, data: { name?: string }) {
+    const role = await this.roleRepo.findOne({ where: { id } });
+    if (!role) throw new NotFoundException('Role not found');
+    if (data.name) role.name = data.name.toUpperCase().trim();
+    return this.roleRepo.save(role);
+  }
+
+  async deleteRole(id: string) {
+    const role = await this.roleRepo.findOne({ where: { id }, relations: ['users'] });
+    if (!role) throw new NotFoundException('Role not found');
+    if ((role as any).users?.length > 0) {
+      throw new BadRequestException(`Cannot delete role "${role.name}" — ${(role as any).users.length} user(s) are assigned to it`);
+    }
+    await this.roleRepo.remove(role);
+    return { deleted: true };
+  }
 
   async getUsersPaginated(opts: {
     page: number;

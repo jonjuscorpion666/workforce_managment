@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { OrgService } from './org.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Org')
 @ApiBearerAuth()
@@ -34,8 +36,18 @@ export class OrgController {
   }
 
   @Patch('units/:id')
+  @UseGuards(RolesGuard)
+  @Roles('SVP', 'SUPER_ADMIN')
   update(@Param('id') id: string, @Body() body: any) {
     return this.orgService.update(id, body);
+  }
+
+  @Delete('units/:id')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Delete org unit (SUPER_ADMIN only — must have no children)' })
+  delete(@Param('id') id: string) {
+    return this.orgService.delete(id);
   }
 
   @Post('integration/hr-sync')

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { OrgUnit } from './entities/org-unit.entity';
@@ -30,6 +30,16 @@ export class OrgService {
 
   update(id: string, data: Partial<OrgUnit>) {
     return this.repo.update(id, data);
+  }
+
+  async delete(id: string) {
+    const unit = await this.repo.findOne({ where: { id }, relations: ['children'] });
+    if (!unit) throw new NotFoundException('Org unit not found');
+    if (unit.children?.length > 0) {
+      throw new BadRequestException(`Cannot delete "${unit.name}" — it has ${unit.children.length} child unit(s). Remove them first.`);
+    }
+    await this.repo.remove(unit);
+    return { deleted: true };
   }
 
   hrSync(payload: any) {

@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Req, Query,
+  Controller, Get, Post, Patch, Delete, Param, Body, Req, Query,
   UseGuards, BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
@@ -55,6 +55,16 @@ export class AdminController {
   @Roles(...ADMIN_SUPER)
   @ApiOperation({ summary: 'Create a new role (SVP / SUPER_ADMIN only)' })
   createRole(@Body() body: any) { return this.svc.createRole(body); }
+
+  @Patch('roles/:id')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Rename a role (SUPER_ADMIN only)' })
+  updateRole(@Param('id') id: string, @Body() body: any) { return this.svc.updateRole(id, body); }
+
+  @Delete('roles/:id')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Delete a role (SUPER_ADMIN only — role must have no users)' })
+  deleteRole(@Param('id') id: string) { return this.svc.deleteRole(id); }
 
   // ── Users ────────────────────────────────────────────────────────────────
 
