@@ -108,6 +108,10 @@ export class Issue {
   @Column({ nullable: true })
   createdById: string;
 
+  /** Program this issue was created from during root cause analysis */
+  @Column({ nullable: true })
+  programId: string;
+
   @Column({ nullable: true })
   subcategory: string;
 

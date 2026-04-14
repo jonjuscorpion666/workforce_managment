@@ -45,6 +45,30 @@ export interface SetupChecklist {
   employeesNotified?:     boolean;
 }
 
+export interface RootCauseChecklist {
+  /** Manual — user confirms they reviewed survey results */
+  resultsReviewed?:    boolean;
+  /** Text of findings — auto-ticks findingsDocumented when saved */
+  findings?:           string;
+  /** Auto — ticked when findings text is saved */
+  findingsDocumented?: boolean;
+  /** Auto — ticked when at least 1 issue is linked to program */
+  issuesCreated?:      boolean;
+  /** Manual — team has agreed on identified root causes */
+  teamAgreed?:         boolean;
+}
+
+export interface RemediationChecklist {
+  /** Text action plan — auto-ticks actionPlanDrafted when saved */
+  actionPlan?:         string;
+  /** Auto — ticked when action plan text is saved */
+  actionPlanDrafted?:  boolean;
+  /** Manual — tasks/action plans have been assigned with owners */
+  tasksAssigned?:      boolean;
+  /** Manual — progress has been formally reviewed */
+  progressReviewed?:   boolean;
+}
+
 export interface ExecutionChecklist {
   /** Auto-ticked when linked survey status becomes ACTIVE */
   surveyLaunched?:   boolean;
@@ -122,6 +146,12 @@ export class Program {
 
   @Column({ type: 'jsonb', default: '{}' })
   executionChecklist: ExecutionChecklist;
+
+  @Column({ type: 'jsonb', default: '{}' })
+  rootCauseChecklist: RootCauseChecklist;
+
+  @Column({ type: 'jsonb', default: '{}' })
+  remediationChecklist: RemediationChecklist;
 
   @Column({ nullable: true })
   createdById: string;

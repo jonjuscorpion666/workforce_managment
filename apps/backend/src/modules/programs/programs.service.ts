@@ -6,6 +6,7 @@ import { Repository, In } from 'typeorm';
 import {
   Program, ProgramApprovalStatus, ProgramScope,
   ProgramStageKey, ProgramStatus, SetupChecklist, ExecutionChecklist,
+  RootCauseChecklist, RemediationChecklist,
 } from './entities/program.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
@@ -126,6 +127,20 @@ export class ProgramsService {
     return this.repo.save(p);
   }
 
+  async updateRootCauseChecklist(id: string, update: Partial<RootCauseChecklist>) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    p.rootCauseChecklist = { ...p.rootCauseChecklist, ...update };
+    return this.repo.save(p);
+  }
+
+  async updateRemediationChecklist(id: string, update: Partial<RemediationChecklist>) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    p.remediationChecklist = { ...p.remediationChecklist, ...update };
+    return this.repo.save(p);
+  }
+
   async linkSurvey(id: string, surveyId: string) {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
@@ -211,6 +226,23 @@ export class ProgramsService {
       }
     }
 
+    // ── Gate: ROOT_CAUSE → REMEDIATION ────────────────────────────────────
+    if (p.currentStage === ProgramStageKey.ROOT_CAUSE) {
+      if (!p.rootCauseChecklist?.issuesCreated) {
+        throw new BadRequestException('Create at least one issue before advancing to Remediation');
+      }
+      if (!p.rootCauseChecklist?.teamAgreed) {
+        throw new BadRequestException('Get team agreement on root causes before advancing');
+      }
+    }
+
+    // ── Gate: REMEDIATION → COMMUNICATION ────────────────────────────────
+    if (p.currentStage === ProgramStageKey.REMEDIATION) {
+      if (!p.remediationChecklist?.progressReviewed) {
+        throw new BadRequestException('Mark progress as reviewed before advancing to Communication');
+      }
+    }
+
     const idx = STAGE_ORDER.indexOf(p.currentStage);
     if (idx === STAGE_ORDER.length - 1) {
       p.status = ProgramStatus.COMPLETED;
@@ -252,15 +284,19 @@ export class ProgramsService {
         total:     CHECKLIST_KEYS.length,
       };
 
-      const EXEC_KEYS: (keyof ExecutionChecklist)[] = ['surveyLaunched', 'reminderSent', 'surveyClosed'];
-      const executionProgress = {
-        completed: EXEC_KEYS.filter((k) => (p.executionChecklist as any)?.[k]).length,
-        total:     EXEC_KEYS.length,
-      };
+      const EXEC_KEYS: (keyof ExecutionChecklist)[]       = ['surveyLaunched', 'reminderSent', 'surveyClosed'];
+      const RC_KEYS:   (keyof RootCauseChecklist)[]       = ['resultsReviewed', 'findingsDocumented', 'issuesCreated', 'teamAgreed'];
+      const REM_KEYS:  (keyof RemediationChecklist)[]     = ['actionPlanDrafted', 'tasksAssigned', 'progressReviewed'];
+
+      const executionProgress   = { completed: EXEC_KEYS.filter((k) => (p.executionChecklist   as any)?.[k]).length, total: EXEC_KEYS.length };
+      const rootCauseProgress   = { completed: RC_KEYS.filter((k)   => (p.rootCauseChecklist   as any)?.[k]).length, total: RC_KEYS.length };
+      const remediationProgress = { completed: REM_KEYS.filter((k)  => (p.remediationChecklist  as any)?.[k]).length, total: REM_KEYS.length };
 
       return {
         ...p,
-        executionChecklist: p.executionChecklist ?? {},
+        executionChecklist:   p.executionChecklist   ?? {},
+        rootCauseChecklist:   p.rootCauseChecklist   ?? {},
+        remediationChecklist: p.remediationChecklist ?? {},
         targetHospitals,
         ownerName:    owner    ? `${(owner as any).firstName} ${(owner as any).lastName}`    : null,
         approverName: approver ? `${(approver as any).firstName} ${(approver as any).lastName}` : null,
@@ -268,6 +304,8 @@ export class ProgramsService {
         totalStages:  STAGE_ORDER.length,
         checklistProgress,
         executionProgress,
+        rootCauseProgress,
+        remediationProgress,
       };
     });
   }

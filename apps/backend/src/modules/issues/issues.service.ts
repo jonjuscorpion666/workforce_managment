@@ -99,6 +99,7 @@ export class IssuesService {
     );
     if (query.severity)     qb.andWhere('i.severity = :severity',     { severity: query.severity });
     if (query.ownerId)      qb.andWhere('i.ownerId = :ownerId',       { ownerId: query.ownerId });
+    if (query.programId)    qb.andWhere('i."programId" = :programId', { programId: query.programId });
 
     return qb.getMany();
   }

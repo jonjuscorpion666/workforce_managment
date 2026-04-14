@@ -54,6 +54,18 @@ export class ProgramsController {
     return this.svc.updateExecutionChecklist(id, body);
   }
 
+  @Patch(':id/root-cause-checklist')
+  @ApiOperation({ summary: 'Update root cause stage checklist items' })
+  updateRootCauseChecklist(@Param('id') id: string, @Body() body: any) {
+    return this.svc.updateRootCauseChecklist(id, body);
+  }
+
+  @Patch(':id/remediation-checklist')
+  @ApiOperation({ summary: 'Update remediation stage checklist items' })
+  updateRemediationChecklist(@Param('id') id: string, @Body() body: any) {
+    return this.svc.updateRemediationChecklist(id, body);
+  }
+
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Submit program for SVP/CNO approval' })

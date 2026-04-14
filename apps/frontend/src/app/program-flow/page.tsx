@@ -6,7 +6,8 @@ import {
   Plus, ChevronRight, CheckCircle2, Circle, Clock, AlertCircle,
   Building2, Globe, X, Check, ChevronDown, ClipboardList,
   Flag, Users, Calendar, Megaphone, BarChart2, Wrench,
-  ShieldCheck, AlertTriangle, BellRing, Activity,
+  ShieldCheck, AlertTriangle, BellRing, Activity, FileText,
+  ExternalLink, SquarePen,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -128,9 +129,13 @@ function ProgramCard({ program, onClick }: { program: any; onClick: () => void }
             </p>
           )}
           {program.currentStage === 'EXECUTION' && program.executionProgress && (
-            <p className="text-[10px] text-gray-400 mt-1.5">
-              Execution: {program.executionProgress.completed}/{program.executionProgress.total} done
-            </p>
+            <p className="text-[10px] text-gray-400 mt-1.5">Execution: {program.executionProgress.completed}/{program.executionProgress.total} done</p>
+          )}
+          {program.currentStage === 'ROOT_CAUSE' && program.rootCauseProgress && (
+            <p className="text-[10px] text-gray-400 mt-1.5">Root Cause: {program.rootCauseProgress.completed}/{program.rootCauseProgress.total} done</p>
+          )}
+          {program.currentStage === 'REMEDIATION' && program.remediationProgress && (
+            <p className="text-[10px] text-gray-400 mt-1.5">Remediation: {program.remediationProgress.completed}/{program.remediationProgress.total} done</p>
           )}
 
           {/* Pending approval callout */}
@@ -343,8 +348,14 @@ function ProgramDrawer({ program, surveys, onClose }: {
   const [commMessage, setCommMessage]     = useState<string>(
     program.setupChecklist?.communicationMessage ?? '',
   );
-  const [setupOpen, setSetupOpen]         = useState(program.currentStage === 'SETUP');
-  const [execOpen,  setExecOpen]          = useState(program.currentStage === 'EXECUTION');
+  const [setupOpen,      setSetupOpen]      = useState(program.currentStage === 'SETUP');
+  const [execOpen,       setExecOpen]       = useState(program.currentStage === 'EXECUTION');
+  const [rootCauseOpen,  setRootCauseOpen]  = useState(program.currentStage === 'ROOT_CAUSE');
+  const [remediationOpen,setRemediationOpen]= useState(program.currentStage === 'REMEDIATION');
+  const [showCreateIssue,setShowCreateIssue]= useState(false);
+  const [newIssue, setNewIssue]            = useState({ title: '', severity: 'MEDIUM' });
+  const [rcFindings, setRcFindings]        = useState<string>(program.rootCauseChecklist?.findings ?? '');
+  const [remPlan, setRemPlan]              = useState<string>(program.remediationChecklist?.actionPlan ?? '');
 
   const canApprove = (
     program.scope === 'GLOBAL'
@@ -491,6 +502,47 @@ function ProgramDrawer({ program, surveys, onClose }: {
     onError: () => toast.error('Failed to close survey'),
   });
 
+  // ── Root cause + Remediation ───────────────────────────────────────────────
+
+  const inRCOrLater  = ['ROOT_CAUSE','REMEDIATION','COMMUNICATION','VALIDATION','COMPLETED'].includes(program.currentStage) || program.status === 'COMPLETED';
+  const inRemOrLater = ['REMEDIATION','COMMUNICATION','VALIDATION','COMPLETED'].includes(program.currentStage) || program.status === 'COMPLETED';
+
+  const { data: programIssues = [] } = useQuery<any[]>({
+    queryKey: ['issues', 'program', program.id],
+    queryFn: () => api.get('/issues', { params: { programId: program.id } }).then((r) => r.data),
+    enabled: inRCOrLater,
+    refetchInterval: inRCOrLater ? 30_000 : false,
+  });
+
+  const rootCauseMutation = useMutation({
+    mutationFn: (update: Record<string, any>) => api.patch(`/programs/${program.id}/root-cause-checklist`, update),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+    onError: () => toast.error('Failed to update root cause checklist'),
+  });
+
+  const remediationMutation = useMutation({
+    mutationFn: (update: Record<string, any>) => api.patch(`/programs/${program.id}/remediation-checklist`, update),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+    onError: () => toast.error('Failed to update remediation checklist'),
+  });
+
+  const createIssueMutation = useMutation({
+    mutationFn: () => api.post('/issues', {
+      title:     newIssue.title.trim(),
+      severity:  newIssue.severity,
+      programId: program.id,
+      source:    'MANUAL',
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issues', 'program', program.id] });
+      rootCauseMutation.mutate({ issuesCreated: true });
+      setNewIssue({ title: '', severity: 'MEDIUM' });
+      setShowCreateIssue(false);
+      toast.success('Issue created');
+    },
+    onError: () => toast.error('Failed to create issue'),
+  });
+
   const sendAnnouncementMutation = useMutation({
     mutationFn: async () => {
       const audienceMode     = program.scope === 'GLOBAL' ? 'SYSTEM' : 'COMBINATION';
@@ -524,7 +576,7 @@ function ProgramDrawer({ program, surveys, onClose }: {
   const setupAllDone = cl.meetingScheduled && cl.questionsDrafted && cl.employeeScopeDefined && cl.communicationDrafted && cl.employeesNotified;
 
   const advanceBlockReason: string | null = (() => {
-    if (program.status !== 'ACTIVE') return null; // handled by canAdvance check
+    if (program.status !== 'ACTIVE') return null;
     if (program.currentStage === 'SETUP') {
       if (!program.linkedSurveyId) return 'Link a survey first';
       if (!setupAllDone)           return 'Complete all setup checklist items';
@@ -532,6 +584,15 @@ function ProgramDrawer({ program, surveys, onClose }: {
     }
     if (program.currentStage === 'EXECUTION') {
       if (!program.executionChecklist?.surveyClosed) return 'Close the survey before advancing';
+      return null;
+    }
+    if (program.currentStage === 'ROOT_CAUSE') {
+      if (!program.rootCauseChecklist?.issuesCreated) return 'Create at least one issue first';
+      if (!program.rootCauseChecklist?.teamAgreed)    return 'Get team agreement on root causes';
+      return null;
+    }
+    if (program.currentStage === 'REMEDIATION') {
+      if (!program.remediationChecklist?.progressReviewed) return 'Mark progress as reviewed first';
       return null;
     }
     return null;
@@ -921,6 +982,270 @@ function ProgramDrawer({ program, surveys, onClose }: {
                   </>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ── Root Cause Orchestrator ────────────────────────────────── */}
+          {inRCOrLater && (
+            <div>
+              <button type="button" onClick={() => setRootCauseOpen((o) => !o)} className="w-full flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Root Cause Analysis</p>
+                  {program.currentStage !== 'ROOT_CAUSE' && program.rootCauseProgress && (
+                    <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                      {program.rootCauseProgress.completed}/{program.rootCauseProgress.total} done
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${rootCauseOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {rootCauseOpen && (
+                <div className="space-y-1.5">
+
+                  {/* 1. Results reviewed — manual */}
+                  {(() => {
+                    const checked = !!program.rootCauseChecklist?.resultsReviewed;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${checked ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                        <button type="button" onClick={() => rootCauseMutation.mutate({ resultsReviewed: !checked })}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>Survey results reviewed</span>
+                          {program.linkedSurveyId && (
+                            <a href={`/surveys/${program.linkedSurveyId}`} onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700">
+                              <ExternalLink className="w-3 h-3" /> View
+                            </a>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 2. Findings documented — auto from text */}
+                  {(() => {
+                    const documented = !!program.rootCauseChecklist?.findingsDocumented;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${documented ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${documented ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${documented ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {documented && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${documented ? 'text-green-700 line-through' : 'text-gray-700'}`}>Key findings / themes documented</span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
+                          <p className="text-[10px] text-gray-400 mb-1">Document root causes identified from survey → ticks above</p>
+                          <textarea rows={3}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                            placeholder="e.g. Night shift nurses report inadequate handover time, unclear escalation paths…"
+                            value={rcFindings}
+                            onChange={(e) => setRcFindings(e.target.value)}
+                            onBlur={() => {
+                              const trimmed = rcFindings.trim();
+                              rootCauseMutation.mutate({ findings: trimmed, findingsDocumented: !!trimmed });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 3. Issues created — auto from linked issues count */}
+                  {(() => {
+                    const count   = programIssues.length;
+                    const checked = count > 0;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${checked ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${checked ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>Issues created from findings</span>
+                          {count > 0 && <span className="text-[10px] font-bold text-blue-600">{count}</span>}
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+
+                        {/* Issue list + create */}
+                        <div className="border-t border-gray-100 px-3 py-2.5 space-y-2">
+                          {programIssues.map((issue) => (
+                            <a key={issue.id} href={`/issues/${issue.id}`}
+                              className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
+                              <AlertCircle className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
+                              <span className="flex-1 truncate">{issue.title}</span>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
+                                issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-500'
+                              }`}>{issue.status.replace(/_/g,' ')}</span>
+                            </a>
+                          ))}
+
+                          {!showCreateIssue ? (
+                            <button onClick={() => setShowCreateIssue(true)}
+                              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700">
+                              <Plus className="w-3.5 h-3.5" /> Create issue from finding
+                            </button>
+                          ) : (
+                            <div className="space-y-2 pt-1">
+                              <input
+                                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                placeholder="Issue title…"
+                                value={newIssue.title}
+                                onChange={(e) => setNewIssue((n) => ({ ...n, title: e.target.value }))}
+                              />
+                              <div className="flex gap-2">
+                                <select value={newIssue.severity}
+                                  onChange={(e) => setNewIssue((n) => ({ ...n, severity: e.target.value }))}
+                                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                                  {['CRITICAL','HIGH','MEDIUM','LOW'].map((s) => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                                <button onClick={() => createIssueMutation.mutate()}
+                                  disabled={!newIssue.title.trim() || createIssueMutation.isPending}
+                                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
+                                  {createIssueMutation.isPending ? 'Creating…' : 'Create'}
+                                </button>
+                                <button onClick={() => setShowCreateIssue(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 4. Team agreed — manual */}
+                  {(() => {
+                    const checked = !!program.rootCauseChecklist?.teamAgreed;
+                    return (
+                      <button type="button" onClick={() => rootCauseMutation.mutate({ teamAgreed: !checked })}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left ${checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>Team agreed on root causes</span>
+                      </button>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Remediation Orchestrator ───────────────────────────────── */}
+          {inRemOrLater && (
+            <div>
+              <button type="button" onClick={() => setRemediationOpen((o) => !o)} className="w-full flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Remediation</p>
+                  {program.currentStage !== 'REMEDIATION' && program.remediationProgress && (
+                    <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                      {program.remediationProgress.completed}/{program.remediationProgress.total} done
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${remediationOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {remediationOpen && (
+                <div className="space-y-1.5">
+
+                  {/* 1. Action plan drafted — auto from text */}
+                  {(() => {
+                    const drafted = !!program.remediationChecklist?.actionPlanDrafted;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${drafted ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${drafted ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${drafted ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {drafted && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${drafted ? 'text-green-700 line-through' : 'text-gray-700'}`}>Action plan drafted</span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
+                          <p className="text-[10px] text-gray-400 mb-1">Outline the remediation actions → ticks above</p>
+                          <textarea rows={3}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                            placeholder="e.g. 1. Revise handover protocol — owner: Charge Nurse, due May 15&#10;2. Escalation training — owner: HR, due May 30…"
+                            value={remPlan}
+                            onChange={(e) => setRemPlan(e.target.value)}
+                            onBlur={() => {
+                              const trimmed = remPlan.trim();
+                              remediationMutation.mutate({ actionPlan: trimmed, actionPlanDrafted: !!trimmed });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 2. Issues tracker — live from linked issues */}
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="flex items-center gap-3 px-3 py-2.5 bg-white">
+                      <BarChart2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1">Issue resolution progress</span>
+                      <span className="text-[10px] font-bold text-blue-600">
+                        {programIssues.filter((i) => ['RESOLVED','CLOSED'].includes(i.status)).length}/{programIssues.length}
+                      </span>
+                    </div>
+                    {programIssues.length > 0 && (
+                      <div className="border-t border-gray-100 divide-y divide-gray-50">
+                        {programIssues.map((issue) => (
+                          <a key={issue.id} href={`/issues/${issue.id}`}
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 group">
+                            <AlertCircle className={`w-3.5 h-3.5 flex-shrink-0 ${
+                              issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'text-green-400' :
+                              issue.status === 'IN_PROGRESS' ? 'text-blue-400' : 'text-gray-300'
+                            }`} />
+                            <span className="flex-1 truncate">{issue.title}</span>
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                              issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
+                              issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>{issue.status.replace(/_/g,' ')}</span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {programIssues.length === 0 && (
+                      <p className="text-xs text-gray-400 px-3 py-2">No issues linked yet — create them in Root Cause stage</p>
+                    )}
+                  </div>
+
+                  {/* 3. Tasks assigned — manual */}
+                  {(() => {
+                    const checked = !!program.remediationChecklist?.tasksAssigned;
+                    return (
+                      <button type="button" onClick={() => remediationMutation.mutate({ tasksAssigned: !checked })}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left ${checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>Tasks assigned with owners & due dates</span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* 4. Progress reviewed — manual */}
+                  {(() => {
+                    const checked = !!program.remediationChecklist?.progressReviewed;
+                    return (
+                      <button type="button" onClick={() => remediationMutation.mutate({ progressReviewed: !checked })}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left ${checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>Progress formally reviewed</span>
+                      </button>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
 
