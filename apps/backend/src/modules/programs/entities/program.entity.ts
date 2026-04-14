@@ -41,8 +41,8 @@ export interface SetupChecklist {
   questionsDrafted?:      boolean;
   employeeScopeDefined?:  boolean;
   communicationDrafted?:  boolean;
+  communicationMessage?:  string;
   employeesNotified?:     boolean;
-  communicationNotes?:    string;
 }
 
 @Entity('programs')

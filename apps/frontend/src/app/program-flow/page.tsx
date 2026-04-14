@@ -332,9 +332,12 @@ function ProgramDrawer({ program, surveys, onClose }: {
   const toast = useToast();
   const qc = useQueryClient();
   const { user, hasRole } = useAuth();
-  const [rejectReason, setRejectReason] = useState('');
-  const [showReject, setShowReject]     = useState(false);
-  const [surveyPicker, setSurveyPicker] = useState(false);
+  const [rejectReason, setRejectReason]   = useState('');
+  const [showReject, setShowReject]       = useState(false);
+  const [surveyPicker, setSurveyPicker]   = useState(false);
+  const [commMessage, setCommMessage]     = useState<string>(
+    program.setupChecklist?.communicationMessage ?? '',
+  );
 
   const canApprove = (
     program.scope === 'GLOBAL'
@@ -395,6 +398,30 @@ function ProgramDrawer({ program, surveys, onClose }: {
       toast.success(scopeDefined ? 'Survey linked — scope auto-detected' : 'Survey linked');
     },
     onError: () => toast.error('Failed to link survey'),
+  });
+
+  const sendAnnouncementMutation = useMutation({
+    mutationFn: async () => {
+      const audienceMode     = program.scope === 'GLOBAL' ? 'SYSTEM' : 'COMBINATION';
+      const targetOrgUnitIds = program.scope === 'GLOBAL' ? [] : (program.targetHospitalIds ?? []);
+      const { data: ann } = await api.post('/announcements', {
+        title:           `Survey: ${program.name}`,
+        body:            commMessage.trim(),
+        type:            'SURVEY_LAUNCH',
+        priority:        'MEDIUM',
+        audienceMode,
+        targetOrgUnitIds,
+        linkedSurveyId:  program.linkedSurveyId,
+      });
+      await api.post(`/announcements/${ann.id}/publish`);
+      return ann;
+    },
+    onSuccess: () => {
+      checklistMutation.mutate({ employeesNotified: true });
+      qc.invalidateQueries({ queryKey: ['programs'] });
+      toast.success('Announcement sent to employees');
+    },
+    onError: () => toast.error('Failed to send announcement'),
   });
 
   const stageIdx     = STAGES.findIndex((s) => s.key === program.currentStage);
@@ -536,7 +563,7 @@ function ProgramDrawer({ program, surveys, onClose }: {
                   linkedSurvey?.targetShifts?.length ||
                   (linkedSurvey?.targetScope && linkedSurvey.targetScope !== 'SYSTEM')
                 );
-                return CHECKLIST_ITEMS.filter(({ key }) => key !== 'meetingScheduled').map(({ key, label }) => {
+                return CHECKLIST_ITEMS.filter(({ key }) => !['meetingScheduled', 'communicationDrafted', 'employeesNotified'].includes(key)).map(({ key, label }) => {
                 const checked  = !!(program.setupChecklist?.[key]);
                 const isAuto   =
                   (key === 'questionsDrafted'     && !!program.linkedSurveyId) ||
@@ -559,6 +586,78 @@ function ProgramDrawer({ program, surveys, onClose }: {
                   </button>
                 );
               });
+              })()}
+
+              {/* Communication message — auto-ticks on content, sends as announcement */}
+              {(() => {
+                const drafted = !!(program.setupChecklist?.communicationMessage?.trim());
+                const notified = !!(program.setupChecklist?.employeesNotified);
+                return (
+                  <div className={`rounded-lg border overflow-hidden ${drafted ? 'border-green-200' : 'border-gray-200'}`}>
+                    {/* Checklist row */}
+                    <div className={`flex items-center gap-3 px-3 py-2.5 ${drafted ? 'bg-green-50' : 'bg-white'}`}>
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${drafted ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                        {drafted && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      <span className={`text-sm flex-1 ${drafted ? 'text-green-700 line-through' : 'text-gray-700'}`}>
+                        Communication message drafted
+                      </span>
+                      <span className="text-[10px] text-gray-400">auto</span>
+                    </div>
+
+                    {/* Message textarea */}
+                    <div className="border-t border-gray-100 bg-amber-50/40 px-3 py-2.5 space-y-2">
+                      <p className="text-[10px] text-gray-400">Message employees will receive → ticks above</p>
+                      <textarea rows={4}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none placeholder:text-gray-400"
+                        placeholder={`Hi team,\n\nWe're running a short survey this week to understand your experience. Your responses are completely anonymous and will help us improve…`}
+                        value={commMessage}
+                        onChange={(e) => setCommMessage(e.target.value)}
+                        onBlur={() => {
+                          const trimmed = commMessage.trim();
+                          checklistMutation.mutate({
+                            communicationMessage: trimmed,
+                            communicationDrafted: !!trimmed,
+                          });
+                        }}
+                      />
+
+                      {/* Send to Employees button */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={!program.linkedSurveyId || !commMessage.trim() || sendAnnouncementMutation.isPending || notified}
+                          onClick={() => sendAnnouncementMutation.mutate()}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                        >
+                          <Megaphone className="w-3.5 h-3.5" />
+                          {sendAnnouncementMutation.isPending ? 'Sending…' : notified ? 'Sent ✓' : 'Send to Employees'}
+                        </button>
+                        {!program.linkedSurveyId && (
+                          <p className="text-[10px] text-amber-600">Link a survey first</p>
+                        )}
+                        {notified && (
+                          <p className="text-[10px] text-green-600">Announcement published</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Employees notified — auto-ticked by Send button */}
+              {(() => {
+                const checked = !!(program.setupChecklist?.employeesNotified);
+                return (
+                  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                      {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                    <span className={`text-sm flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>
+                      Employees notified &amp; explained
+                    </span>
+                    <span className="text-[10px] text-gray-400">auto</span>
+                  </div>
+                );
               })()}
             </div>
           </div>
