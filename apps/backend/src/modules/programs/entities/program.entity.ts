@@ -69,6 +69,32 @@ export interface RemediationChecklist {
   progressReviewed?:   boolean;
 }
 
+export interface CommunicationChecklist {
+  /** Text report/findings — auto-ticks reportPrepared when saved */
+  report?:               string;
+  /** Auto — ticked when report text is saved */
+  reportPrepared?:       boolean;
+  /** Manual — leadership has been briefed */
+  leadershipBriefed?:    boolean;
+  /** Auto — ticked when announcement is sent to employees */
+  employeesUpdated?:     boolean;
+  /** Manual — documentation archived/published */
+  documentationSaved?:   boolean;
+}
+
+export interface ValidationChecklist {
+  /** Manual — follow-up plan is in place */
+  followUpPlanned?:      boolean;
+  /** Manual — improvement metrics have been reviewed */
+  metricsReviewed?:      boolean;
+  /** Manual — outcomes evaluated against original success criteria */
+  successEvaluated?:     boolean;
+  /** Text outcomes doc — auto-ticks outcomesDocumented when saved */
+  outcomesDoc?:          string;
+  /** Auto — ticked when outcomes text is saved */
+  outcomesDocumented?:   boolean;
+}
+
 export interface ExecutionChecklist {
   /** Auto-ticked when linked survey status becomes ACTIVE */
   surveyLaunched?:   boolean;
@@ -152,6 +178,12 @@ export class Program {
 
   @Column({ type: 'jsonb', default: '{}' })
   remediationChecklist: RemediationChecklist;
+
+  @Column({ type: 'jsonb', default: '{}' })
+  communicationChecklist: CommunicationChecklist;
+
+  @Column({ type: 'jsonb', default: '{}' })
+  validationChecklist: ValidationChecklist;
 
   @Column({ nullable: true })
   createdById: string;

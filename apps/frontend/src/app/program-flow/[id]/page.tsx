@@ -129,6 +129,10 @@ export default function ProgramDetailPage() {
   const [newIssue, setNewIssue]           = useState({ title: '', severity: 'MEDIUM' });
   const [rcFindings, setRcFindings]       = useState('');
   const [remPlan, setRemPlan]             = useState('');
+  const [commOpen, setCommOpen]     = useState(false);
+  const [valOpen, setValOpen]       = useState(false);
+  const [commReport, setCommReport] = useState('');
+  const [valOutcomes, setValOutcomes] = useState('');
 
   // ── Data fetching ─────────────────────────────────────────────────────────
 
@@ -154,6 +158,10 @@ export default function ProgramDetailPage() {
     setExecOpen(program.currentStage === 'EXECUTION');
     setRootCauseOpen(program.currentStage === 'ROOT_CAUSE');
     setRemOpen(program.currentStage === 'REMEDIATION');
+    setCommReport(program.communicationChecklist?.report ?? '');
+    setValOutcomes(program.validationChecklist?.outcomesDoc ?? '');
+    setCommOpen(program.currentStage === 'COMMUNICATION');
+    setValOpen(program.currentStage === 'VALIDATION');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [program?.id]);
 
@@ -202,6 +210,18 @@ export default function ProgramDetailPage() {
 
   const remediationMutation = useMutation({
     mutationFn: (u: Record<string, any>) => api.patch(`/programs/${id}/remediation-checklist`, u),
+    onSuccess: invalidate,
+    onError: () => toast.error('Failed to update'),
+  });
+
+  const communicationMutation = useMutation({
+    mutationFn: (u: Record<string, any>) => api.patch(`/programs/${id}/communication-checklist`, u),
+    onSuccess: invalidate,
+    onError: () => toast.error('Failed to update'),
+  });
+
+  const validationMutation = useMutation({
+    mutationFn: (u: Record<string, any>) => api.patch(`/programs/${id}/validation-checklist`, u),
     onSuccess: invalidate,
     onError: () => toast.error('Failed to update'),
   });
@@ -383,6 +403,10 @@ export default function ProgramDetailPage() {
     }
     if (program.currentStage === 'REMEDIATION' && !program.remediationChecklist?.progressReviewed)
       return 'Mark progress as reviewed first';
+    if (program.currentStage === 'COMMUNICATION' && !program.communicationChecklist?.employeesUpdated)
+      return 'Notify employees of outcomes before advancing';
+    if (program.currentStage === 'VALIDATION' && !program.validationChecklist?.successEvaluated)
+      return 'Evaluate success criteria before completing';
     return null;
   })();
 
@@ -396,6 +420,10 @@ export default function ProgramDetailPage() {
   const execDone    = ['surveyLaunched','reminderSent','surveyClosed'].filter(k => !!(execCl as any)[k]).length;
   const rcDone      = ['resultsReviewed','findingsDocumented','issuesCreated','teamAgreed'].filter(k => !!(rcCl as any)[k]).length;
   const remDone     = ['actionPlanDrafted','tasksAssigned','progressReviewed'].filter(k => !!(remCl as any)[k]).length;
+  const commCl   = program.communicationChecklist ?? {};
+  const valCl    = program.validationChecklist    ?? {};
+  const commDone = ['reportPrepared', 'leadershipBriefed', 'employeesUpdated', 'documentationSaved'].filter(k => !!(commCl as any)[k]).length;
+  const valDone  = ['followUpPlanned', 'metricsReviewed', 'successEvaluated', 'outcomesDocumented'].filter(k => !!(valCl as any)[k]).length;
 
   const linkedSurvey    = (surveys as any[]).find((s) => s.id === program.linkedSurveyId);
   const surveyHasScope  = !!(linkedSurvey?.targetOrgUnitIds?.length || linkedSurvey?.targetRoles?.length || linkedSurvey?.focusGroupUserIds?.length || linkedSurvey?.targetShifts?.length || (linkedSurvey?.targetScope && linkedSurvey.targetScope !== 'SYSTEM'));
@@ -501,6 +529,8 @@ export default function ProgramDetailPage() {
                 { label: 'Execution Orchestrator', done: execDone,  total: 3 },
                 { label: 'Root Cause Analysis',    done: rcDone,    total: 4 },
                 { label: 'Remediation',            done: remDone,   total: 3 },
+                { label: 'Communication',          done: commDone,  total: 4 },
+                { label: 'Validation',             done: valDone,   total: 4 },
               ].map(({ label, done, total }) => (
                 <div key={label} className="flex items-center gap-4 mb-3 last:mb-0">
                   <span className="text-sm text-gray-600 w-48 flex-shrink-0">{label}</span>
@@ -1017,64 +1047,158 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* COMMUNICATION */}
-            {(() => {
-              const commStageIdx = STAGES.findIndex((s) => s.key === 'COMMUNICATION');
-              const reached = isCompleted || stageIdx >= commStageIdx;
-              const active  = !isCompleted && stageIdx === commStageIdx;
-              return (
-                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${reached ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
-                  <div className="flex items-center justify-between px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-gray-700 tracking-wide">COMMUNICATION</span>
-                      {reached ? (
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCompleted || stageIdx > commStageIdx ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                          {isCompleted || stageIdx > commStageIdx ? 'Done' : 'In progress'}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Not started</span>
-                      )}
-                    </div>
-                    {active && <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Current stage</span>}
-                    {(isCompleted || stageIdx > commStageIdx) && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                  </div>
-                  {reached && (
-                    <div className="border-t border-gray-50 px-5 pb-4 pt-2">
-                      <p className="text-xs text-gray-500">Share findings and action plans with stakeholders. Document outcomes and communicate improvements made.</p>
-                    </div>
-                  )}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <button type="button" onClick={() => setCommOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-700 tracking-wide">COMMUNICATION</span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${commDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
+                    {commDone}/4 done
+                  </span>
                 </div>
-              );
-            })()}
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${commOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {commOpen && (
+                <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
+
+                  {/* 1. Report prepared — auto from text */}
+                  {(() => {
+                    const prepared = !!commCl.reportPrepared;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${prepared ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${prepared ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${prepared ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {prepared && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${prepared ? 'text-green-700 line-through' : 'text-gray-700'}`}>Findings report / presentation prepared</span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
+                          <p className="text-[10px] text-gray-400 mb-1">Document outcomes and findings to share → ticks above</p>
+                          <textarea rows={3}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                            placeholder="e.g. Turnover reduced by 12% after revised handover protocol. Night shift satisfaction improved 23 points…"
+                            value={commReport}
+                            onChange={(e) => setCommReport(e.target.value)}
+                            onBlur={() => { const t = commReport.trim(); communicationMutation.mutate({ report: t, reportPrepared: !!t }); }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 2. Leadership briefed — manual */}
+                  <CheckRow checked={!!commCl.leadershipBriefed} label="Leadership briefed on outcomes"
+                    onClick={() => communicationMutation.mutate({ leadershipBriefed: !commCl.leadershipBriefed })}
+                  />
+
+                  {/* 3. Employees updated — auto from send button */}
+                  {(() => {
+                    const updated = !!commCl.employeesUpdated;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${updated ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${updated ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${updated ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {updated && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${updated ? 'text-green-700 line-through' : 'text-gray-700'}`}>Employees informed of actions taken</span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        {!updated && (
+                          <div className="border-t border-gray-100 bg-amber-50/40 px-3 py-2">
+                            <button
+                              disabled={!program.linkedSurveyId || !commReport.trim()}
+                              onClick={() => {
+                                const audienceMode = program.scope === 'GLOBAL' ? 'SYSTEM' : 'COMBINATION';
+                                const targetOrgUnitIds = program.scope === 'GLOBAL' ? [] : (program.targetHospitalIds ?? []);
+                                api.post('/announcements', {
+                                  title: `Update: ${program.name} — Actions taken`,
+                                  body: commReport.trim() || `We have completed our review and taken action on the findings from the ${program.name} program. Thank you for your participation.`,
+                                  type: 'GENERAL', priority: 'MEDIUM', audienceMode, targetOrgUnitIds,
+                                  linkedSurveyId: program.linkedSurveyId,
+                                }).then(({ data: ann }) => api.post(`/announcements/${ann.id}/publish`))
+                                  .then(() => { communicationMutation.mutate({ employeesUpdated: true }); toast.success('Employees notified of outcomes'); })
+                                  .catch(() => toast.error('Failed to send announcement'));
+                              }}
+                              className="flex items-center gap-2 text-xs font-semibold text-amber-700 hover:text-amber-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <Megaphone className="w-3.5 h-3.5" />
+                              Send outcome announcement to employees
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* 4. Documentation saved — manual */}
+                  <CheckRow checked={!!commCl.documentationSaved} label="Documentation archived / published"
+                    onClick={() => communicationMutation.mutate({ documentationSaved: !commCl.documentationSaved })}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* VALIDATION */}
-            {(() => {
-              const valStageIdx = STAGES.findIndex((s) => s.key === 'VALIDATION');
-              const reached = isCompleted || stageIdx >= valStageIdx;
-              const active  = !isCompleted && stageIdx === valStageIdx;
-              return (
-                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${reached ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
-                  <div className="flex items-center justify-between px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-gray-700 tracking-wide">VALIDATION</span>
-                      {reached ? (
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                          {isCompleted ? 'Done' : 'In progress'}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Not started</span>
-                      )}
-                    </div>
-                    {active && <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Current stage</span>}
-                    {isCompleted && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                  </div>
-                  {reached && (
-                    <div className="border-t border-gray-50 px-5 pb-4 pt-2">
-                      <p className="text-xs text-gray-500">Measure the impact of remediation actions. Validate improvements against original success criteria and close the program.</p>
-                    </div>
-                  )}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <button type="button" onClick={() => setValOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-700 tracking-wide">VALIDATION</span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${valDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
+                    {valDone}/4 done
+                  </span>
                 </div>
-              );
-            })()}
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${valOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {valOpen && (
+                <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
+
+                  {/* 1. Follow-up planned — manual */}
+                  <CheckRow checked={!!valCl.followUpPlanned} label="Follow-up plan in place"
+                    onClick={() => validationMutation.mutate({ followUpPlanned: !valCl.followUpPlanned })}
+                  />
+
+                  {/* 2. Metrics reviewed — manual */}
+                  <CheckRow checked={!!valCl.metricsReviewed} label="Improvement metrics reviewed"
+                    onClick={() => validationMutation.mutate({ metricsReviewed: !valCl.metricsReviewed })}
+                  />
+
+                  {/* 3. Success criteria evaluated — manual (gates advance) */}
+                  <CheckRow checked={!!valCl.successEvaluated} label="Success criteria evaluated against original goals"
+                    onClick={() => validationMutation.mutate({ successEvaluated: !valCl.successEvaluated })}
+                  />
+
+                  {/* 4. Outcomes documented — auto from text */}
+                  {(() => {
+                    const documented = !!valCl.outcomesDocumented;
+                    return (
+                      <div className={`rounded-lg border overflow-hidden ${documented ? 'border-green-200' : 'border-gray-200'}`}>
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${documented ? 'bg-green-50' : 'bg-white'}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${documented ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                            {documented && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-sm flex-1 ${documented ? 'text-green-700 line-through' : 'text-gray-700'}`}>Program outcomes documented</span>
+                          <span className="text-[10px] text-gray-400">auto</span>
+                        </div>
+                        <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
+                          <p className="text-[10px] text-gray-400 mb-1">Document final outcomes and lessons learned → ticks above</p>
+                          <textarea rows={3}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                            placeholder="e.g. Program achieved 85% of success criteria. Turnover reduced 12%. Key lesson: earlier manager engagement would have accelerated impact…"
+                            value={valOutcomes}
+                            onChange={(e) => setValOutcomes(e.target.value)}
+                            onBlur={() => { const t = valOutcomes.trim(); validationMutation.mutate({ outcomesDoc: t, outcomesDocumented: !!t }); }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

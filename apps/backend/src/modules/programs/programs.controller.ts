@@ -72,6 +72,18 @@ export class ProgramsController {
     return this.svc.updateRemediationChecklist(id, body);
   }
 
+  @Patch(':id/communication-checklist')
+  @ApiOperation({ summary: 'Update communication stage checklist items' })
+  updateCommunicationChecklist(@Param('id') id: string, @Body() body: any) {
+    return this.svc.updateCommunicationChecklist(id, body);
+  }
+
+  @Patch(':id/validation-checklist')
+  @ApiOperation({ summary: 'Update validation stage checklist items' })
+  updateValidationChecklist(@Param('id') id: string, @Body() body: any) {
+    return this.svc.updateValidationChecklist(id, body);
+  }
+
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Submit program for SVP/CNO approval' })

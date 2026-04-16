@@ -6,7 +6,7 @@ import { Repository, In } from 'typeorm';
 import {
   Program, ProgramApprovalStatus, ProgramScope,
   ProgramStageKey, ProgramStatus, SetupChecklist, ExecutionChecklist,
-  RootCauseChecklist, RemediationChecklist,
+  RootCauseChecklist, RemediationChecklist, CommunicationChecklist, ValidationChecklist,
 } from './entities/program.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
@@ -145,6 +145,20 @@ export class ProgramsService {
     return this.repo.save(p);
   }
 
+  async updateCommunicationChecklist(id: string, update: Partial<CommunicationChecklist>) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    p.communicationChecklist = { ...p.communicationChecklist, ...update };
+    return this.repo.save(p);
+  }
+
+  async updateValidationChecklist(id: string, update: Partial<ValidationChecklist>) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    p.validationChecklist = { ...p.validationChecklist, ...update };
+    return this.repo.save(p);
+  }
+
   async linkSurvey(id: string, surveyId: string) {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
@@ -247,6 +261,20 @@ export class ProgramsService {
       }
     }
 
+    // ── Gate: COMMUNICATION → VALIDATION ──────────────────────────────────────
+    if (p.currentStage === ProgramStageKey.COMMUNICATION) {
+      if (!p.communicationChecklist?.employeesUpdated) {
+        throw new BadRequestException('Notify employees of outcomes before advancing to Validation');
+      }
+    }
+
+    // ── Gate: VALIDATION → COMPLETE ───────────────────────────────────────────
+    if (p.currentStage === ProgramStageKey.VALIDATION) {
+      if (!p.validationChecklist?.successEvaluated) {
+        throw new BadRequestException('Evaluate success criteria before completing the program');
+      }
+    }
+
     const idx = STAGE_ORDER.indexOf(p.currentStage);
     if (idx === STAGE_ORDER.length - 1) {
       p.status = ProgramStatus.COMPLETED;
@@ -331,16 +359,22 @@ export class ProgramsService {
       const EXEC_KEYS: (keyof ExecutionChecklist)[]       = ['surveyLaunched', 'reminderSent', 'surveyClosed'];
       const RC_KEYS:   (keyof RootCauseChecklist)[]       = ['resultsReviewed', 'findingsDocumented', 'issuesCreated', 'teamAgreed'];
       const REM_KEYS:  (keyof RemediationChecklist)[]     = ['actionPlanDrafted', 'tasksAssigned', 'progressReviewed'];
+      const COMM_KEYS: (keyof CommunicationChecklist)[] = ['reportPrepared', 'leadershipBriefed', 'employeesUpdated', 'documentationSaved'];
+      const VAL_KEYS:  (keyof ValidationChecklist)[]     = ['followUpPlanned', 'metricsReviewed', 'successEvaluated', 'outcomesDocumented'];
 
       const executionProgress   = { completed: EXEC_KEYS.filter((k) => (p.executionChecklist   as any)?.[k]).length, total: EXEC_KEYS.length };
       const rootCauseProgress   = { completed: RC_KEYS.filter((k)   => (p.rootCauseChecklist   as any)?.[k]).length, total: RC_KEYS.length };
       const remediationProgress = { completed: REM_KEYS.filter((k)  => (p.remediationChecklist  as any)?.[k]).length, total: REM_KEYS.length };
+      const communicationProgress = { completed: COMM_KEYS.filter((k) => (p.communicationChecklist as any)?.[k]).length, total: COMM_KEYS.length };
+      const validationProgress    = { completed: VAL_KEYS.filter((k)  => (p.validationChecklist    as any)?.[k]).length, total: VAL_KEYS.length };
 
       return {
         ...p,
         executionChecklist:   p.executionChecklist   ?? {},
         rootCauseChecklist:   p.rootCauseChecklist   ?? {},
         remediationChecklist: p.remediationChecklist ?? {},
+        communicationChecklist: p.communicationChecklist ?? {},
+        validationChecklist:    p.validationChecklist    ?? {},
         targetHospitals,
         ownerName:    owner    ? `${(owner as any).firstName} ${(owner as any).lastName}`    : null,
         approverName: approver ? `${(approver as any).firstName} ${(approver as any).lastName}` : null,
@@ -350,6 +384,8 @@ export class ProgramsService {
         executionProgress,
         rootCauseProgress,
         remediationProgress,
+        communicationProgress,
+        validationProgress,
       };
     });
   }
