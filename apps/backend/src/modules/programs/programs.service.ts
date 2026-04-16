@@ -110,9 +110,18 @@ export class ProgramsService {
   async update(id: string, data: any) {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
-    if ([ProgramStatus.COMPLETED, ProgramStatus.CANCELLED].includes(p.status)) {
+
+    // Descriptive fields (name, problem, objective, criteria, dates) are always editable.
+    // Only block structural/status changes on completed/cancelled programs.
+    const ALWAYS_EDITABLE = [
+      'name', 'problemStatement', 'objective', 'successCriteria',
+      'targetLaunchDate', 'targetCompletionDate', 'targetHospitalIds', 'scope',
+    ];
+    const hasNonEditableField = Object.keys(data).some((k) => !ALWAYS_EDITABLE.includes(k));
+    if (hasNonEditableField && [ProgramStatus.COMPLETED, ProgramStatus.CANCELLED].includes(p.status)) {
       throw new BadRequestException('Cannot edit a completed or cancelled program');
     }
+
     Object.assign(p, data);
     return this.repo.save(p);
   }
