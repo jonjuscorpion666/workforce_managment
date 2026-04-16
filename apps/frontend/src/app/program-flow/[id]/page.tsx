@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -664,9 +665,9 @@ export default function ProgramDetailPage() {
                       <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                         <p className="text-sm text-green-700 flex-1 truncate">{linkedSurvey?.title ?? 'Survey linked'}</p>
-                        <a href={`/surveys/${program.linkedSurveyId}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
+                        <Link href={`/surveys/${program.linkedSurveyId}/edit`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
                           <ExternalLink className="w-3 h-3" /> Open
-                        </a>
+                        </Link>
                         <button
                           onClick={() => { if (window.confirm('Unlink this survey? This will reset the "Questions drafted" and "Scope defined" checkboxes.')) unlinkSurveyMutation.mutate(); }}
                           disabled={unlinkSurveyMutation.isPending}
@@ -879,10 +880,10 @@ export default function ProgramDetailPage() {
                       </div>
                       <span className={`text-sm flex-1 ${rcCl.resultsReviewed ? 'text-green-700 line-through' : 'text-gray-700'}`}>Survey results reviewed</span>
                       {program.linkedSurveyId && (
-                        <a href={`/surveys/${program.linkedSurveyId}`} onClick={(e) => e.stopPropagation()}
+                        <Link href={`/surveys/${program.linkedSurveyId}/edit`} onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700">
                           <ExternalLink className="w-3 h-3" /> View
-                        </a>
+                        </Link>
                       )}
                     </button>
                   </div>
@@ -930,20 +931,20 @@ export default function ProgramDetailPage() {
                         <div className="border-t border-gray-100 px-3 py-2.5 space-y-2">
                           {(relatedWork as any[]).map((issue) => (
                             <div key={issue.id} className="space-y-0.5">
-                              <a href={`/issues/${issue.id}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
+                              <Link href={`/issues/${issue.id}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
                                 <AlertCircle className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
                                 <span className="flex-1 truncate font-medium">{issue.title}</span>
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                                   issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' :
                                   issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
                                 }`}>{issue.status.replace(/_/g, ' ')}</span>
-                              </a>
+                              </Link>
                               {(issue.tasks ?? []).map((task: any) => (
-                                <div key={task.id} className="flex items-center gap-2 pl-5 text-xs text-gray-500">
+                                <Link key={task.id} href={`/issues/${issue.id}`} className="flex items-center gap-2 pl-5 text-xs text-gray-500 hover:text-blue-600 group">
                                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
-                                  <span className="flex-1 truncate">{task.title}</span>
+                                  <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
                                   <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
-                                </div>
+                                </Link>
                               ))}
                             </div>
                           ))}
@@ -1048,18 +1049,18 @@ export default function ProgramDetailPage() {
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' : issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {issue.status.replace(/_/g, ' ')}
                               </span>
-                              <a href={`/issues/${issue.id}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
-                                <SquarePen className="w-3 h-3" /> Tasks
-                              </a>
+                              <Link href={`/issues/${issue.id}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
+                                <SquarePen className="w-3 h-3" /> View
+                              </Link>
                             </div>
                             {(issue.tasks ?? []).length > 0 && (
                               <div className="pl-5 space-y-1">
                                 {(issue.tasks ?? []).map((task: any) => (
-                                  <div key={task.id} className="flex items-center gap-2 text-xs text-gray-500">
+                                  <Link key={task.id} href={`/issues/${issue.id}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 group">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
-                                    <span className="flex-1 truncate">{task.title}</span>
+                                    <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
                                     <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
-                                  </div>
+                                  </Link>
                                 ))}
                               </div>
                             )}
@@ -1270,10 +1271,10 @@ export default function ProgramDetailPage() {
                 <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                   <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                   <p className="text-sm font-medium text-green-800 flex-1 truncate">{linkedSurvey.title}</p>
-                  <a href={`/surveys/${program.linkedSurveyId}`}
+                  <Link href={`/surveys/${program.linkedSurveyId}/edit`}
                     className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium">
                     <ExternalLink className="w-3.5 h-3.5" /> Open
-                  </a>
+                  </Link>
                 </div>
               ) : (
                 <p className="text-sm text-gray-400">No survey linked yet</p>
