@@ -51,104 +51,116 @@ const STATUS_ACCENT: Record<string, string> = {
   CANCELLED:        'border-l-gray-200',
 };
 
-// ── Stage progress bar ────────────────────────────────────────────────────────
+// ── Circular progress ring ────────────────────────────────────────────────────
 
-function StageBar({ currentStage, status }: { currentStage: string; status: string }) {
-  const currentIdx = STAGES.findIndex((s) => s.key === currentStage);
-  const isCompleted = status === 'COMPLETED';
-
+function ProgressRing({ pct }: { pct: number }) {
+  const r      = 17;
+  const circ   = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
+  const color  = pct === 100 ? '#22c55e' : '#3b82f6';
   return (
-    <div className="flex items-center gap-0.5 mt-2">
-      {STAGES.map((s, i) => {
-        const done    = isCompleted || i < currentIdx;
-        const active  = !isCompleted && i === currentIdx;
-        return (
-          <div key={s.key} className="flex items-center gap-0.5 flex-1">
-            <div title={s.label} className={`h-1.5 w-full rounded-full transition-colors ${
-              done   ? 'bg-green-500' :
-              active ? 'bg-amber-400' :
-                       'bg-gray-200'
-            }`} />
-          </div>
-        );
-      })}
-    </div>
+    <svg width="44" height="44" viewBox="0 0 44 44" className="flex-shrink-0">
+      <circle cx="22" cy="22" r={r} fill="none" stroke="#e5e7eb" strokeWidth="3" />
+      <circle cx="22" cy="22" r={r} fill="none" stroke={color} strokeWidth="3"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round" style={{ transform: 'rotate(-90deg)', transformOrigin: '22px 22px', transition: 'stroke-dashoffset 0.4s ease' }}
+      />
+    </svg>
   );
 }
 
+function getPct(program: any): number {
+  if (program.status === 'COMPLETED') return 100;
+  const stageIdx = STAGES.findIndex((s) => s.key === program.currentStage);
+  if (stageIdx <= 0) {
+    const done = program.checklistProgress?.completed ?? 0;
+    const total = program.checklistProgress?.total ?? 5;
+    return total > 0 ? Math.round((done / total) * (100 / STAGES.length)) : 0;
+  }
+  return Math.round((stageIdx / STAGES.length) * 100);
+}
+
+const CARD_STAGES = STAGES.slice(2); // Root Cause → Validation
+
 // ── Program card ──────────────────────────────────────────────────────────────
 
-function ProgramCard({ program, onClick }: { program: any; onClick: () => void }) {
-  const currentStageLabel = STAGES.find((s) => s.key === program.currentStage)?.label ?? program.currentStage;
+function ProgramCard({ program, surveys, onClick }: { program: any; surveys: any[]; onClick: () => void }) {
+  const pct          = getPct(program);
+  const stageIdx     = STAGES.findIndex((s) => s.key === program.currentStage);
+  const isCompleted  = program.status === 'COMPLETED';
+  const linkedSurvey = surveys.find((s) => s.id === program.linkedSurveyId);
+  const scopeLabel   = program.scope === 'GLOBAL'
+    ? 'Global'
+    : program.targetHospitals?.map((h: any) => h.name).join(', ') || 'Hospital';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left bg-white rounded-xl border-l-4 border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all p-4 ${STATUS_ACCENT[program.status] ?? 'border-l-gray-300'}`}
+      className="w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all px-5 py-4"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center gap-4">
+        {/* Left content */}
         <div className="flex-1 min-w-0">
-          {/* Top row */}
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="text-[10px] font-bold font-mono bg-gray-900 text-gray-100 px-2 py-0.5 rounded">
-              {program.programId}
-            </span>
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[program.status] ?? 'bg-gray-100 text-gray-500'}`}>
+          {/* Title row */}
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <span className="font-bold text-gray-900 text-base truncate">{program.name}</span>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_STYLES[program.status] ?? 'bg-gray-100 text-gray-500'}`}>
               {program.status.replace(/_/g, ' ')}
             </span>
-            {program.scope === 'GLOBAL' ? (
-              <span className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                <Globe className="w-2.5 h-2.5" /> Global
+            <span className="text-[10px] text-gray-400 flex-shrink-0">{scopeLabel}</span>
+          </div>
+
+          {/* Stage pills — show Root Cause → Validation */}
+          <div className="flex items-center gap-4 mb-2.5">
+            {CARD_STAGES.map((s, i) => {
+              const cardStageIdx = i + 2; // offset from full STAGES array
+              const done   = isCompleted || cardStageIdx < stageIdx;
+              const active = !isCompleted && cardStageIdx === stageIdx;
+              return (
+                <div key={s.key} className="flex items-center gap-1.5">
+                  {done ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <Circle className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-400' : 'text-gray-200'}`} />
+                  )}
+                  <span className={`text-xs font-medium ${done ? 'text-green-600' : active ? 'text-blue-600' : 'text-gray-400'}`}>
+                    {s.short}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
+            {program.ownerName && <span>Owner: <span className="text-gray-600 font-medium">{program.ownerName}</span></span>}
+            {program.targetCompletionDate && <span>Target: <span className="text-gray-600 font-medium">{formatDate(program.targetCompletionDate)}</span></span>}
+            {linkedSurvey && (
+              <span className="flex items-center gap-1 text-blue-500">
+                <ClipboardList className="w-3 h-3" />
+                <span className="truncate max-w-[200px]">{linkedSurvey.title}</span>
               </span>
-            ) : (
-              <span className="flex items-center gap-1 text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">
-                <Building2 className="w-2.5 h-2.5" />
-                {program.targetHospitals?.map((h: any) => h.name).join(', ') || 'Hospital'}
+            )}
+            {program.status === 'PENDING_APPROVAL' && (
+              <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                <Clock className="w-3 h-3" /> Awaiting {program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} approval
               </span>
             )}
           </div>
-
-          {/* Name */}
-          <p className="font-semibold text-gray-900 text-sm truncate">{program.name}</p>
-
-          {/* Meta row */}
-          <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-            <span>{currentStageLabel}</span>
-            {program.ownerName && <span>· {program.ownerName}</span>}
-            <span>· {formatDate(program.createdAt)}</span>
-          </div>
-
-          {/* Stage bar */}
-          <StageBar currentStage={program.currentStage} status={program.status} />
-
-          {/* Checklist progress */}
-          {program.currentStage === 'SETUP' && program.checklistProgress && (
-            <p className="text-[10px] text-gray-400 mt-1.5">
-              Setup checklist: {program.checklistProgress.completed}/{program.checklistProgress.total} done
-            </p>
-          )}
-          {program.currentStage === 'EXECUTION' && program.executionProgress && (
-            <p className="text-[10px] text-gray-400 mt-1.5">Execution: {program.executionProgress.completed}/{program.executionProgress.total} done</p>
-          )}
-          {program.currentStage === 'ROOT_CAUSE' && program.rootCauseProgress && (
-            <p className="text-[10px] text-gray-400 mt-1.5">Root Cause: {program.rootCauseProgress.completed}/{program.rootCauseProgress.total} done</p>
-          )}
-          {program.currentStage === 'REMEDIATION' && program.remediationProgress && (
-            <p className="text-[10px] text-gray-400 mt-1.5">Remediation: {program.remediationProgress.completed}/{program.remediationProgress.total} done</p>
-          )}
-
-          {/* Pending approval callout */}
-          {program.status === 'PENDING_APPROVAL' && (
-            <p className="text-[10px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
-              <Clock className="w-3 h-3" /> Awaiting {program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} approval
-            </p>
-          )}
-          {program.status === 'REJECTED' && program.rejectionReason && (
-            <p className="text-[10px] text-red-500 mt-1 truncate">↩ {program.rejectionReason}</p>
-          )}
         </div>
-        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
+
+        {/* Right — ring + chevron */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="relative flex items-center justify-center">
+            <ProgressRing pct={pct} />
+            <div className="absolute text-center">
+              <p className={`text-[10px] font-bold leading-none ${pct === 100 ? 'text-green-600' : 'text-blue-600'}`}>{pct}%</p>
+              <p className="text-[8px] text-gray-400 leading-none mt-0.5">COMPLETE</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300" />
+        </div>
       </div>
     </button>
   );
@@ -1432,6 +1444,7 @@ export default function ProgramFlowPage() {
   const { hasRole } = useAuth();
   const [hospitalFilter, setHospitalFilter] = useState('');
   const [statusFilter, setStatusFilter]     = useState('');
+  const [searchQuery, setSearchQuery]       = useState('');
   const [showCreate, setShowCreate]         = useState(false);
   const [selected, setSelected]             = useState<any>(null);
 
@@ -1467,8 +1480,13 @@ export default function ProgramFlowPage() {
     ? (programs.find((p) => p.id === selected.id) ?? selected)
     : null;
 
-  const pending = programs.filter((p) => p.status === 'PENDING_APPROVAL').length;
-  const active  = programs.filter((p) => p.status === 'ACTIVE').length;
+  const active    = programs.filter((p) => p.status === 'ACTIVE').length;
+  const completed = programs.filter((p) => p.status === 'COMPLETED').length;
+  const draft     = programs.filter((p) => p.status === 'DRAFT').length;
+
+  const filteredPrograms = programs.filter((p) =>
+    !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   return (
     <div className="space-y-5">
@@ -1476,7 +1494,7 @@ export default function ProgramFlowPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Program Flow</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage engagement programs across their full lifecycle</p>
+          <p className="text-sm text-gray-500 mt-0.5">Track improvement programs from root cause through remediation and validation.</p>
         </div>
         {canCreate && (
           <button onClick={() => setShowCreate(true)}
@@ -1488,18 +1506,38 @@ export default function ProgramFlowPage() {
 
       {/* Stats strip */}
       {programs.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Total',    value: programs.length,                                         color: 'text-gray-700' },
-            { label: 'Active',   value: active,                                                  color: 'text-green-600' },
-            { label: 'Pending',  value: pending,                                                 color: 'text-amber-600' },
-            { label: 'Complete', value: programs.filter((p) => p.status === 'COMPLETED').length, color: 'text-blue-600' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-              <p className={`text-xl font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+            { label: 'Active',    value: active,    color: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Completed', value: completed, color: 'text-blue-600',  bg: 'bg-blue-50' },
+            { label: 'Draft',     value: draft,     color: 'text-gray-600',  bg: 'bg-gray-50' },
+          ].map(({ label, value, color, bg }) => (
+            <div key={label} className={`${bg} rounded-xl border border-gray-100 shadow-sm p-4 text-center`}>
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-gray-500 mt-0.5 font-medium">{label}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Search bar */}
+      {programs.length > 0 && (
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search programs…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 pl-9"
+          />
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )}
 
@@ -1554,10 +1592,14 @@ export default function ProgramFlowPage() {
             </button>
           )}
         </div>
+      ) : filteredPrograms.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+          <p className="text-gray-500 text-sm">No programs match &ldquo;{searchQuery}&rdquo;</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {programs.map((p) => (
-            <ProgramCard key={p.id} program={p} onClick={() => setSelected(p)} />
+          {filteredPrograms.map((p) => (
+            <ProgramCard key={p.id} program={p} surveys={surveys} onClick={() => setSelected(p)} />
           ))}
         </div>
       )}
