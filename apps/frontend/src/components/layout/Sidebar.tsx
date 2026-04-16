@@ -14,14 +14,14 @@ import api from '@/lib/api';
 
 // roles: if set, item is only shown to users with one of those roles (or SUPER_ADMIN always sees all)
 const navItems = [
-  { label: 'Dashboard',     href: '/dashboard',     icon: LayoutDashboard, exact: true },
-  { label: 'Surveys',       href: '/surveys',        icon: ClipboardList },
-  { label: 'Issues',        href: '/issues',         icon: AlertTriangle },
-  { label: 'Tasks',         href: '/tasks',          icon: CheckSquare },
-  { label: 'Analytics',     href: '/analytics',      icon: BarChart2, exact: true },
-  { label: 'SVP Dashboard', href: '/analytics/svp',  icon: PieChart,  indent: true, roles: ['SVP', 'SUPER_ADMIN'] },
-  { label: 'CNO Analytics', href: '/analytics/cno',  icon: BarChart2, indent: true, roles: ['CNO', 'SUPER_ADMIN'] },
-  { label: 'Program Flow',  href: '/program-flow',   icon: GitBranch },
+  { label: 'Dashboard',          href: '/dashboard',     icon: LayoutDashboard, exact: true },
+  { label: 'Program Flow',       href: '/program-flow',  icon: GitBranch },
+  { label: 'Survey Templates',   href: '/surveys',       icon: ClipboardList },
+  { label: 'Issues',             href: '/issues',        icon: AlertTriangle },
+  { label: 'Tasks',              href: '/tasks',         icon: CheckSquare },
+  { label: 'Analytics',          href: '/analytics',     icon: BarChart2, exact: true },
+  { label: 'SVP Dashboard',      href: '/analytics/svp', icon: PieChart,  indent: true, roles: ['SVP', 'SUPER_ADMIN'] },
+  { label: 'CNO Analytics',      href: '/analytics/cno', icon: BarChart2, indent: true, roles: ['CNO', 'SUPER_ADMIN'] },
   { label: 'Escalations',   href: '/escalations',    icon: ArrowUpCircle },
   { label: 'Announcements', href: '/announcements',  icon: Megaphone },
   { label: 'Speak Up',      href: '/speak-up',       icon: MessageCircle },

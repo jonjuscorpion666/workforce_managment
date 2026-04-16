@@ -444,12 +444,11 @@ export default function ProgramDetailPage() {
             </div>
           </div>
 
-          {/* Stage circles — Root Cause → Validation */}
-          <div className="grid grid-cols-4 gap-2 mt-5">
-            {CARD_STAGES.map((s, i) => {
-              const idx    = i + 2;
-              const done   = isCompleted || idx < stageIdx;
-              const active = !isCompleted && idx === stageIdx;
+          {/* Stage circles — all 6 stages */}
+          <div className="grid grid-cols-3 gap-2 mt-5">
+            {STAGES.map((s, i) => {
+              const done   = isCompleted || i < stageIdx;
+              const active = !isCompleted && i === stageIdx;
               const Icon   = s.icon;
               return (
                 <div key={s.key} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs ${
@@ -1016,6 +1015,66 @@ export default function ProgramDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* COMMUNICATION */}
+            {(() => {
+              const commStageIdx = STAGES.findIndex((s) => s.key === 'COMMUNICATION');
+              const reached = isCompleted || stageIdx >= commStageIdx;
+              const active  = !isCompleted && stageIdx === commStageIdx;
+              return (
+                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${reached ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-700 tracking-wide">COMMUNICATION</span>
+                      {reached ? (
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCompleted || stageIdx > commStageIdx ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
+                          {isCompleted || stageIdx > commStageIdx ? 'Done' : 'In progress'}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Not started</span>
+                      )}
+                    </div>
+                    {active && <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Current stage</span>}
+                    {(isCompleted || stageIdx > commStageIdx) && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                  </div>
+                  {reached && (
+                    <div className="border-t border-gray-50 px-5 pb-4 pt-2">
+                      <p className="text-xs text-gray-500">Share findings and action plans with stakeholders. Document outcomes and communicate improvements made.</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* VALIDATION */}
+            {(() => {
+              const valStageIdx = STAGES.findIndex((s) => s.key === 'VALIDATION');
+              const reached = isCompleted || stageIdx >= valStageIdx;
+              const active  = !isCompleted && stageIdx === valStageIdx;
+              return (
+                <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${reached ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-700 tracking-wide">VALIDATION</span>
+                      {reached ? (
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
+                          {isCompleted ? 'Done' : 'In progress'}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Not started</span>
+                      )}
+                    </div>
+                    {active && <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Current stage</span>}
+                    {isCompleted && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                  </div>
+                  {reached && (
+                    <div className="border-t border-gray-50 px-5 pb-4 pt-2">
+                      <p className="text-xs text-gray-500">Measure the impact of remediation actions. Validate improvements against original success criteria and close the program.</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
