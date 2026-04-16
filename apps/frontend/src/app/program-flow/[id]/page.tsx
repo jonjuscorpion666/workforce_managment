@@ -150,6 +150,19 @@ export default function ProgramDetailPage() {
     staleTime: 5 * 60_000,
   });
 
+  // Used to grey-out surveys already linked to another program in the picker
+  const { data: allPrograms = [] } = useQuery<any[]>({
+    queryKey: ['programs'],
+    queryFn: () => api.get('/programs').then((r) => r.data),
+    staleTime: 60_000,
+    enabled: surveyPicker,
+  });
+  const takenSurveyIds = new Set(
+    (allPrograms as any[])
+      .filter((p) => p.id !== id && p.linkedSurveyId)
+      .map((p) => p.linkedSurveyId),
+  );
+
   // Sync local text state on first load
   useEffect(() => {
     if (!program) return;
@@ -669,13 +682,21 @@ export default function ProgramDetailPage() {
                         </button>
                       ) : (
                         <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
-                          {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED').map((s) => (
-                            <button key={s.id} type="button" onClick={() => linkSurveyMutation.mutate(s.id)}
-                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0">
-                              <p className="font-medium text-gray-800 truncate">{s.title}</p>
-                              <p className="text-xs text-gray-400">{s.status} · {s.type}</p>
-                            </button>
-                          ))}
+                          {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED').map((s) => {
+                            const taken = takenSurveyIds.has(s.id);
+                            const takenBy = taken ? (allPrograms as any[]).find((p) => p.linkedSurveyId === s.id) : null;
+                            return (
+                              <button key={s.id} type="button"
+                                disabled={taken}
+                                onClick={() => linkSurveyMutation.mutate(s.id)}
+                                className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 ${taken ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-50'}`}>
+                                <p className={`font-medium truncate ${taken ? 'text-gray-400' : 'text-gray-800'}`}>{s.title}</p>
+                                <p className="text-xs text-gray-400">
+                                  {taken ? `Linked to "${takenBy?.name ?? 'another program'}"` : `${s.status} · ${s.type}`}
+                                </p>
+                              </button>
+                            );
+                          })}
                           {(surveys as any[]).length === 0 && <p className="text-sm text-gray-400 px-3 py-3">No surveys available</p>}
                         </div>
                       )

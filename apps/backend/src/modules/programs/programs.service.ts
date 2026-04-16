@@ -162,6 +162,15 @@ export class ProgramsService {
   async linkSurvey(id: string, surveyId: string) {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
+
+    // Ensure this survey is not already linked to a different program
+    const existing = await this.repo.findOne({ where: { linkedSurveyId: surveyId } });
+    if (existing && existing.id !== id) {
+      throw new BadRequestException(
+        `This survey is already linked to program "${existing.name}". Unlink it there first.`,
+      );
+    }
+
     p.linkedSurveyId = surveyId;
     return this.repo.save(p);
   }
