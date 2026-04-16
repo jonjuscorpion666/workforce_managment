@@ -166,6 +166,14 @@ export class ProgramsService {
     return this.repo.save(p);
   }
 
+  async unlinkSurvey(id: string) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    p.linkedSurveyId = null as any;
+    p.setupChecklist = { ...p.setupChecklist, questionsDrafted: false, employeeScopeDefined: false };
+    return this.repo.save(p);
+  }
+
   // ── Approval workflow ──────────────────────────────────────────────────────
 
   async submitForApproval(id: string) {

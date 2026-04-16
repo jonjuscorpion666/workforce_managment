@@ -129,10 +129,12 @@ export default function ProgramDetailPage() {
   const [newIssue, setNewIssue]           = useState({ title: '', severity: 'MEDIUM' });
   const [rcFindings, setRcFindings]       = useState('');
   const [remPlan, setRemPlan]             = useState('');
-  const [commOpen, setCommOpen]     = useState(false);
-  const [valOpen, setValOpen]       = useState(false);
-  const [commReport, setCommReport] = useState('');
-  const [valOutcomes, setValOutcomes] = useState('');
+  const [commOpen, setCommOpen]           = useState(false);
+  const [valOpen, setValOpen]             = useState(false);
+  const [commReport, setCommReport]       = useState('');
+  const [valOutcomes, setValOutcomes]     = useState('');
+  const [meetingAttendees, setMeetingAttendees] = useState('');
+  const [meetingNotes, setMeetingNotes]         = useState('');
 
   // ── Data fetching ─────────────────────────────────────────────────────────
 
@@ -162,6 +164,8 @@ export default function ProgramDetailPage() {
     setValOutcomes(program.validationChecklist?.outcomesDoc ?? '');
     setCommOpen(program.currentStage === 'COMMUNICATION');
     setValOpen(program.currentStage === 'VALIDATION');
+    setMeetingAttendees(program.setupChecklist?.meetingAttendees ?? '');
+    setMeetingNotes(program.setupChecklist?.meetingNotes ?? '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [program?.id]);
 
@@ -295,6 +299,12 @@ export default function ProgramDetailPage() {
       toast.success(scopeDefined ? 'Survey linked — scope auto-detected' : 'Survey linked');
     },
     onError: () => toast.error('Failed to link survey'),
+  });
+
+  const unlinkSurveyMutation = useMutation({
+    mutationFn: () => api.patch(`/programs/${id}/unlink-survey`),
+    onSuccess: () => { invalidate(); toast.success('Survey unlinked'); },
+    onError: () => toast.error('Failed to unlink survey'),
   });
 
   const sendReminderMutation = useMutation({
@@ -615,8 +625,9 @@ export default function ProgramDetailPage() {
                           <input type="text"
                             className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                             placeholder="Names / roles"
-                            value={cl.meetingAttendees ?? ''}
-                            onChange={(e) => checklistMutation.mutate({ meetingAttendees: e.target.value })}
+                            value={meetingAttendees}
+                            onChange={(e) => setMeetingAttendees(e.target.value)}
+                            onBlur={() => checklistMutation.mutate({ meetingAttendees })}
                           />
                         </div>
                       </div>
@@ -625,34 +636,30 @@ export default function ProgramDetailPage() {
                         <textarea rows={2}
                           className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
                           placeholder="Key decisions…"
-                          value={cl.meetingNotes ?? ''}
-                          onChange={(e) => checklistMutation.mutate({ meetingNotes: e.target.value })}
+                          value={meetingNotes}
+                          onChange={(e) => setMeetingNotes(e.target.value)}
+                          onBlur={() => checklistMutation.mutate({ meetingNotes })}
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Questions drafted + scope — auto */}
-                  {CHECKLIST_ITEMS.filter(({ key }) => !['meetingScheduled','communicationDrafted','employeesNotified'].includes(key)).map(({ key, label }) => {
-                    const checked = !!(cl as any)[key];
-                    const isAuto  = (key === 'questionsDrafted' && !!program.linkedSurveyId) || (key === 'employeeScopeDefined' && surveyHasScope);
-                    return (
-                      <CheckRow key={key} checked={checked} label={label} auto={isAuto}
-                        onClick={isAuto ? undefined : () => checklistMutation.mutate({ [key]: !checked })}
-                      />
-                    );
-                  })}
-
-                  {/* Linked survey */}
+                  {/* Linked survey — position #2, auto-ticks questions drafted */}
                   <div className="pt-1">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Linked Survey</p>
                     {program.linkedSurveyId ? (
                       <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                         <p className="text-sm text-green-700 flex-1 truncate">{linkedSurvey?.title ?? 'Survey linked'}</p>
-                        <a href={`/surveys/${program.linkedSurveyId}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                        <a href={`/surveys/${program.linkedSurveyId}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
                           <ExternalLink className="w-3 h-3" /> Open
                         </a>
+                        <button
+                          onClick={() => { if (window.confirm('Unlink this survey? This will reset the "Questions drafted" and "Scope defined" checkboxes.')) unlinkSurveyMutation.mutate(); }}
+                          disabled={unlinkSurveyMutation.isPending}
+                          className="text-[10px] text-red-500 hover:text-red-700 font-medium disabled:opacity-40">
+                          Unlink
+                        </button>
                       </div>
                     ) : (
                       !surveyPicker ? (
@@ -674,6 +681,17 @@ export default function ProgramDetailPage() {
                       )
                     )}
                   </div>
+
+                  {/* Questions drafted + scope — auto when survey linked */}
+                  {CHECKLIST_ITEMS.filter(({ key }) => !['meetingScheduled','communicationDrafted','employeesNotified'].includes(key)).map(({ key, label }) => {
+                    const checked = !!(cl as any)[key];
+                    const isAuto  = (key === 'questionsDrafted' && !!program.linkedSurveyId) || (key === 'employeeScopeDefined' && surveyHasScope);
+                    return (
+                      <CheckRow key={key} checked={checked} label={label} auto={isAuto}
+                        onClick={isAuto ? undefined : () => checklistMutation.mutate({ [key]: !checked })}
+                      />
+                    );
+                  })}
 
                   {/* Communication message */}
                   {(() => {

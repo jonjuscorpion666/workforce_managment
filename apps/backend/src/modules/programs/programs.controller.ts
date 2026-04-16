@@ -54,6 +54,12 @@ export class ProgramsController {
     return this.svc.linkSurvey(id, body.surveyId);
   }
 
+  @Patch(':id/unlink-survey')
+  @ApiOperation({ summary: 'Unlink survey and reset auto-ticked items' })
+  unlinkSurvey(@Param('id') id: string) {
+    return this.svc.unlinkSurvey(id);
+  }
+
   @Patch(':id/execution-checklist')
   @ApiOperation({ summary: 'Update execution stage checklist items' })
   updateExecutionChecklist(@Param('id') id: string, @Body() body: any) {
