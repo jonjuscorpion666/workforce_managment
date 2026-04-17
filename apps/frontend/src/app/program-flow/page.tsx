@@ -8,8 +8,9 @@ import {
   Building2, Globe, X, Check, ChevronDown, ClipboardList,
   Flag, Users, Calendar, Megaphone, BarChart2, Wrench,
   ShieldCheck, AlertTriangle, BellRing, Activity, FileText,
-  ExternalLink, SquarePen,
+  ExternalLink, SquarePen, GitBranch,
 } from 'lucide-react';
+import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
@@ -406,12 +407,18 @@ export default function ProgramFlowPage() {
           <h1 className="text-2xl font-bold text-gray-900">Program Flow</h1>
           <p className="text-sm text-gray-500 mt-0.5">Track improvement programs from root cause through remediation and validation.</p>
         </div>
-        {canCreate && (
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-colors">
-            <Plus className="w-4 h-4" /> New Program
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link href="/program-flow/diagram"
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-600 font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm border border-gray-200 transition-colors">
+            <GitBranch className="w-4 h-4" /> Flow Diagram
+          </Link>
+          {canCreate && (
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-colors">
+              <Plus className="w-4 h-4" /> New Program
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats strip */}
