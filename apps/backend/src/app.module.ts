@@ -22,6 +22,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { OrgModule } from './modules/org/org.module';
 import { ProgramFlowModule } from './modules/program-flow/program-flow.module';
 import { ProgramsModule } from './modules/programs/programs.module';
+import { QuestionBankModule } from './modules/question-bank/question-bank.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { ProgramsModule } from './modules/programs/programs.module';
     OrgModule,
     ProgramFlowModule,
     ProgramsModule,
+    QuestionBankModule,
   ],
 })
 export class AppModule {}

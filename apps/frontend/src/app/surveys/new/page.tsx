@@ -432,8 +432,13 @@ export default function NewSurveyPage() {
   const [isFocusGroup, setIsFocusGroup]           = useState(false);
   const [focusGroupUserIds, setFocusGroupUserIds]  = useState<string[]>([]);
 
-  const [questions, setQuestions] = useState<QuestionDraft[]>([makeQuestion()]);
-  const [error, setError]         = useState('');
+  const [questions, setQuestions]     = useState<QuestionDraft[]>([makeQuestion()]);
+  const [error, setError]             = useState('');
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiProgramId, setAiProgramId] = useState('');
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [aiSelected, setAiSelected]   = useState<Set<number>>(new Set());
+  const [aiStep, setAiStep]           = useState<'pick'|'review'>('pick');
 
   // Fetch all org units for targeting
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
@@ -447,6 +452,22 @@ export default function NewSurveyPage() {
     queryKey: ['admin-users'],
     queryFn: () => api.get('/admin/users', { params: { limit: 500 } }).then((r) => r.data.data),
     enabled: isFocusGroup,
+  });
+
+  // Fetch programs for AI generation context picker
+  const { data: programs = [] } = useQuery<any[]>({
+    queryKey: ['programs-list'],
+    queryFn: () => api.get('/programs').then((r) => r.data),
+  });
+
+  const aiGenerateMutation = useMutation({
+    mutationFn: (programId: string) => api.post('/surveys/ai-generate', { programId }).then(r => r.data),
+    onSuccess: (data) => {
+      setAiSuggestions(data.questions ?? []);
+      setAiSelected(new Set((data.questions ?? []).map((_: any, i: number) => i)));
+      setAiStep('review');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'AI generation failed'),
   });
 
   // Pre-select CNO's own hospital once org units load
@@ -1023,13 +1044,20 @@ export default function NewSurveyPage() {
               </span>
             )}
           </div>
-          <button
-            onClick={addQuestion}
-            disabled={atQuestionLimit}
-            title={atQuestionLimit ? `Directors are limited to ${DIRECTOR_MAX_QUESTIONS} questions` : undefined}
-            className="btn-secondary flex items-center gap-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-            <Plus className="w-4 h-4" /> Add Question
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setAiStep('pick'); setAiSuggestions([]); setShowAiModal(true); }}
+              className="flex items-center gap-1.5 text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-xl transition-colors">
+              <Zap className="w-4 h-4" /> Generate with AI
+            </button>
+            <button
+              onClick={addQuestion}
+              disabled={atQuestionLimit}
+              title={atQuestionLimit ? `Directors are limited to ${DIRECTOR_MAX_QUESTIONS} questions` : undefined}
+              className="btn-secondary flex items-center gap-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+              <Plus className="w-4 h-4" /> Add Question
+            </button>
+          </div>
         </div>
 
         {isDirector && (
@@ -1124,6 +1152,108 @@ export default function NewSurveyPage() {
             else saveAndRequestApproval.mutate(payload);
           }}
         />
+      )}
+
+      {/* ── AI Generate Modal ── */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-violet-600" />
+                <h3 className="font-semibold text-gray-900">Generate Questions with AI</h3>
+              </div>
+              <button onClick={() => setShowAiModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              {aiStep === 'pick' && (
+                <>
+                  <p className="text-sm text-gray-500">Select the program this survey is for. The AI will read its objective, problem statement and success criteria, then pick the best matching questions from your question bank.</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
+                    <select value={aiProgramId} onChange={e => setAiProgramId(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+                      <option value="">Select a program…</option>
+                      {(programs as any[]).map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    {aiProgramId && (() => {
+                      const p = (programs as any[]).find((x: any) => x.id === aiProgramId);
+                      return p ? (
+                        <div className="mt-2 rounded-lg bg-violet-50 border border-violet-100 px-3 py-2 space-y-1 text-xs text-violet-800">
+                          {p.objective        && <p><strong>Objective:</strong> {p.objective}</p>}
+                          {p.problemStatement && <p><strong>Problem:</strong> {p.problemStatement}</p>}
+                          {p.successCriteria  && <p><strong>Success criteria:</strong> {p.successCriteria}</p>}
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => aiGenerateMutation.mutate(aiProgramId)}
+                    disabled={!aiProgramId || aiGenerateMutation.isPending}
+                    className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-semibold py-3 rounded-xl text-sm">
+                    {aiGenerateMutation.isPending
+                      ? <><span className="animate-spin inline-block">⟳</span> Generating…</>
+                      : <><Zap className="w-4 h-4" /> Generate Questions</>}
+                  </button>
+                </>
+              )}
+
+              {aiStep === 'review' && aiSuggestions.length > 0 && (
+                <>
+                  <p className="text-sm text-gray-500">AI suggested <strong>{aiSuggestions.length} questions</strong>. Deselect any you don't want, then click Add to Survey.</p>
+                  <div className="space-y-2">
+                    {aiSuggestions.map((q: any, i: number) => (
+                      <label key={i} className={`flex gap-3 items-start p-3 rounded-xl border cursor-pointer transition-colors ${aiSelected.has(i) ? 'border-violet-300 bg-violet-50' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
+                        <input type="checkbox" checked={aiSelected.has(i)}
+                          onChange={e => setAiSelected(prev => { const s = new Set(prev); e.target.checked ? s.add(i) : s.delete(i); return s; })}
+                          className="mt-0.5 rounded accent-violet-600" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-900 font-medium">{q.text}</p>
+                          <div className="flex gap-1.5 mt-1 flex-wrap">
+                            <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">{q.type}</span>
+                            <span className="text-[10px] font-semibold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">{q.category}</span>
+                            <span className="text-[10px] font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{q.framework}</span>
+                          </div>
+                          {q.helpText && <p className="text-xs text-gray-400 mt-1">{q.helpText}</p>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setAiStep('pick')} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-50">← Back</button>
+                    <button
+                      disabled={aiSelected.size === 0}
+                      onClick={() => {
+                        const toAdd = aiSuggestions
+                          .filter((_: any, i: number) => aiSelected.has(i))
+                          .map((q: any) => ({
+                            ...makeQuestion(q.type),
+                            text:              q.text,
+                            helpText:          q.helpText ?? '',
+                            type:              q.type,
+                            options:           q.options ?? [],
+                            followUpThreshold: q.followUpThreshold ?? null,
+                            followUpPrompt:    q.followUpPrompt ?? '',
+                            dimension:         q.category ?? '',
+                            source:            q.framework ?? 'CUSTOM',
+                            isRequired:        true,
+                          }));
+                        setQuestions(prev => [...prev.filter(q => q.text.trim()), ...toAdd]);
+                        setShowAiModal(false);
+                        toast.success(`${toAdd.length} questions added to survey`);
+                      }}
+                      className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl text-sm">
+                      Add {aiSelected.size} Question{aiSelected.size !== 1 ? 's' : ''} to Survey
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

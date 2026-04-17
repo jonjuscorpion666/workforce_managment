@@ -15,13 +15,14 @@ import { useToast } from '@/components/ui/Toast';
 
 const PAGE_SIZE = 50;
 
-type Tab = 'hospitals' | 'users' | 'roles' | 'config';
+type Tab = 'hospitals' | 'users' | 'roles' | 'config' | 'question-bank';
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: 'hospitals', label: 'Hospital Directory', icon: Building2 },
-  { key: 'users',     label: 'Users',              icon: Users },
-  { key: 'roles',     label: 'Roles',              icon: Shield },
-  { key: 'config',    label: 'Config',             icon: Settings },
+  { key: 'hospitals',     label: 'Hospital Directory', icon: Building2 },
+  { key: 'users',         label: 'Users',              icon: Users },
+  { key: 'roles',         label: 'Roles',              icon: Shield },
+  { key: 'question-bank', label: 'Question Bank',      icon: Layers },
+  { key: 'config',        label: 'Config',             icon: Settings },
 ];
 
 // ─── Generic modal ─────────────────────────────────────────────────────────
@@ -1256,6 +1257,149 @@ function ConfigTab({ config }: { config: any[] }) {
   );
 }
 
+// ─── Question Bank Tab ─────────────────────────────────────────────────────
+
+const CATEGORIES = ['BURNOUT','ENGAGEMENT','WORKLOAD','COMMUNICATION','LEADERSHIP','WELLBEING','TEAMWORK','SAFETY','RECOGNITION','GROWTH','GENERAL'];
+const FRAMEWORKS = ['MBI','GALLUP_Q12','UWES','HEALTHCARE','CUSTOM'];
+const Q_TYPES    = ['LIKERT_5','LIKERT_10','NPS','YES_NO','OPEN_TEXT','RATING','MULTIPLE_CHOICE'];
+
+const BLANK_ITEM = { text:'', type:'LIKERT_5', category:'ENGAGEMENT', framework:'CUSTOM', helpText:'', isValidated:false, followUpThreshold:'', followUpPrompt:'' };
+
+function QuestionBankTab() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [catFilter, setCatFilter] = useState('');
+  const [fwFilter,  setFwFilter]  = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editing,   setEditing]   = useState<any>(null);
+  const [form,      setForm]      = useState<any>(BLANK_ITEM);
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['question-bank', catFilter, fwFilter],
+    queryFn: () => api.get('/question-bank', { params: { category: catFilter || undefined, framework: fwFilter || undefined } }).then(r => r.data),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data: any) => editing
+      ? api.patch(`/question-bank/${editing.id}`, data).then(r => r.data)
+      : api.post('/question-bank', data).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['question-bank'] }); setShowModal(false); toast.success(editing ? 'Question updated' : 'Question added'); },
+    onError: () => toast.error('Failed to save question'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/question-bank/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['question-bank'] }); toast.success('Question deleted'); },
+    onError: () => toast.error('Failed to delete'),
+  });
+
+  function openAdd()  { setEditing(null); setForm(BLANK_ITEM); setShowModal(true); }
+  function openEdit(item: any) { setEditing(item); setForm({ ...item, followUpThreshold: item.followUpThreshold ?? '' }); setShowModal(true); }
+
+  function handleSave() {
+    const payload = { ...form, followUpThreshold: form.followUpThreshold !== '' ? Number(form.followUpThreshold) : null };
+    saveMutation.mutate(payload);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">All Categories</option>
+          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={fwFilter} onChange={e => setFwFilter(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">All Frameworks</option>
+          {FRAMEWORKS.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <div className="ml-auto">
+          <button onClick={openAdd} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+            <Plus className="w-4 h-4" /> Add Question
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-400 py-8 text-center">Loading…</p>
+      ) : (items as any[]).length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No questions yet</p>
+          <p className="text-sm mt-1">Add validated questions that AI can pick from when generating surveys.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {(items as any[]).map((item: any) => (
+            <div key={item.id} className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex gap-3 items-start group shadow-sm">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-900 font-medium leading-snug">{item.text}</p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full">{item.type}</span>
+                  <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-full">{item.category}</span>
+                  <span className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{item.framework}</span>
+                  {item.isValidated && <span className="text-[10px] font-semibold bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">✓ Validated</span>}
+                </div>
+              </div>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
+                <button onClick={() => { if (window.confirm('Delete this question?')) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <Modal title={editing ? 'Edit Question' : 'Add Question'} onClose={() => setShowModal(false)}>
+          <Field label="Question text" required>
+            <textarea rows={3} value={form.text} onChange={e => setForm((p: any) => ({...p, text: e.target.value}))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Type" required>
+              <select value={form.type} onChange={e => setForm((p: any) => ({...p, type: e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                {Q_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="Category" required>
+              <select value={form.category} onChange={e => setForm((p: any) => ({...p, category: e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Framework">
+              <select value={form.framework} onChange={e => setForm((p: any) => ({...p, framework: e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                {FRAMEWORKS.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </Field>
+            <Field label="Follow-up threshold" hint="Show follow-up if score ≤ this">
+              <input type="number" min={1} max={10} value={form.followUpThreshold} onChange={e => setForm((p: any) => ({...p, followUpThreshold: e.target.value}))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="e.g. 2" />
+            </Field>
+          </div>
+          <Field label="Help text" hint="Optional guidance shown to respondent">
+            <input type="text" value={form.helpText} onChange={e => setForm((p: any) => ({...p, helpText: e.target.value}))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </Field>
+          <Field label="Follow-up prompt">
+            <input type="text" value={form.followUpPrompt} onChange={e => setForm((p: any) => ({...p, followUpPrompt: e.target.value}))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="Can you tell us more?" />
+          </Field>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.isValidated} onChange={e => setForm((p: any) => ({...p, isValidated: e.target.checked}))} className="rounded" />
+            <span className="text-sm text-gray-700">Scientifically validated question</span>
+          </label>
+          <button onClick={handleSave} disabled={!form.text || saveMutation.isPending}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl text-sm">
+            {saveMutation.isPending ? 'Saving…' : editing ? 'Save Changes' : 'Add Question'}
+          </button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -1785,6 +1929,9 @@ export default function AdminPage() {
           <p className="text-sm mt-1">Platform config is only accessible to SVP and Super Admins.</p>
         </div>
       )}
+
+      {/* ── Question Bank ── */}
+      {tab === 'question-bank' && <QuestionBankTab />}
     </div>
   );
 }

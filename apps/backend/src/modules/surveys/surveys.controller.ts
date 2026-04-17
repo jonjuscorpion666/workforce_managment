@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SurveysService } from './surveys.service';
+import { AiSurveyService } from './ai-survey.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -12,7 +13,16 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard)
 @Controller('surveys')
 export class SurveysController {
-  constructor(private readonly surveysService: SurveysService) {}
+  constructor(
+    private readonly surveysService: SurveysService,
+    private readonly aiSurveyService: AiSurveyService,
+  ) {}
+
+  @Post('ai-generate')
+  @ApiOperation({ summary: 'Generate survey questions from program context + question bank using AI' })
+  aiGenerate(@Body() body: { programId: string }) {
+    return this.aiSurveyService.generate(body.programId);
+  }
 
   @Post()
   @UseGuards(RolesGuard)
