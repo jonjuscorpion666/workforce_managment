@@ -312,10 +312,11 @@ export class ProgramsService {
       audienceMode = AudienceMode.ROLE;
     }
 
-    // 3. Build the survey respond URL
+    // 3. Build the full survey respond URL
+    const baseUrl = (process.env.FRONTEND_URL ?? 'https://workforce-platform-frontend-production.up.railway.app').replace(/\/$/, '');
     const surveyUrl = p.surveyToken
-      ? `/surveys/respond/${p.surveyToken}`
-      : `/surveys/${survey.id}`;
+      ? `${baseUrl}/surveys/respond/${p.surveyToken}`
+      : `${baseUrl}/surveys/${survey.id}`;
 
     // 4. Create + publish a SURVEY_LAUNCH announcement targeting the same scope
     const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
