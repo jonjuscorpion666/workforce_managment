@@ -13,6 +13,9 @@ import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
 import { Issue } from '../issues/entities/issue.entity';
 import { Task } from '../tasks/entities/task.entity';
+import { Survey, SurveyStatus } from '../surveys/entities/survey.entity';
+import { AnnouncementsService } from '../announcements/announcements.service';
+import { AnnouncementType, AnnouncementPriority, AudienceMode } from '../announcements/entities/announcement.entity';
 
 const STAGE_ORDER: ProgramStageKey[] = [
   ProgramStageKey.SETUP,
@@ -37,8 +40,10 @@ export class ProgramsService {
     @InjectRepository(Program) private readonly repo:      Repository<Program>,
     @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
     @InjectRepository(User)    private readonly userRepo:  Repository<User>,
-    @InjectRepository(Issue)   private readonly issueRepo: Repository<Issue>,
-    @InjectRepository(Task)    private readonly taskRepo:  Repository<Task>,
+    @InjectRepository(Issue)   private readonly issueRepo:  Repository<Issue>,
+    @InjectRepository(Task)    private readonly taskRepo:   Repository<Task>,
+    @InjectRepository(Survey)  private readonly surveyRepo: Repository<Survey>,
+    private readonly announcementsService: AnnouncementsService,
   ) {}
 
   // ── ID generation ──────────────────────────────────────────────────────────
@@ -183,6 +188,22 @@ export class ProgramsService {
 
     p.linkedSurveyId = surveyId;
     p.surveyToken    = uuidv4();
+
+    // Auto-tick "Employee scope defined" if the survey has any targeting configured
+    const survey = await this.surveyRepo.findOne({ where: { id: surveyId } });
+    const hasScopeDefined = !!(
+      survey &&
+      (
+        (survey.targetRoles      && survey.targetRoles.length      > 0) ||
+        (survey.targetOrgUnitIds && survey.targetOrgUnitIds.length > 0) ||
+        (survey.focusGroupUserIds && survey.focusGroupUserIds.length > 0) ||
+        (survey.targetShifts     && survey.targetShifts.length     > 0)
+      )
+    );
+    if (hasScopeDefined) {
+      p.setupChecklist = { ...p.setupChecklist, employeeScopeDefined: true };
+    }
+
     return this.repo.save(p);
   }
 
@@ -269,6 +290,57 @@ export class ProgramsService {
     if (!canApprove) throw new ForbiddenException('Insufficient role to approve this program');
   }
 
+  // ── Survey launch + employee notification (SETUP → EXECUTION) ─────────────
+
+  private async launchSurveyAndNotify(p: Program) {
+    const survey = await this.surveyRepo.findOne({ where: { id: p.linkedSurveyId } });
+    if (!survey) return;
+
+    // 1. Publish the survey so it appears in the employee portal
+    if (survey.status !== SurveyStatus.ACTIVE) {
+      survey.status = SurveyStatus.ACTIVE;
+      await this.surveyRepo.save(survey);
+    }
+
+    // 2. Determine audience mode from survey scope
+    let audienceMode = AudienceMode.SYSTEM;
+    if (survey.targetRoles?.length && survey.targetOrgUnitIds?.length) {
+      audienceMode = AudienceMode.COMBINATION;
+    } else if (survey.targetOrgUnitIds?.length) {
+      audienceMode = AudienceMode.UNIT;
+    } else if (survey.targetRoles?.length) {
+      audienceMode = AudienceMode.ROLE;
+    }
+
+    // 3. Build the survey respond URL
+    const surveyUrl = p.surveyToken
+      ? `/surveys/respond/${p.surveyToken}`
+      : `/surveys/${survey.id}`;
+
+    // 4. Create + publish a SURVEY_LAUNCH announcement targeting the same scope
+    const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+    const ann = await this.announcementsService.create(
+      {
+        title:       `New Survey: ${survey.title}`,
+        body:        `As part of the "${p.name}" program, you have been invited to complete a survey.\n\nPlease follow this link to respond: ${surveyUrl}\n\nYour feedback is important and helps us improve.`,
+        type:        AnnouncementType.SURVEY_LAUNCH,
+        priority:    AnnouncementPriority.HIGH,
+        audienceMode,
+        targetOrgUnitIds: survey.targetOrgUnitIds ?? null,
+        targetRoles:      survey.targetRoles      ?? null,
+        linkedSurveyId:   survey.id,
+        requiresAcknowledgement: false,
+      },
+      SYSTEM_USER_ID,
+      'SUPER_ADMIN', // bypass role permission check
+    );
+    await this.announcementsService.publish(ann.id, SYSTEM_USER_ID);
+
+    // 5. Mark setup checklist — survey launched
+    p.setupChecklist = { ...p.setupChecklist, employeesNotified: true } as any;
+    p.executionChecklist = { ...p.executionChecklist, surveyLaunched: true } as any;
+  }
+
   // ── Stage advancement ──────────────────────────────────────────────────────
 
   async advanceStage(id: string) {
@@ -287,6 +359,9 @@ export class ProgramsService {
         throw new BadRequestException('Program is awaiting approval — cannot advance yet');
       }
       // Checklist completeness is enforced by the frontend only
+
+      // Auto-publish survey + notify targeted employees
+      await this.launchSurveyAndNotify(p);
     }
 
     // ── Gate: EXECUTION → ROOT_CAUSE ──────────────────────────────────────
