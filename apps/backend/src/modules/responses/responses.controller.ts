@@ -1,13 +1,24 @@
 import { Controller, Get, Post, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ResponsesService } from './responses.service';
+import { ProgramsService } from '../programs/programs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtGuard } from '../../common/guards/optional-jwt.guard';
 
 @ApiTags('Responses')
 @Controller('responses')
 export class ResponsesController {
-  constructor(private readonly responsesService: ResponsesService) {}
+  constructor(
+    private readonly responsesService: ResponsesService,
+    private readonly programsService: ProgramsService,
+  ) {}
+
+  @Get('resolve-token/:token')
+  @UseGuards(OptionalJwtGuard)
+  @ApiOperation({ summary: 'Resolve a program survey token → programId + surveyId (public)' })
+  resolveToken(@Param('token') token: string) {
+    return this.programsService.resolveToken(token);
+  }
 
   @Post('submit')
   @UseGuards(OptionalJwtGuard)
@@ -27,7 +38,10 @@ export class ResponsesController {
   @Get('participation/status')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  getParticipationStatus(@Query('surveyId') surveyId: string) {
-    return this.responsesService.getParticipationStatus(surveyId);
+  getParticipationStatus(
+    @Query('surveyId') surveyId: string,
+    @Query('programId') programId?: string,
+  ) {
+    return this.responsesService.getParticipationStatus(surveyId, programId);
   }
 }

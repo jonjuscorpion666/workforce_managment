@@ -167,6 +167,10 @@ export class Program {
   @Column({ nullable: true })
   linkedSurveyId: string;
 
+  /** Unique token for the program × survey URL — generated on link, cleared on unlink */
+  @Column({ nullable: true, unique: true })
+  surveyToken: string;
+
   @Column({ type: 'jsonb', default: '{}' })
   setupChecklist: SetupChecklist;
 

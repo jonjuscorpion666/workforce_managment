@@ -191,8 +191,10 @@ export default function ProgramDetailPage() {
   const inRemOrLater  = program && (['REMEDIATION', 'COMMUNICATION', 'VALIDATION'].includes(program.currentStage) || program.status === 'COMPLETED');
 
   const { data: participation } = useQuery<any>({
-    queryKey: ['participation', program?.linkedSurveyId],
-    queryFn: () => api.get('/responses/participation/status', { params: { surveyId: program.linkedSurveyId } }).then((r) => r.data),
+    queryKey: ['participation', program?.linkedSurveyId, program?.id],
+    queryFn: () => api.get('/responses/participation/status', {
+      params: { surveyId: program.linkedSurveyId, programId: program.id },
+    }).then((r) => r.data),
     enabled: !!(inExecOrLater && program?.linkedSurveyId),
     refetchInterval: inExecOrLater ? 30_000 : false,
   });
@@ -821,6 +823,28 @@ export default function ProgramDetailPage() {
                   </div>
 
                   <CheckRow checked={surveyLive} label="Survey is live" auto />
+
+                  {/* Unique survey link for employees */}
+                  {program.surveyToken && (
+                    <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2.5 space-y-1.5">
+                      <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Employee Survey Link</p>
+                      <div className="flex items-center gap-2">
+                        <code className="text-[11px] text-indigo-700 bg-white border border-indigo-100 rounded px-2 py-1 flex-1 truncate">
+                          {typeof window !== 'undefined' ? `${window.location.origin}/surveys/respond/${program.surveyToken}` : `/surveys/respond/${program.surveyToken}`}
+                        </code>
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}/surveys/respond/${program.surveyToken}`;
+                            navigator.clipboard.writeText(url);
+                            toast.success('Link copied');
+                          }}
+                          className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 rounded px-2 py-1 flex-shrink-0">
+                          Copy
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-indigo-400">Unique to this program — responses are isolated from other programs</p>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-blue-100 bg-blue-50">
                     <BarChart2 className="w-4 h-4 text-blue-400 flex-shrink-0" />

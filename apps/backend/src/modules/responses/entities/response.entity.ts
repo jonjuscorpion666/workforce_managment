@@ -1,5 +1,5 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, Index,
+  Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, Index, Generated,
 } from 'typeorm';
 import { Survey } from '../../surveys/entities/survey.entity';
 
@@ -14,6 +14,11 @@ export class Response {
   @Index()
   @Column()
   surveyId: string;
+
+  /** Program this response belongs to — set when submitted via a program survey token URL */
+  @Index()
+  @Column({ nullable: true })
+  programId: string;
 
   // null if anonymous
   @Column({ nullable: true })

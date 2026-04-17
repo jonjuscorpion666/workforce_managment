@@ -56,6 +56,7 @@ export class ResponsesService {
 
     const response = this.repo.create({
       surveyId:    data.surveyId,
+      programId:   data.programId ?? null,
       survey,
       isAnonymous: survey.isAnonymous,
       respondentId,
@@ -81,9 +82,11 @@ export class ResponsesService {
     return qb.getMany();
   }
 
-  async getParticipationStatus(surveyId: string) {
-    const count = await this.repo.count({ where: { surveyId } });
-    return { surveyId, responseCount: count };
+  async getParticipationStatus(surveyId: string, programId?: string) {
+    const where: any = { surveyId };
+    if (programId) where.programId = programId;
+    const count = await this.repo.count({ where });
+    return { surveyId, programId: programId ?? null, responseCount: count };
   }
 
   /**

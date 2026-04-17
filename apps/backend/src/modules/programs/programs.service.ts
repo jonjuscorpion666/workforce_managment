@@ -1,6 +1,7 @@
 import {
   Injectable, NotFoundException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import {
@@ -181,6 +182,7 @@ export class ProgramsService {
     }
 
     p.linkedSurveyId = surveyId;
+    p.surveyToken    = uuidv4();
     return this.repo.save(p);
   }
 
@@ -188,8 +190,20 @@ export class ProgramsService {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
     p.linkedSurveyId = null as any;
+    p.surveyToken    = null as any;
     p.setupChecklist = { ...p.setupChecklist, questionsDrafted: false, employeeScopeDefined: false };
     return this.repo.save(p);
+  }
+
+  async resolveToken(token: string) {
+    const p = await this.repo.findOne({ where: { surveyToken: token } });
+    if (!p || !p.linkedSurveyId) throw new NotFoundException('Survey link not found');
+    return {
+      programId:   p.id,
+      programName: p.name,
+      surveyId:    p.linkedSurveyId,
+      surveyToken: token,
+    };
   }
 
   // ── Approval workflow ──────────────────────────────────────────────────────
