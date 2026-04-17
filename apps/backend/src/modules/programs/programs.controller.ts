@@ -117,4 +117,11 @@ export class ProgramsController {
   advance(@Param('id') id: string) {
     return this.svc.advanceStage(id);
   }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a program (SVP/SUPER_ADMIN only)' })
+  cancel(@Param('id') id: string, @Body() body: { reason?: string }) {
+    return this.svc.cancel(id, body.reason);
+  }
 }

@@ -120,6 +120,8 @@ export default function ProgramDetailPage() {
   const [activeTab, setActiveTab]         = useState<Tab>('overview');
   const [rejectReason, setRejectReason]   = useState('');
   const [showReject, setShowReject]       = useState(false);
+  const [cancelReason, setCancelReason]   = useState('');
+  const [showCancel, setShowCancel]       = useState(false);
   const [surveyPicker, setSurveyPicker]   = useState(false);
   const [commMessage, setCommMessage]     = useState('');
   const [setupOpen, setSetupOpen]         = useState(false);
@@ -158,9 +160,10 @@ export default function ProgramDetailPage() {
     staleTime: 60_000,
     enabled: surveyPicker,
   });
+  // Only lock surveys that are actively linked to a non-terminal program
   const takenSurveyIds = new Set(
     (allPrograms as any[])
-      .filter((p) => p.id !== id && p.linkedSurveyId)
+      .filter((p) => p.id !== id && p.linkedSurveyId && !['COMPLETED', 'CANCELLED'].includes(p.status))
       .map((p) => p.linkedSurveyId),
   );
 
@@ -260,6 +263,12 @@ export default function ProgramDetailPage() {
     mutationFn: () => api.post(`/programs/${id}/reject`, { reason: rejectReason }),
     onSuccess: () => { invalidate(); setShowReject(false); toast.success('Rejected'); },
     onError: () => toast.error('Failed to reject'),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${id}/cancel`, { reason: cancelReason }),
+    onSuccess: () => { invalidate(); setShowCancel(false); setCancelReason(''); toast.success('Program cancelled'); },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Failed to cancel'),
   });
 
   const advanceMutation = useMutation({
@@ -409,6 +418,9 @@ export default function ProgramDetailPage() {
       ? hasRole('SVP') || hasRole('SUPER_ADMIN')
       : hasRole('CNO') || hasRole('SVP') || hasRole('SUPER_ADMIN')
   ) && program.status === 'PENDING_APPROVAL';
+
+  const canCancel = (hasRole('SVP') || hasRole('SUPER_ADMIN')) &&
+    ['DRAFT', 'PENDING_APPROVAL', 'ACTIVE'].includes(program.status);
 
   const cl = program.setupChecklist ?? {};
   const setupAllDone = cl.meetingScheduled && cl.questionsDrafted && cl.employeeScopeDefined && cl.communicationDrafted && cl.employeesNotified;
@@ -740,15 +752,20 @@ export default function ProgramDetailPage() {
                               checklistMutation.mutate({ communicationMessage: t, communicationDrafted: !!t });
                             }}
                           />
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <button
-                              disabled={!program.linkedSurveyId || !commMessage.trim() || sendAnnouncementMutation.isPending || notified}
+                              disabled={program.status !== 'ACTIVE' || !program.linkedSurveyId || !commMessage.trim() || sendAnnouncementMutation.isPending || notified}
                               onClick={() => sendAnnouncementMutation.mutate()}
                               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-2 rounded-lg">
                               <Megaphone className="w-3.5 h-3.5" />
                               {sendAnnouncementMutation.isPending ? 'Sending…' : notified ? 'Sent ✓' : 'Send to Employees'}
                             </button>
-                            {!program.linkedSurveyId && <p className="text-[10px] text-amber-600">Link a survey first</p>}
+                            {program.status !== 'ACTIVE'
+                              ? <p className="text-[10px] text-amber-600">Available after SVP approval</p>
+                              : !program.linkedSurveyId
+                                ? <p className="text-[10px] text-amber-600">Link a survey first</p>
+                                : null
+                            }
                           </div>
                         </div>
                       </div>
@@ -1286,9 +1303,33 @@ export default function ProgramDetailPage() {
       </div>
 
       {/* ── Sticky action footer ─────────────────────────────────────────────── */}
-      {(program.status === 'DRAFT' || program.status === 'ACTIVE' || canApprove) && (
+      {(program.status === 'DRAFT' || program.status === 'ACTIVE' || canApprove || canCancel) && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 z-20">
           <div className="max-w-3xl mx-auto space-y-2">
+
+            {/* Cancel — SVP/SUPER_ADMIN on non-terminal programs */}
+            {canCancel && !showCancel && (
+              <button onClick={() => setShowCancel(true)}
+                className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 font-medium py-2.5 rounded-xl text-sm border border-gray-200 hover:border-red-200 transition-colors">
+                <X className="w-4 h-4" /> Cancel Program
+              </button>
+            )}
+            {canCancel && showCancel && (
+              <div className="space-y-2 border border-red-200 rounded-xl p-3 bg-red-50">
+                <p className="text-xs font-semibold text-red-700">Cancel this program?</p>
+                <textarea rows={2} placeholder="Reason for cancellation (optional)…"
+                  className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none bg-white"
+                  value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm">
+                    {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+                  </button>
+                  <button onClick={() => { setShowCancel(false); setCancelReason(''); }} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Back</button>
+                </div>
+              </div>
+            )}
 
             {/* Submit for approval */}
             {program.status === 'DRAFT' && (

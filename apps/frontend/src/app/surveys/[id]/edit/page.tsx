@@ -394,12 +394,109 @@ export default function EditSurveyPage() {
 
   if (isLoading) return <div className="p-8 text-gray-400">Loading survey...</div>;
   if (survey?.status !== 'DRAFT') {
+    const statusColors: Record<string, string> = {
+      ACTIVE:   'bg-green-100 text-green-700 border-green-200',
+      CLOSED:   'bg-gray-100  text-gray-600  border-gray-200',
+      ARCHIVED: 'bg-gray-100  text-gray-400  border-gray-200',
+    };
+    const statusColor = statusColors[survey?.status] ?? 'bg-amber-100 text-amber-700 border-amber-200';
+
+    const typeLabel: Record<string, string> = {
+      LIKERT_5:        'Likert 1–5',
+      LIKERT_10:       'Likert 1–10',
+      NPS:             'NPS 0–10',
+      YES_NO:          'Yes / No',
+      MULTIPLE_CHOICE: 'Multiple Choice',
+      OPEN_TEXT:       'Open Text',
+      RATING:          'Rating 1–5',
+    };
+
+    const answerPreview: Record<string, string[]> = {
+      LIKERT_5:  ['1 — Strongly Disagree', '2 — Disagree', '3 — Neutral', '4 — Agree', '5 — Strongly Agree'],
+      LIKERT_10: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+      NPS:       ['0 (Not at all likely)', '…', '10 (Extremely likely)'],
+      YES_NO:    ['Yes', 'No'],
+      RATING:    ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'],
+      OPEN_TEXT: [],
+      MULTIPLE_CHOICE: [],
+    };
+
+    const sortedQuestions = [...(survey?.questions ?? [])].sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+
     return (
-      <div className="max-w-xl mx-auto pt-16 text-center space-y-4">
-        <p className="text-gray-600">This survey is <strong>{survey?.status}</strong> and cannot be edited.</p>
-        <Link href="/surveys" className="btn-secondary inline-flex items-center gap-2">
-          <ArrowLeft className="w-4 h-4" /> Back to Surveys
-        </Link>
+      <div className="max-w-2xl mx-auto px-4 py-8 pb-16">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-6">
+          <Link href="/surveys" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium">
+            <ArrowLeft className="w-4 h-4" /> Surveys
+          </Link>
+        </div>
+
+        {/* Status banner */}
+        <div className={`flex items-center gap-2.5 border rounded-xl px-4 py-3 mb-6 ${statusColor}`}>
+          <Eye className="w-4 h-4 flex-shrink-0" />
+          <span className="text-sm font-medium">
+            View only — this survey is <strong>{survey?.status}</strong> and cannot be edited.
+          </span>
+        </div>
+
+        {/* Survey meta */}
+        <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 mb-6 shadow-sm space-y-2">
+          <h1 className="text-xl font-bold text-gray-900">{survey?.title}</h1>
+          {survey?.description && <p className="text-sm text-gray-500">{survey.description}</p>}
+          {survey?.objective && (
+            <p className="text-sm text-gray-600 border-l-2 border-blue-300 pl-3 italic">{survey.objective}</p>
+          )}
+          <div className="flex flex-wrap gap-2 pt-2">
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusColor}`}>{survey?.status}</span>
+            {survey?.type && <span className="text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full">{survey.type}</span>}
+            {survey?.isAnonymous && <span className="text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full">Anonymous</span>}
+          </div>
+        </div>
+
+        {/* Questions */}
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+          {sortedQuestions.length} Question{sortedQuestions.length !== 1 ? 's' : ''}
+        </p>
+        <div className="space-y-4">
+          {sortedQuestions.map((q: any, i: number) => {
+            const options: string[] = q.options?.length ? q.options : (answerPreview[q.type] ?? []);
+            return (
+              <div key={q.id ?? i} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                  <span className="text-xs font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">Q{i + 1}</span>
+                  <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{typeLabel[q.type] ?? q.type}</span>
+                  {q.dimension && (
+                    <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full hidden sm:inline">
+                      {DIMENSIONS.find((d) => d.value === q.dimension)?.label ?? q.dimension}
+                    </span>
+                  )}
+                  {!q.isRequired && <span className="ml-auto text-[10px] text-gray-400">optional</span>}
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-800">{q.text}</p>
+                  {q.helpText && <p className="text-xs text-gray-400 italic">{q.helpText}</p>}
+                  {q.type === 'OPEN_TEXT' ? (
+                    <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-400 italic">
+                      Open text response field
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((opt: string, oi: number) => (
+                        <span key={oi} className="text-xs bg-gray-100 text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1">{opt}</span>
+                      ))}
+                    </div>
+                  )}
+                  {q.followUpThreshold != null && (
+                    <p className="text-[10px] text-orange-600 flex items-center gap-1">
+                      ↳ Follow-up shown when score ≤ {q.followUpThreshold}{q.followUpPrompt ? `: "${q.followUpPrompt}"` : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }

@@ -172,9 +172,9 @@ export class ProgramsService {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
 
-    // Ensure this survey is not already linked to a different program
+    // Ensure this survey is not already linked to a different active program
     const existing = await this.repo.findOne({ where: { linkedSurveyId: surveyId } });
-    if (existing && existing.id !== id) {
+    if (existing && existing.id !== id && ![ProgramStatus.COMPLETED, ProgramStatus.CANCELLED].includes(existing.status)) {
       throw new BadRequestException(
         `This survey is already linked to program "${existing.name}". Unlink it there first.`,
       );
@@ -233,6 +233,18 @@ export class ProgramsService {
     p.status          = ProgramStatus.REJECTED;
     p.approverId      = approverId;
     p.rejectionReason = reason;
+    return this.repo.save(p);
+  }
+
+  async cancel(id: string, reason?: string) {
+    const p = await this.repo.findOne({ where: { id } });
+    if (!p) throw new NotFoundException('Program not found');
+    if (p.status === ProgramStatus.COMPLETED)
+      throw new BadRequestException('Cannot cancel a completed program');
+    if (p.status === ProgramStatus.CANCELLED)
+      throw new BadRequestException('Program is already cancelled');
+    p.status = ProgramStatus.CANCELLED;
+    if (reason) p.setupChecklist = { ...p.setupChecklist, cancellationReason: reason } as any;
     return this.repo.save(p);
   }
 
