@@ -29,6 +29,9 @@ import { KPI } from '../../modules/kpis/entities/kpi.entity';
 import { AuditLog } from '../../modules/audit/entities/audit-log.entity';
 import { Config } from '../../modules/admin/entities/config.entity';
 import { QuestionBankItem } from '../../modules/question-bank/entities/question-bank-item.entity';
+import { Program } from '../../modules/programs/entities/program.entity';
+import { ProgramCycle } from '../../modules/program-flow/entities/program-cycle.entity';
+import { CycleStageStatus } from '../../modules/program-flow/entities/cycle-stage-status.entity';
 
 import { seedRoles } from './roles.seed';
 import { seedDemoUsers } from './demo-users.seed';
@@ -55,6 +58,9 @@ const AppDataSource = new DataSource({
     AuditLog,
     Config,
     QuestionBankItem,
+    Program,
+    ProgramCycle,
+    CycleStageStatus,
   ],
 });
 

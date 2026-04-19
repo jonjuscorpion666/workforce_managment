@@ -96,7 +96,7 @@ Copy `.env.example` to `.env` and fill in:
 | `CORS_ORIGINS` | Yes | Comma-separated allowed origins |
 | `NEXT_PUBLIC_API_URL` | Yes | Public URL of the backend API |
 | `SMTP_*` | No | Email notification settings |
-| `OPENAI_API_KEY` | No | AI features (optional) |
+| `ANTHROPIC_API_KEY` | No | AI survey question generation (optional) |
 
 ---
 

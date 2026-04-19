@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ServiceUnavailableException, BadGatewayException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
@@ -19,6 +19,12 @@ export class AiSurveyService {
   }
 
   async generate(programId: string) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new ServiceUnavailableException(
+        'AI question generation is not configured. Set ANTHROPIC_API_KEY in your environment.',
+      );
+    }
+
     // 1. Load program context
     const program = await this.programRepo.findOne({ where: { id: programId } });
     if (!program) throw new NotFoundException('Program not found');
@@ -86,11 +92,18 @@ Each item in the returned array must have exactly these fields:
 }`;
 
     // 4. Call Claude
-    const message = await this.client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages:   [{ role: 'user', content: prompt }],
-    });
+    let message: Awaited<ReturnType<typeof this.client.messages.create>>;
+    try {
+      message = await this.client.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        messages:   [{ role: 'user', content: prompt }],
+      });
+    } catch (err: any) {
+      // Surface the real Anthropic API error instead of returning a generic 500
+      const detail = err?.message ?? err?.error?.message ?? 'Unknown Anthropic API error';
+      throw new BadGatewayException(`AI service error: ${detail}`);
+    }
 
     const raw = (message.content[0] as any).text?.trim() ?? '';
 
