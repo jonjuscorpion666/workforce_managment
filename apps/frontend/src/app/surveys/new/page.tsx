@@ -454,14 +454,6 @@ export default function NewSurveyPage() {
     if (!title && p.name)   setTitle(p.name);
   }
 
-  // Pre-fill program from ?programId= query param (e.g. "Create new & link" from program-flow)
-  useEffect(() => {
-    const pid = searchParams.get('programId');
-    if (pid && (programs as any[]).length > 0 && !linkedProgramId) {
-      applyProgram(pid);
-    }
-  }, [searchParams, (programs as any[]).length]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Fetch all org units for targeting
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
     queryKey: ['org-units'],
@@ -481,6 +473,14 @@ export default function NewSurveyPage() {
     queryKey: ['programs-list'],
     queryFn: () => api.get('/programs').then((r) => r.data),
   });
+
+  // Pre-fill program from ?programId= query param (e.g. "Create new & link" from program-flow)
+  useEffect(() => {
+    const pid = searchParams.get('programId');
+    if (pid && (programs as any[]).length > 0 && !linkedProgramId) {
+      applyProgram(pid);
+    }
+  }, [searchParams, (programs as any[]).length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const aiGenerateMutation = useMutation({
     mutationFn: (programId: string) => api.post('/surveys/ai-generate', { programId }).then(r => r.data),
