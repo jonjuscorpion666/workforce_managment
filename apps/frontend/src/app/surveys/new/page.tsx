@@ -435,10 +435,23 @@ export default function NewSurveyPage() {
   const [questions, setQuestions]     = useState<QuestionDraft[]>([makeQuestion()]);
   const [error, setError]             = useState('');
   const [showAiModal, setShowAiModal] = useState(false);
-  const [aiProgramId, setAiProgramId] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [aiSelected, setAiSelected]   = useState<Set<number>>(new Set());
   const [aiStep, setAiStep]           = useState<'pick'|'review'>('pick');
+
+  // Program linking
+  const [linkedProgramId, setLinkedProgramId] = useState('');
+  const [aiProgramId, setAiProgramId]         = useState('');
+
+  function applyProgram(programId: string) {
+    setLinkedProgramId(programId);
+    setAiProgramId(programId);
+    const p = (programs as any[]).find((x: any) => x.id === programId);
+    if (!p) return;
+    if (p.objective)        setObjective(p.objective);
+    if (p.problemStatement) setDescription(p.problemStatement);
+    if (!title && p.name)   setTitle(p.name);
+  }
 
   // Fetch all org units for targeting
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
@@ -538,9 +551,20 @@ export default function NewSurveyPage() {
     setSelectedHospitals((prev) => prev.includes(id) ? prev.filter((h) => h !== id) : [...prev, id]);
   }
 
+  // ── helpers ──
+  async function linkProgramIfSelected(surveyId: string) {
+    if (linkedProgramId) {
+      await api.patch(`/programs/${linkedProgramId}/survey`, { surveyId });
+    }
+  }
+
   // ── mutations ──
   const saveDraft = useMutation({
-    mutationFn: (data: any) => api.post('/surveys', data),
+    mutationFn: async (data: any) => {
+      const res = await api.post('/surveys', data);
+      await linkProgramIfSelected(res.data.id);
+      return res.data;
+    },
     onSuccess: () => { toast.success('Survey saved as draft'); router.push('/surveys'); },
     onError: () => toast.error('Failed to save survey'),
   });
@@ -549,6 +573,7 @@ export default function NewSurveyPage() {
     mutationFn: async (data: any) => {
       const res = await api.post('/surveys', data);
       await api.post(`/surveys/${res.data.id}/request-approval`);
+      await linkProgramIfSelected(res.data.id);
       return res.data;
     },
     onSuccess: () => { toast.success('Survey submitted for approval'); router.push('/surveys'); },
@@ -559,6 +584,7 @@ export default function NewSurveyPage() {
     mutationFn: async (data: any) => {
       const res = await api.post('/surveys', data);
       await api.post(`/surveys/${res.data.id}/publish`);
+      await linkProgramIfSelected(res.data.id);
       return res.data;
     },
     onSuccess: () => { toast.success('Survey published'); router.push('/surveys'); },
@@ -809,6 +835,36 @@ export default function NewSurveyPage() {
       <div className="card space-y-4">
         <h2 className="font-semibold text-gray-800">Survey Details</h2>
 
+        {/* Program picker */}
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-blue-500" />
+            <p className="text-sm font-semibold text-blue-800">Link to Program <span className="font-normal text-blue-500">(optional)</span></p>
+          </div>
+          <select
+            value={linkedProgramId}
+            onChange={(e) => applyProgram(e.target.value)}
+            className="w-full border border-blue-200 bg-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="">Select a program to auto-fill details…</option>
+            {(programs as any[]).map((p: any) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          {linkedProgramId && (() => {
+            const p = (programs as any[]).find((x: any) => x.id === linkedProgramId);
+            return p ? (
+              <div className="grid grid-cols-1 gap-1.5 text-xs text-blue-800">
+                {p.objective        && <p><span className="font-semibold">Objective:</span> {p.objective}</p>}
+                {p.problemStatement && <p><span className="font-semibold">Problem:</span> {p.problemStatement}</p>}
+                {p.successCriteria  && <p><span className="font-semibold">Expected Result:</span> {p.successCriteria}</p>}
+              </div>
+            ) : null;
+          })()}
+          {linkedProgramId && (
+            <p className="text-[10px] text-blue-500">Survey will be linked to this program when saved. Objective and problem have been auto-filled below.</p>
+          )}
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
           <input className="input" placeholder="e.g. ICU Team Pulse — March" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -1046,7 +1102,7 @@ export default function NewSurveyPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setAiStep('pick'); setAiSuggestions([]); setShowAiModal(true); }}
+              onClick={() => { setAiStep('pick'); setAiSuggestions([]); if (linkedProgramId) { setAiProgramId(linkedProgramId); } setShowAiModal(true); }}
               className="flex items-center gap-1.5 text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-xl transition-colors">
               <Zap className="w-4 h-4" /> Generate with AI
             </button>
