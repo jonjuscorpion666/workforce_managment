@@ -691,10 +691,17 @@ export default function ProgramDetailPage() {
                       </div>
                     ) : (
                       !surveyPicker ? (
-                        <button onClick={() => setSurveyPicker(true)}
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
-                          <Plus className="w-4 h-4" /> Link a survey
-                        </button>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <button onClick={() => setSurveyPicker(true)}
+                            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                            <Plus className="w-4 h-4" /> Link a survey
+                          </button>
+                          <span className="text-gray-300 text-xs">or</span>
+                          <Link href={`/surveys/new?programId=${program.id}`}
+                            className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                            <Plus className="w-4 h-4" /> Create new &amp; link
+                          </Link>
+                        </div>
                       ) : (
                         <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
                           {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED').map((s) => {

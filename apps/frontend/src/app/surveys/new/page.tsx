@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, GripVertical, ArrowLeft, Send, Save,
@@ -393,6 +393,7 @@ function NoAccessScreen({ role }: { role: 'MANAGER' | 'STAFF' | 'unknown' }) {
 
 export default function NewSurveyPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, hasRole } = useAuth();
   const toast = useToast();
 
@@ -452,6 +453,14 @@ export default function NewSurveyPage() {
     if (p.problemStatement) setDescription(p.problemStatement);
     if (!title && p.name)   setTitle(p.name);
   }
+
+  // Pre-fill program from ?programId= query param (e.g. "Create new & link" from program-flow)
+  useEffect(() => {
+    const pid = searchParams.get('programId');
+    if (pid && (programs as any[]).length > 0 && !linkedProgramId) {
+      applyProgram(pid);
+    }
+  }, [searchParams, (programs as any[]).length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch all org units for targeting
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
