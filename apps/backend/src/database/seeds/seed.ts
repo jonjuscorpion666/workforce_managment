@@ -28,6 +28,7 @@ import { SpeakUpActivity } from '../../modules/speakup/entities/speak-up-activit
 import { KPI } from '../../modules/kpis/entities/kpi.entity';
 import { AuditLog } from '../../modules/audit/entities/audit-log.entity';
 import { Config } from '../../modules/admin/entities/config.entity';
+import { QuestionBankItem } from '../../modules/question-bank/entities/question-bank-item.entity';
 
 import { seedRoles } from './roles.seed';
 import { seedDemoUsers } from './demo-users.seed';
@@ -35,6 +36,7 @@ import { seedHospitals } from './hospitals.seed';
 import { seedGovernance } from './governance.seed';
 import { seedAdhocSurvey } from './adhoc-survey.seed';
 import { seedFloatPoolIssue } from './float-pool-issue.seed';
+import { seedQuestionBank } from './question-bank.seed';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -52,6 +54,7 @@ const AppDataSource = new DataSource({
     KPI,
     AuditLog,
     Config,
+    QuestionBankItem,
   ],
 });
 
@@ -65,6 +68,7 @@ async function main() {
   console.log('🌱 Seeding ad-hoc survey...');
   await seedAdhocSurvey(AppDataSource);
   await seedFloatPoolIssue(AppDataSource);
+  await seedQuestionBank(AppDataSource);
   await AppDataSource.destroy();
   console.log('🎉 Seed complete.\n');
 }
