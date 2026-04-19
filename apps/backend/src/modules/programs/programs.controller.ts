@@ -124,4 +124,24 @@ export class ProgramsController {
   cancel(@Param('id') id: string, @Body() body: { reason?: string }) {
     return this.svc.cancel(id, body.reason);
   }
+
+  @Get(':id/survey-summary')
+  @ApiOperation({ summary: 'Get response count, avg score, and 3 lowest questions for the linked survey' })
+  surveySummary(@Param('id') id: string) {
+    return this.svc.getSurveySummary(id);
+  }
+
+  @Post(':id/ai-root-causes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI: suggest root causes based on survey data and program context' })
+  aiRootCauses(@Param('id') id: string) {
+    return this.svc.aiRootCauses(id);
+  }
+
+  @Post(':id/ai-issues')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI: suggest issues to create from documented findings' })
+  aiIssues(@Param('id') id: string) {
+    return this.svc.aiIssues(id);
+  }
 }

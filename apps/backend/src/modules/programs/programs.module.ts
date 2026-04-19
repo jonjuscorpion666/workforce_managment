@@ -8,11 +8,13 @@ import { User } from '../auth/entities/user.entity';
 import { Issue } from '../issues/entities/issue.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { Survey } from '../surveys/entities/survey.entity';
+import { Question } from '../surveys/entities/question.entity';
+import { Response } from '../responses/entities/response.entity';
 import { AnnouncementsModule } from '../announcements/announcements.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, OrgUnit, User, Issue, Task, Survey]),
+    TypeOrmModule.forFeature([Program, OrgUnit, User, Issue, Task, Survey, Question, Response]),
     AnnouncementsModule,
   ],
   controllers: [ProgramsController],

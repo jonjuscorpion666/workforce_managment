@@ -9,7 +9,8 @@ import {
   Building2, Globe, X, Check, ChevronDown, ClipboardList,
   Flag, Megaphone, BarChart2, Wrench, ShieldCheck, AlertTriangle,
   BellRing, Activity, ExternalLink, SquarePen, Plus, ChevronRight,
-  UserCircle, Calendar, FileText, Target,
+  UserCircle, Calendar, FileText, Target, Sparkles, TrendingDown,
+  Users, Star, Trash2,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -131,6 +132,8 @@ export default function ProgramDetailPage() {
   const [showCreateIssue, setShowCreateIssue] = useState(false);
   const [newIssue, setNewIssue]           = useState({ title: '', severity: 'MEDIUM' });
   const [rcFindings, setRcFindings]       = useState('');
+  const [showAiIssues, setShowAiIssues]   = useState(false);
+  const [aiIssueDrafts, setAiIssueDrafts] = useState<{ title: string; description: string; severity: string; selected: boolean }[]>([]);
   const [remPlan, setRemPlan]             = useState('');
   const [commOpen, setCommOpen]           = useState(false);
   const [valOpen, setValOpen]             = useState(false);
@@ -387,6 +390,53 @@ export default function ProgramDetailPage() {
       toast.success('Issue created');
     },
     onError: () => toast.error('Failed to create issue'),
+  });
+
+  // ── Survey summary (results card) ─────────────────────────────────────────
+
+  const { data: surveySummary } = useQuery<any>({
+    queryKey: ['survey-summary', id],
+    queryFn: () => api.get(`/programs/${id}/survey-summary`).then((r) => r.data),
+    enabled: !!program?.linkedSurveyId,
+    staleTime: 5 * 60_000,
+  });
+
+  // ── AI mutations ──────────────────────────────────────────────────────────
+
+  const aiRootCausesMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${id}/ai-root-causes`).then((r) => r.data),
+    onSuccess: (data) => {
+      setRcFindings(data.suggestions);
+      rootCauseMutation.mutate({ findings: data.suggestions, findingsDocumented: true });
+      toast.success('Root causes suggested — edit as needed');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'AI suggestion failed'),
+  });
+
+  const aiIssuesMutation = useMutation({
+    mutationFn: () => api.post(`/programs/${id}/ai-issues`).then((r) => r.data),
+    onSuccess: (data) => {
+      setAiIssueDrafts((data.issues ?? []).map((i: any) => ({ ...i, selected: true })));
+      setShowAiIssues(true);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'AI suggestion failed'),
+  });
+
+  const createAiIssuesMutation = useMutation({
+    mutationFn: async () => {
+      const selected = aiIssueDrafts.filter((d) => d.selected);
+      for (const issue of selected) {
+        await api.post('/issues', { title: issue.title, description: issue.description, severity: issue.severity, programId: id, source: 'MANUAL' });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['related-work', id] });
+      rootCauseMutation.mutate({ issuesCreated: true });
+      setShowAiIssues(false);
+      setAiIssueDrafts([]);
+      toast.success('Issues created successfully');
+    },
+    onError: () => toast.error('Failed to create some issues'),
   });
 
   // ── Loading state ─────────────────────────────────────────────────────────
@@ -930,10 +980,70 @@ export default function ProgramDetailPage() {
                       {program.linkedSurveyId && (
                         <Link href={`/surveys/${program.linkedSurveyId}/edit`} onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700">
-                          <ExternalLink className="w-3 h-3" /> View
+                          <ExternalLink className="w-3 h-3" /> View survey
                         </Link>
                       )}
                     </button>
+
+                    {/* Survey results summary card */}
+                    {program.linkedSurveyId && surveySummary && (
+                      <div className="border-t border-gray-100 bg-gray-50/60 px-3 py-3 space-y-2.5">
+                        {/* Stats row */}
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs text-gray-600 font-medium">{surveySummary.responseCount} responses</span>
+                          </div>
+                          {surveySummary.avgScore !== null && (
+                            <div className="flex items-center gap-1.5">
+                              <Star className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="text-xs font-semibold text-gray-700">Avg score: <span className={`${surveySummary.avgScore < 50 ? 'text-red-600' : surveySummary.avgScore < 70 ? 'text-amber-600' : 'text-green-600'}`}>{surveySummary.avgScore}/100</span></span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Lowest scoring questions */}
+                        {(surveySummary.lowestQuestions ?? []).length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-1 mb-1.5">
+                              <TrendingDown className="w-3 h-3 text-red-400" />
+                              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Lowest scoring</span>
+                            </div>
+                            <div className="space-y-1">
+                              {(surveySummary.lowestQuestions as any[]).map((q: any) => (
+                                <div key={q.id} className="flex items-center gap-2">
+                                  <div className="flex-1 text-xs text-gray-600 truncate">{q.text}</div>
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${q.avg < 40 ? 'bg-red-100 text-red-700' : q.avg < 60 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}>{q.avg}/100</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {surveySummary.responseCount === 0 && (
+                          <p className="text-xs text-gray-400 italic">No responses yet.</p>
+                        )}
+
+                        {/* Links */}
+                        <div className="flex items-center gap-3 pt-0.5 flex-wrap">
+                          <Link href={`/surveys/${program.linkedSurveyId}/edit`}
+                            className="flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:text-blue-700">
+                            <ExternalLink className="w-3 h-3" /> View full results
+                          </Link>
+                          <span className="text-gray-300 text-[10px]">·</span>
+                          <Link href={`/analytics?surveyId=${program.linkedSurveyId}`}
+                            className="flex items-center gap-1 text-[10px] font-medium text-indigo-600 hover:text-indigo-700">
+                            <BarChart2 className="w-3 h-3" /> More analytics available →
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+
+                    {program.linkedSurveyId && !surveySummary && (
+                      <div className="border-t border-gray-100 px-3 py-2">
+                        <p className="text-[10px] text-gray-400">Loading survey results…</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* 2. Findings documented */}
@@ -949,7 +1059,18 @@ export default function ProgramDetailPage() {
                           <span className="text-[10px] text-gray-400">auto</span>
                         </div>
                         <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
-                          <p className="text-[10px] text-gray-400 mb-1">Document root causes identified → ticks above</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] text-gray-400">Document root causes identified → ticks above</p>
+                            <button
+                              type="button"
+                              onClick={() => aiRootCausesMutation.mutate()}
+                              disabled={!program.linkedSurveyId || aiRootCausesMutation.isPending}
+                              title={!program.linkedSurveyId ? 'Link a survey first' : 'AI-suggest root causes from survey data'}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Sparkles className="w-3 h-3" />
+                              {aiRootCausesMutation.isPending ? 'Thinking…' : 'AI suggest'}
+                            </button>
+                          </div>
                           <textarea rows={3}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                             placeholder="e.g. Night shift nurses report inadequate handover time…"
@@ -997,10 +1118,20 @@ export default function ProgramDetailPage() {
                             </div>
                           ))}
                           {!showCreateIssue ? (
-                            <button onClick={() => setShowCreateIssue(true)}
-                              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700">
-                              <Plus className="w-3.5 h-3.5" /> Create issue from finding
-                            </button>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <button onClick={() => setShowCreateIssue(true)}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700">
+                                <Plus className="w-3.5 h-3.5" /> Create issue from finding
+                              </button>
+                              <button
+                                onClick={() => aiIssuesMutation.mutate()}
+                                disabled={!rcFindings.trim() || aiIssuesMutation.isPending}
+                                title={!rcFindings.trim() ? 'Save your findings first' : 'AI-suggest issues from findings'}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <Sparkles className="w-3.5 h-3.5" />
+                                {aiIssuesMutation.isPending ? 'Thinking…' : 'AI suggest issues'}
+                              </button>
+                            </div>
                           ) : (
                             <div className="space-y-2 pt-1">
                               <input
@@ -1421,6 +1552,71 @@ export default function ProgramDetailPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* ── AI Issues Modal ───────────────────────────────────────────────── */}
+      {showAiIssues && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500" /> AI-Suggested Issues
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Select, edit, then create. Uncheck any you don't need.</p>
+              </div>
+              <button onClick={() => setShowAiIssues(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-3 space-y-3">
+              {aiIssueDrafts.map((draft, i) => (
+                <div key={i} className={`border rounded-xl p-3 space-y-2 transition-colors ${draft.selected ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                  <div className="flex items-start gap-2">
+                    <input type="checkbox" checked={draft.selected}
+                      onChange={(e) => setAiIssueDrafts((d) => d.map((x, idx) => idx === i ? { ...x, selected: e.target.checked } : x))}
+                      className="mt-0.5 w-4 h-4 accent-indigo-600 flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <input
+                        className="w-full text-sm font-medium border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        value={draft.title}
+                        onChange={(e) => setAiIssueDrafts((d) => d.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))}
+                      />
+                      <textarea rows={2}
+                        className="w-full text-xs text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                        value={draft.description}
+                        onChange={(e) => setAiIssueDrafts((d) => d.map((x, idx) => idx === i ? { ...x, description: e.target.value } : x))}
+                      />
+                      <select
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                        value={draft.severity}
+                        onChange={(e) => setAiIssueDrafts((d) => d.map((x, idx) => idx === i ? { ...x, severity: e.target.value } : x))}>
+                        {['CRITICAL','HIGH','MEDIUM','LOW'].map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <button onClick={() => setAiIssueDrafts((d) => d.filter((_, idx) => idx !== i))}
+                      className="text-gray-300 hover:text-red-400 mt-0.5 flex-shrink-0">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-gray-100 px-5 py-4 flex items-center justify-between gap-3">
+              <span className="text-xs text-gray-400">{aiIssueDrafts.filter((d) => d.selected).length} of {aiIssueDrafts.length} selected</span>
+              <div className="flex gap-2">
+                <button onClick={() => setShowAiIssues(false)} className="btn-secondary text-sm px-4">Cancel</button>
+                <button
+                  onClick={() => createAiIssuesMutation.mutate()}
+                  disabled={!aiIssueDrafts.some((d) => d.selected) || createAiIssuesMutation.isPending}
+                  className="btn-primary text-sm px-4 disabled:opacity-40">
+                  {createAiIssuesMutation.isPending ? 'Creating…' : `Create ${aiIssueDrafts.filter((d) => d.selected).length} issue${aiIssueDrafts.filter((d) => d.selected).length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

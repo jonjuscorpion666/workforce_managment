@@ -1,9 +1,10 @@
 import {
-  Injectable, NotFoundException, ForbiddenException, BadRequestException,
+  Injectable, NotFoundException, ForbiddenException, BadRequestException, BadGatewayException,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import Anthropic from '@anthropic-ai/sdk';
 import {
   Program, ProgramApprovalStatus, ProgramScope,
   ProgramStageKey, ProgramStatus, SetupChecklist, ExecutionChecklist,
@@ -14,6 +15,8 @@ import { User } from '../auth/entities/user.entity';
 import { Issue } from '../issues/entities/issue.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { Survey, SurveyStatus } from '../surveys/entities/survey.entity';
+import { Question } from '../surveys/entities/question.entity';
+import { Response as SurveyResponse } from '../responses/entities/response.entity';
 import { AnnouncementsService } from '../announcements/announcements.service';
 import { AnnouncementType, AnnouncementPriority, AudienceMode } from '../announcements/entities/announcement.entity';
 
@@ -36,13 +39,17 @@ const CHECKLIST_KEYS: (keyof SetupChecklist)[] = [
 
 @Injectable()
 export class ProgramsService {
+  private readonly ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
   constructor(
-    @InjectRepository(Program) private readonly repo:      Repository<Program>,
-    @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
-    @InjectRepository(User)    private readonly userRepo:  Repository<User>,
-    @InjectRepository(Issue)   private readonly issueRepo:  Repository<Issue>,
-    @InjectRepository(Task)    private readonly taskRepo:   Repository<Task>,
-    @InjectRepository(Survey)  private readonly surveyRepo: Repository<Survey>,
+    @InjectRepository(Program)         private readonly repo:         Repository<Program>,
+    @InjectRepository(OrgUnit)         private readonly orgUnitRepo:  Repository<OrgUnit>,
+    @InjectRepository(User)            private readonly userRepo:     Repository<User>,
+    @InjectRepository(Issue)           private readonly issueRepo:    Repository<Issue>,
+    @InjectRepository(Task)            private readonly taskRepo:     Repository<Task>,
+    @InjectRepository(Survey)          private readonly surveyRepo:   Repository<Survey>,
+    @InjectRepository(Question)        private readonly questionRepo:  Repository<Question>,
+    @InjectRepository(SurveyResponse)  private readonly responseRepo:  Repository<SurveyResponse>,
     private readonly announcementsService: AnnouncementsService,
   ) {}
 
@@ -516,5 +523,137 @@ export class ProgramsService {
         validationProgress,
       };
     });
+  }
+
+  // ── Survey summary (for Root Cause Analysis card) ──────────────────────────
+
+  async getSurveySummary(programId: string) {
+    const program = await this.repo.findOne({ where: { id: programId } });
+    if (!program?.linkedSurveyId) throw new NotFoundException('No survey linked to this program');
+
+    const surveyId = program.linkedSurveyId;
+    const [survey, responses, questions] = await Promise.all([
+      this.surveyRepo.findOne({ where: { id: surveyId } }),
+      this.responseRepo.find({ where: { surveyId } }),
+      this.questionRepo.find({ where: { survey: { id: surveyId } }, relations: ['survey'] }),
+    ]);
+    if (!survey) throw new NotFoundException('Linked survey not found');
+
+    const responseCount = responses.length;
+    if (responseCount === 0) {
+      return { responseCount: 0, avgScore: null, lowestQuestions: [], surveyId, surveyTitle: survey.title };
+    }
+
+    const NUMERIC = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING', 'YES_NO'];
+    const questionScores: { id: string; text: string; avg: number }[] = [];
+
+    for (const q of questions) {
+      if (!NUMERIC.includes(q.type)) continue;
+      const scores: number[] = [];
+      for (const r of responses) {
+        const ans = r.answers.find((a) => a.questionId === q.id);
+        if (!ans) continue;
+        const val = Number(ans.value);
+        if (isNaN(val)) continue;
+        let norm: number;
+        if (q.type === 'LIKERT_5' || q.type === 'RATING') norm = ((val - 1) / 4) * 100;
+        else if (q.type === 'LIKERT_10')                   norm = ((val - 1) / 9) * 100;
+        else if (q.type === 'NPS')                         norm = (val / 10) * 100;
+        else /* YES_NO */                                  norm = val ? 100 : 0;
+        scores.push(norm);
+      }
+      if (!scores.length) continue;
+      questionScores.push({
+        id: q.id,
+        text: q.text,
+        avg: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      });
+    }
+
+    const avgScore = questionScores.length
+      ? Math.round(questionScores.reduce((a, b) => a + b.avg, 0) / questionScores.length)
+      : null;
+
+    const lowestQuestions = [...questionScores].sort((a, b) => a.avg - b.avg).slice(0, 3);
+
+    return { responseCount, avgScore, lowestQuestions, surveyId, surveyTitle: survey.title };
+  }
+
+  // ── AI: suggest root causes from survey data ────────────────────────────────
+
+  async aiRootCauses(programId: string) {
+    const [program, summary] = await Promise.all([
+      this.repo.findOne({ where: { id: programId } }),
+      this.getSurveySummary(programId).catch(() => null),
+    ]);
+    if (!program) throw new NotFoundException('Program not found');
+
+    const surveyContext = summary
+      ? `Survey results (${summary.responseCount} responses, avg score ${summary.avgScore ?? 'N/A'}/100):
+${(summary.lowestQuestions as any[]).map((q: any) => `- "${q.text}" scored ${q.avg}/100`).join('\n')}`
+      : 'No survey data available yet.';
+
+    const prompt = `You are an expert healthcare workforce analyst.
+
+Program: ${program.name}
+Objective: ${program.objective ?? ''}
+Problem Statement: ${program.problemStatement ?? ''}
+
+${surveyContext}
+
+Based on this data, identify 4-6 root causes that most likely explain the low engagement/performance scores.
+Format as a bulleted list. Be specific and actionable. Focus on systemic issues, not individual blame.
+Return ONLY the bullet list, no preamble or headers.`;
+
+    try {
+      const msg = await this.ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = (msg.content[0] as any).text?.trim() ?? '';
+      return { suggestions: text };
+    } catch (err: any) {
+      throw new BadGatewayException(`AI error: ${err?.message ?? 'Unknown'}`);
+    }
+  }
+
+  // ── AI: suggest issues from findings ───────────────────────────────────────
+
+  async aiIssues(programId: string) {
+    const program = await this.repo.findOne({ where: { id: programId } });
+    if (!program) throw new NotFoundException('Program not found');
+
+    const findings = program.rootCauseChecklist?.findings ?? '';
+    if (!findings.trim()) throw new BadRequestException('Save your findings first before generating issue suggestions');
+
+    const prompt = `You are a healthcare workforce improvement specialist.
+
+Program: ${program.name}
+Root cause findings: ${findings}
+
+Generate 4-6 specific, actionable issues that should be tracked and resolved to address these root causes.
+Return ONLY a valid JSON array, no explanation. Each item must have:
+{
+  "title": "<concise issue title, max 80 chars>",
+  "description": "<1-2 sentence description of what needs to be fixed>",
+  "severity": "<CRITICAL|HIGH|MEDIUM|LOW>"
+}`;
+
+    try {
+      const msg = await this.ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1200,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const raw = (msg.content[0] as any).text?.trim() ?? '';
+      const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+      let issues: any[];
+      try { issues = JSON.parse(cleaned); } catch { throw new BadRequestException('AI returned unexpected format. Please try again.'); }
+      return { issues };
+    } catch (err: any) {
+      if (err?.status) throw err; // re-throw HttpExceptions
+      throw new BadGatewayException(`AI error: ${err?.message ?? 'Unknown'}`);
+    }
   }
 }
