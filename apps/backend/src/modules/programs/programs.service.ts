@@ -525,6 +525,38 @@ export class ProgramsService {
     });
   }
 
+  // ── AI: enhance free-text field ────────────────────────────────────────────
+
+  async aiEnhanceText(text: string, fieldContext: string) {
+    if (!text?.trim()) throw new BadRequestException('Text cannot be empty');
+
+    const prompt = `You are a professional healthcare workforce program writer.
+
+The user has written rough notes for the following field: "${fieldContext}"
+
+Their draft:
+${text}
+
+Rewrite this into clear, professional, well-structured sentences suitable for a healthcare leadership program document.
+- Keep all the original facts and intent — do not add information that was not implied
+- Fix grammar and structure
+- Use concise, active language
+- If it is already bullet points, convert to flowing prose unless bullets are clearly better
+- Return ONLY the enhanced text, no preamble, no labels, no quotes`;
+
+    try {
+      const msg = await this.ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const enhanced = (msg.content[0] as any).text?.trim() ?? text;
+      return { enhanced };
+    } catch (err: any) {
+      throw new BadGatewayException(`AI error: ${err?.message ?? 'Unknown'}`);
+    }
+  }
+
   // ── Survey summary (for Root Cause Analysis card) ──────────────────────────
 
   async getSurveySummary(programId: string) {

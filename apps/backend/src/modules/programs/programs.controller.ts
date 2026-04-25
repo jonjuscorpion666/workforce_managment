@@ -125,6 +125,13 @@ export class ProgramsController {
     return this.svc.cancel(id, body.reason);
   }
 
+  @Post('ai-enhance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI: enhance/rewrite a free-text field into professional prose' })
+  aiEnhance(@Body() body: { text: string; fieldContext: string }) {
+    return this.svc.aiEnhanceText(body.text, body.fieldContext);
+  }
+
   @Get(':id/survey-summary')
   @ApiOperation({ summary: 'Get response count, avg score, and 3 lowest questions for the linked survey' })
   surveySummary(@Param('id') id: string) {

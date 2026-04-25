@@ -134,6 +134,7 @@ export default function ProgramDetailPage() {
   const [rcFindings, setRcFindings]       = useState('');
   const [showAiIssues, setShowAiIssues]   = useState(false);
   const [aiIssueDrafts, setAiIssueDrafts] = useState<{ title: string; description: string; severity: string; selected: boolean }[]>([]);
+  const [enhancing, setEnhancing]         = useState<string | null>(null);
   const [remPlan, setRemPlan]             = useState('');
   const [commOpen, setCommOpen]           = useState(false);
   const [valOpen, setValOpen]             = useState(false);
@@ -439,6 +440,22 @@ export default function ProgramDetailPage() {
     onError: () => toast.error('Failed to create some issues'),
   });
 
+  // ── AI text enhancement ───────────────────────────────────────────────────
+
+  async function enhance(fieldKey: string, fieldContext: string, value: string, setter: (v: string) => void) {
+    if (!value.trim()) return;
+    setEnhancing(fieldKey);
+    try {
+      const { data } = await api.post('/programs/ai-enhance', { text: value, fieldContext });
+      setter(data.enhanced);
+      toast.success('Text enhanced');
+    } catch {
+      toast.error('Enhancement failed');
+    } finally {
+      setEnhancing(null);
+    }
+  }
+
   // ── Loading state ─────────────────────────────────────────────────────────
 
   if (isLoading || !program) {
@@ -710,7 +727,14 @@ export default function ProgramDetailPage() {
                         </div>
                       </div>
                       <div>
-                        <p className="text-[10px] text-gray-400 mb-0.5">Notes</p>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <p className="text-[10px] text-gray-400">Notes</p>
+                          <button type="button" onClick={() => enhance('meetingNotes', 'kick-off meeting notes for a healthcare workforce program', meetingNotes, setMeetingNotes)}
+                            disabled={!meetingNotes.trim() || !!enhancing}
+                            className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                            <Sparkles className="w-3 h-3" />{enhancing === 'meetingNotes' ? 'Enhancing…' : 'Enhance'}
+                          </button>
+                        </div>
                         <textarea rows={2}
                           className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
                           placeholder="Key decisions…"
@@ -800,7 +824,14 @@ export default function ProgramDetailPage() {
                           <span className="text-[10px] text-gray-400">auto</span>
                         </div>
                         <div className="border-t border-gray-100 bg-amber-50/40 px-3 py-2.5 space-y-2">
-                          <p className="text-[10px] text-gray-400">Message employees will receive → ticks above</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-gray-400">Message employees will receive → ticks above</p>
+                            <button type="button" onClick={() => enhance('commMessage', 'employee communication message announcing a workforce survey', commMessage, setCommMessage)}
+                              disabled={!commMessage.trim() || !!enhancing}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Sparkles className="w-3 h-3" />{enhancing === 'commMessage' ? 'Enhancing…' : 'Enhance'}
+                            </button>
+                          </div>
                           <textarea rows={4}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none placeholder:text-gray-400"
                             placeholder={`Hi team,\n\nWe're running a short survey this week…`}
@@ -1196,7 +1227,14 @@ export default function ProgramDetailPage() {
                           <span className="text-[10px] text-gray-400">auto</span>
                         </div>
                         <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
-                          <p className="text-[10px] text-gray-400 mb-1">Outline remediation actions → ticks above</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] text-gray-400">Outline remediation actions → ticks above</p>
+                            <button type="button" onClick={() => enhance('remPlan', 'remediation action plan for a healthcare workforce improvement program', remPlan, setRemPlan)}
+                              disabled={!remPlan.trim() || !!enhancing}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Sparkles className="w-3 h-3" />{enhancing === 'remPlan' ? 'Enhancing…' : 'Enhance'}
+                            </button>
+                          </div>
                           <textarea rows={3}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                             placeholder="e.g. 1. Revise handover protocol — owner: Charge Nurse, due May 15&#10;2. Escalation training — owner: HR, due May 30…"
@@ -1294,7 +1332,14 @@ export default function ProgramDetailPage() {
                           <span className="text-[10px] text-gray-400">auto</span>
                         </div>
                         <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
-                          <p className="text-[10px] text-gray-400 mb-1">Document outcomes and findings to share → ticks above</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] text-gray-400">Document outcomes and findings to share → ticks above</p>
+                            <button type="button" onClick={() => enhance('commReport', 'findings report / leadership communication for a healthcare workforce program', commReport, setCommReport)}
+                              disabled={!commReport.trim() || !!enhancing}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Sparkles className="w-3 h-3" />{enhancing === 'commReport' ? 'Enhancing…' : 'Enhance'}
+                            </button>
+                          </div>
                           <textarea rows={3}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                             placeholder="e.g. Turnover reduced by 12% after revised handover protocol. Night shift satisfaction improved 23 points…"
@@ -1403,7 +1448,14 @@ export default function ProgramDetailPage() {
                           <span className="text-[10px] text-gray-400">auto</span>
                         </div>
                         <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
-                          <p className="text-[10px] text-gray-400 mb-1">Document final outcomes and lessons learned → ticks above</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] text-gray-400">Document final outcomes and lessons learned → ticks above</p>
+                            <button type="button" onClick={() => enhance('valOutcomes', 'program outcomes and lessons learned document for a healthcare workforce program', valOutcomes, setValOutcomes)}
+                              disabled={!valOutcomes.trim() || !!enhancing}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Sparkles className="w-3 h-3" />{enhancing === 'valOutcomes' ? 'Enhancing…' : 'Enhance'}
+                            </button>
+                          </div>
                           <textarea rows={3}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                             placeholder="e.g. Program achieved 85% of success criteria. Turnover reduced 12%. Key lesson: earlier manager engagement would have accelerated impact…"
