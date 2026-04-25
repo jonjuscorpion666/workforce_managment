@@ -39,7 +39,14 @@ const CHECKLIST_KEYS: (keyof SetupChecklist)[] = [
 
 @Injectable()
 export class ProgramsService {
-  private readonly ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  private _ai: Anthropic | null = null;
+  private get ai(): Anthropic {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new BadGatewayException('AI features require ANTHROPIC_API_KEY to be configured');
+    }
+    if (!this._ai) this._ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    return this._ai;
+  }
 
   constructor(
     @InjectRepository(Program)         private readonly repo:         Repository<Program>,

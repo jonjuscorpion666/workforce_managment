@@ -99,7 +99,7 @@ function ProgramCard({ program, surveys, onClick }: { program: any; surveys: any
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all px-5 py-4"
+      className={`w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all px-5 py-4 border-l-4 ${STATUS_ACCENT[program.status] ?? 'border-l-gray-200'}`}
     >
       <div className="flex items-center gap-4">
         {/* Left content */}
@@ -199,8 +199,8 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
       const { data } = await api.post('/programs/ai-enhance', { text, fieldContext });
       setForm((f) => ({ ...f, [field]: data.enhanced }));
       toast.success('Text enhanced');
-    } catch {
-      toast.error('Enhancement failed');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'Enhancement failed');
     } finally {
       setEnhancing(null);
     }

@@ -395,7 +395,7 @@ export default function ProgramDetailPage() {
 
   // ── Survey summary (results card) ─────────────────────────────────────────
 
-  const { data: surveySummary } = useQuery<any>({
+  const { data: surveySummary, isError: surveySummaryError } = useQuery<any>({
     queryKey: ['survey-summary', id],
     queryFn: () => api.get(`/programs/${id}/survey-summary`).then((r) => r.data),
     enabled: !!program?.linkedSurveyId,
@@ -449,8 +449,8 @@ export default function ProgramDetailPage() {
       const { data } = await api.post('/programs/ai-enhance', { text: value, fieldContext });
       setter(data.enhanced);
       toast.success('Text enhanced');
-    } catch {
-      toast.error('Enhancement failed');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'Enhancement failed');
     } finally {
       setEnhancing(null);
     }
@@ -1070,9 +1070,15 @@ export default function ProgramDetailPage() {
                       </div>
                     )}
 
-                    {program.linkedSurveyId && !surveySummary && (
+                    {program.linkedSurveyId && !surveySummary && !surveySummaryError && (
                       <div className="border-t border-gray-100 px-3 py-2">
                         <p className="text-[10px] text-gray-400">Loading survey results…</p>
+                      </div>
+                    )}
+                    {program.linkedSurveyId && surveySummaryError && (
+                      <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2">
+                        <AlertCircle className="w-3 h-3 text-red-400 flex-shrink-0" />
+                        <p className="text-[10px] text-red-500">Could not load survey results</p>
                       </div>
                     )}
                   </div>
