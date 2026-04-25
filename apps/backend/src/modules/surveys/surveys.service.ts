@@ -5,6 +5,8 @@ import { Survey, SurveyStatus, ApprovalStatus } from './entities/survey.entity';
 import { Question } from './entities/question.entity';
 import { AuditService } from '../audit/audit.service';
 import { Config } from '../admin/entities/config.entity';
+import { Response as SurveyResponse } from '../responses/entities/response.entity';
+import { OrgUnit } from '../org/entities/org-unit.entity';
 
 // Roles that bypass the approval workflow
 const FULL_AUTHORITY_ROLES = ['SVP', 'SUPER_ADMIN'];
@@ -12,9 +14,11 @@ const FULL_AUTHORITY_ROLES = ['SVP', 'SUPER_ADMIN'];
 @Injectable()
 export class SurveysService {
   constructor(
-    @InjectRepository(Survey)  private readonly surveyRepo:   Repository<Survey>,
-    @InjectRepository(Question) private readonly questionRepo: Repository<Question>,
-    @InjectRepository(Config)   private readonly configRepo:  Repository<Config>,
+    @InjectRepository(Survey)          private readonly surveyRepo:   Repository<Survey>,
+    @InjectRepository(Question)        private readonly questionRepo:  Repository<Question>,
+    @InjectRepository(Config)          private readonly configRepo:   Repository<Config>,
+    @InjectRepository(SurveyResponse)  private readonly responseRepo:  Repository<SurveyResponse>,
+    @InjectRepository(OrgUnit)         private readonly orgUnitRepo:  Repository<OrgUnit>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -264,5 +268,126 @@ export class SurveysService {
     if (!ids?.length) return { deleted: 0 };
     await this.surveyRepo.softDelete(ids);
     return { deleted: ids.length };
+  }
+
+  // ── Granular results (question analysis + individual responses + open text) ─
+
+  async getResults(surveyId: string) {
+    const survey = await this.surveyRepo.findOne({
+      where: { id: surveyId },
+      relations: ['questions'],
+      order: { questions: { orderIndex: 'ASC' } },
+    });
+    if (!survey) throw new NotFoundException('Survey not found');
+
+    const questions: any[] = (survey as any).questions ?? [];
+    const responses = await this.responseRepo.find({
+      where: { surveyId },
+      order: { submittedAt: 'DESC' },
+    });
+
+    // Resolve org unit names
+    const orgUnitIds = [...new Set(responses.map((r) => r.orgUnitId).filter(Boolean))] as string[];
+    const orgUnits   = orgUnitIds.length ? await this.orgUnitRepo.findByIds(orgUnitIds) : [];
+    const orgMap     = new Map(orgUnits.map((u) => [u.id, (u as any).name]));
+
+    const NUMERIC = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING', 'YES_NO'];
+
+    // ── Per-question analysis ─────────────────────────────────────────────────
+    const questionAnalysis = questions.map((q) => {
+      const distribution: Record<string, number> = {};
+      const scores: number[] = [];
+
+      for (const r of responses) {
+        const ans = r.answers.find((a) => a.questionId === q.id);
+        if (!ans) continue;
+
+        const raw = ans.value;
+        const key = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '');
+        if (key) distribution[key] = (distribution[key] ?? 0) + 1;
+
+        if (NUMERIC.includes(q.type)) {
+          const num = Number(raw);
+          if (!isNaN(num)) {
+            let norm: number;
+            if (q.type === 'LIKERT_5' || q.type === 'RATING') norm = ((num - 1) / 4) * 100;
+            else if (q.type === 'LIKERT_10')                   norm = ((num - 1) / 9) * 100;
+            else if (q.type === 'NPS')                         norm = (num / 10) * 100;
+            else /* YES_NO */                                  norm = num ? 100 : 0;
+            scores.push(norm);
+          }
+        }
+      }
+
+      return {
+        questionId:    q.id,
+        text:          q.text,
+        type:          q.type,
+        options:       q.options ?? [],
+        responseCount: Object.values(distribution).reduce((a: number, b) => a + (b as number), 0),
+        avgScore:      scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+        distribution,
+      };
+    });
+
+    // ── Anonymised individual responses ───────────────────────────────────────
+    const anonymisedResponses = responses.map((r, idx) => ({
+      index:       idx + 1,
+      submittedAt: r.submittedAt,
+      role:        r.role        ?? null,
+      shift:       r.shift       ?? null,
+      orgUnitName: r.orgUnitId   ? (orgMap.get(r.orgUnitId) ?? null) : null,
+      answers: r.answers.map((ans) => {
+        const q = questions.find((q) => q.id === ans.questionId);
+        return {
+          questionId:   ans.questionId,
+          questionText: q?.text  ?? 'Unknown question',
+          questionType: q?.type  ?? 'OPEN_TEXT',
+          value:        ans.value,
+          text:         (ans as any).text ?? null,
+        };
+      }).sort((a, b) => {
+        const ai = questions.findIndex((q) => q.id === a.questionId);
+        const bi = questions.findIndex((q) => q.id === b.questionId);
+        return ai - bi;
+      }),
+    }));
+
+    // ── Open-text answers grouped by question ─────────────────────────────────
+    const openTextAnswers = questions
+      .filter((q) => q.type === 'OPEN_TEXT')
+      .map((q) => ({
+        questionId:   q.id,
+        questionText: q.text,
+        answers: responses
+          .map((r, idx) => {
+            const ans = r.answers.find((a) => a.questionId === q.id);
+            if (!ans?.value) return null;
+            return { responseIndex: idx + 1, value: String(ans.value), submittedAt: r.submittedAt };
+          })
+          .filter(Boolean),
+      }))
+      .filter((q) => q.answers.length > 0);
+
+    // ── Summary ───────────────────────────────────────────────────────────────
+    const allScores = questionAnalysis.filter((q) => q.avgScore !== null).map((q) => q.avgScore as number);
+    const dates     = responses.map((r) => r.submittedAt);
+
+    return {
+      survey: {
+        id:     survey.id,
+        title:  (survey as any).title,
+        type:   (survey as any).type,
+        status: survey.status,
+      },
+      summary: {
+        responseCount: responses.length,
+        avgScore:      allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : null,
+        dateRange:     dates.length ? { first: dates[dates.length - 1], last: dates[0] } : null,
+      },
+      questionAnalysis,
+      responses: anonymisedResponses,
+      openTextAnswers,
+    };
   }
 }

@@ -9,9 +9,11 @@ import { AuditModule } from '../audit/audit.module';
 import { Config } from '../admin/entities/config.entity';
 import { QuestionBankItem } from '../question-bank/entities/question-bank-item.entity';
 import { Program } from '../programs/entities/program.entity';
+import { Response } from '../responses/entities/response.entity';
+import { OrgUnit } from '../org/entities/org-unit.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Survey, Question, Config, QuestionBankItem, Program]), AuditModule],
+  imports: [TypeOrmModule.forFeature([Survey, Question, Config, QuestionBankItem, Program, Response, OrgUnit]), AuditModule],
   controllers: [SurveysController],
   providers: [SurveysService, AiSurveyService],
   exports: [SurveysService, TypeOrmModule],

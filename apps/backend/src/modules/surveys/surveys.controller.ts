@@ -128,6 +128,12 @@ export class SurveysController {
     return this.surveysService.getParticipation(id);
   }
 
+  @Get(':id/results')
+  @ApiOperation({ summary: 'Granular survey results: question analysis, anonymised individual responses, open text' })
+  results(@Param('id') id: string) {
+    return this.surveysService.getResults(id);
+  }
+
   @Post('bulk-delete')
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)

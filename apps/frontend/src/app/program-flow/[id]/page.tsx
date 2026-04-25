@@ -1009,9 +1009,9 @@ export default function ProgramDetailPage() {
                       </div>
                       <span className={`text-sm flex-1 ${rcCl.resultsReviewed ? 'text-green-700 line-through' : 'text-gray-700'}`}>Survey results reviewed</span>
                       {program.linkedSurveyId && (
-                        <Link href={`/surveys/${program.linkedSurveyId}/edit`} onClick={(e) => e.stopPropagation()}
+                        <Link href={`/surveys/${program.linkedSurveyId}/results`} onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700">
-                          <ExternalLink className="w-3 h-3" /> View survey
+                          <ExternalLink className="w-3 h-3" /> View results
                         </Link>
                       )}
                     </button>
@@ -1057,7 +1057,7 @@ export default function ProgramDetailPage() {
 
                         {/* Links */}
                         <div className="flex items-center gap-3 pt-0.5 flex-wrap">
-                          <Link href={`/surveys/${program.linkedSurveyId}/edit`}
+                          <Link href={`/surveys/${program.linkedSurveyId}/results`}
                             className="flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:text-blue-700">
                             <ExternalLink className="w-3 h-3" /> View full results
                           </Link>
