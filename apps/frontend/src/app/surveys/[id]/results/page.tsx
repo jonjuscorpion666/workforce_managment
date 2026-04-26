@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft, BarChart2, Users, Star, ChevronDown, ChevronUp,
@@ -92,6 +92,8 @@ const PAGE_SIZE = 20;
 
 export default function SurveyResultsPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const fromUrl = searchParams.get('from') || `/surveys/${id}/edit`;
   const [tab, setTab]                   = useState<Tab>('questions');
   const [expanded, setExpanded]         = useState<Set<number>>(new Set());
   const [page, setPage]                 = useState(0);
@@ -142,8 +144,8 @@ export default function SurveyResultsPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-5xl mx-auto">
-          <Link href={`/surveys/${id}/edit`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
-            <ArrowLeft className="w-4 h-4" /> Back to survey
+          <Link href={fromUrl} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+            <ArrowLeft className="w-4 h-4" /> {fromUrl.startsWith('/program-flow') ? 'Back to Program' : 'Back to survey'}
           </Link>
           <div className="flex items-start justify-between gap-4">
             <div>

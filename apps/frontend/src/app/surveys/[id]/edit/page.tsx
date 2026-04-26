@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, GripVertical, ArrowLeft, Send, Save,
@@ -263,7 +263,9 @@ function QuestionCard({
 export default function EditSurveyPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const fromUrl = searchParams.get('from') || '/surveys';
   const { hasRole } = useAuth();
   const toast = useToast();
 
@@ -365,7 +367,7 @@ export default function EditSurveyPage() {
 
   const saveDraft = useMutation({
     mutationFn: (data: any) => api.patch(`/surveys/${id}`, data),
-    onSuccess: () => { toast.success('Survey saved as draft'); router.push('/surveys'); },
+    onSuccess: () => { toast.success('Survey saved as draft'); router.push(fromUrl); },
     onError: () => toast.error('Failed to save survey'),
   });
 
@@ -374,7 +376,7 @@ export default function EditSurveyPage() {
       await api.patch(`/surveys/${id}`, data);
       await api.post(`/surveys/${id}/publish`);
     },
-    onSuccess: () => { toast.success('Survey published'); router.push('/surveys'); },
+    onSuccess: () => { toast.success('Survey published'); router.push(fromUrl); },
     onError: () => toast.error('Failed to publish survey'),
   });
 
@@ -383,7 +385,7 @@ export default function EditSurveyPage() {
       await api.patch(`/surveys/${id}`, data);
       await api.post(`/surveys/${id}/request-approval`);
     },
-    onSuccess: () => { toast.success('Survey submitted for approval'); router.push('/surveys'); },
+    onSuccess: () => { toast.success('Survey submitted for approval'); router.push(fromUrl); },
     onError: () => toast.error('Failed to submit survey for approval'),
   });
 
@@ -427,8 +429,8 @@ export default function EditSurveyPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 pb-16">
         {/* Header */}
         <div className="flex items-center gap-2 mb-6">
-          <Link href="/surveys" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium">
-            <ArrowLeft className="w-4 h-4" /> Surveys
+          <Link href={fromUrl} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium">
+            <ArrowLeft className="w-4 h-4" /> {fromUrl.startsWith('/program-flow') ? 'Back to Program' : 'Surveys'}
           </Link>
         </div>
 

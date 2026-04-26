@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Plus, ChevronDown, ChevronRight, Check, Clock, AlertCircle, X,
@@ -900,6 +900,8 @@ function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void 
 export default function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromUrl = searchParams.get('from') || '/issues';
   const [showAddPlan, setShowAddPlan] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
@@ -919,7 +921,7 @@ export default function IssueDetailPage() {
 
   const deleteIssue = useMutation({
     mutationFn: () => api.delete(`/issues/${id}`),
-    onSuccess: () => { toast.success('Issue deleted'); router.push('/issues'); },
+    onSuccess: () => { toast.success('Issue deleted'); router.push(fromUrl); },
     onError: () => toast.error('Failed to delete issue'),
   });
 
@@ -938,7 +940,7 @@ export default function IssueDetailPage() {
       <div className="text-center py-16 text-gray-400">
         <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
         <p>Issue not found or failed to load.</p>
-        <button className="mt-4 btn-secondary" onClick={() => router.push('/issues')}>Back to Issues</button>
+        <button className="mt-4 btn-secondary" onClick={() => router.push(fromUrl)}>Back to Issues</button>
       </div>
     );
   }
@@ -956,10 +958,10 @@ export default function IssueDetailPage() {
       {/* Back + Title bar */}
       <div>
         <button
-          onClick={() => router.push('/issues')}
+          onClick={() => router.push(fromUrl)}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Issues
+          <ArrowLeft className="w-4 h-4" /> {fromUrl.startsWith('/program-flow') ? 'Back to Program' : 'Back to Issues'}
         </button>
 
         <div className="flex flex-wrap items-start gap-3">

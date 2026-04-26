@@ -571,6 +571,46 @@ Return ONLY the JSON object, no explanation, no markdown fences.`;
     }
   }
 
+  // ── AI: generate communication message ────────────────────────────────────
+
+  async aiGenerateCommunicationMessage(programId: string) {
+    const program = await this.repo.findOne({ where: { id: programId } });
+    if (!program) throw new NotFoundException('Program not found');
+
+    const { problemStatement, objective } = program;
+    if (!problemStatement?.trim()) throw new BadRequestException('Program must have a problem statement before generating a communication message');
+
+    const prompt = `You are a healthcare workforce communication specialist.
+
+Write a warm, professional employee announcement message for a workforce improvement survey.
+
+Program context:
+- Problem being addressed: "${problemStatement}"
+${objective?.trim() ? `- Program objective: "${objective}"` : ''}
+
+The message should:
+- Be addressed to "Dear Team," or similar
+- Briefly explain why the survey is being conducted (link to the problem)
+- Reassure employees their feedback is valued and confidential
+- Encourage participation with a sense of urgency
+- Close professionally
+- Be 3-5 short paragraphs, plain prose (no bullet points)
+
+Return ONLY the message text, no preamble, no labels.`;
+
+    try {
+      const msg = await this.ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const message = (msg.content[0] as any).text?.trim() ?? '';
+      return { message };
+    } catch (err: any) {
+      throw new BadGatewayException(`AI error: ${err?.message ?? 'Unknown'}`);
+    }
+  }
+
   // ── AI: enhance free-text field ────────────────────────────────────────────
 
   async aiEnhanceText(text: string, fieldContext: string) {

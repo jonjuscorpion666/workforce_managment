@@ -394,6 +394,7 @@ function NoAccessScreen({ role }: { role: 'MANAGER' | 'STAFF' | 'unknown' }) {
 export default function NewSurveyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const fromUrl = searchParams.get('from') || '/surveys';
   const { user, hasRole } = useAuth();
   const toast = useToast();
 
@@ -574,7 +575,7 @@ export default function NewSurveyPage() {
       await linkProgramIfSelected(res.data.id);
       return res.data;
     },
-    onSuccess: () => { toast.success('Survey saved as draft'); router.push('/surveys'); },
+    onSuccess: () => { toast.success('Survey saved as draft'); router.push(fromUrl); },
     onError: () => toast.error('Failed to save survey'),
   });
 
@@ -585,7 +586,7 @@ export default function NewSurveyPage() {
       await linkProgramIfSelected(res.data.id);
       return res.data;
     },
-    onSuccess: () => { toast.success('Survey submitted for approval'); router.push('/surveys'); },
+    onSuccess: () => { toast.success('Survey submitted for approval'); router.push(fromUrl); },
     onError: () => toast.error('Failed to submit survey for approval'),
   });
 
@@ -596,7 +597,7 @@ export default function NewSurveyPage() {
       await linkProgramIfSelected(res.data.id);
       return res.data;
     },
-    onSuccess: () => { toast.success('Survey published'); router.push('/surveys'); },
+    onSuccess: () => { toast.success('Survey published'); router.push(fromUrl); },
     onError: () => toast.error('Failed to publish survey'),
   });
 
@@ -680,7 +681,7 @@ export default function NewSurveyPage() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/surveys" className="text-gray-400 hover:text-gray-700 transition-colors">
+        <Link href={fromUrl} className="text-gray-400 hover:text-gray-700 transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div className="flex-1">

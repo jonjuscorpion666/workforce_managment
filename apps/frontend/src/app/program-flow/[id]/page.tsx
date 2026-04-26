@@ -136,6 +136,7 @@ export default function ProgramDetailPage() {
   const [aiIssueDrafts, setAiIssueDrafts] = useState<{ title: string; description: string; severity: string; selected: boolean }[]>([]);
   const [enhancing, setEnhancing]         = useState<string | null>(null);
   const [suggesting, setSuggesting]       = useState(false);
+  const [generatingCommMsg, setGeneratingCommMsg] = useState(false);
   const [editProblem, setEditProblem]     = useState('');
   const [editObjective, setEditObjective] = useState('');
   const [editCriteria, setEditCriteria]   = useState('');
@@ -428,6 +429,20 @@ export default function ProgramDetailPage() {
       toast.error(e?.response?.data?.message ?? 'Suggestion failed');
     } finally {
       setSuggesting(false);
+    }
+  }
+
+  async function generateCommMessage() {
+    setGeneratingCommMsg(true);
+    try {
+      const { data } = await api.post(`/programs/${id}/ai-communication-message`);
+      setCommMessage(data.message);
+      checklistMutation.mutate({ communicationMessage: data.message, communicationDrafted: true });
+      toast.success('Communication message generated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'Generation failed');
+    } finally {
+      setGeneratingCommMsg(false);
     }
   }
 
@@ -843,7 +858,7 @@ export default function ProgramDetailPage() {
                       <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                         <p className="text-sm text-green-700 flex-1 truncate">{linkedSurvey?.title ?? 'Survey linked'}</p>
-                        <Link href={`/surveys/${program.linkedSurveyId}/edit`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
+                        <Link href={`/surveys/${program.linkedSurveyId}/edit?from=/program-flow/${id}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
                           <ExternalLink className="w-3 h-3" /> Open
                         </Link>
                         <button
@@ -861,7 +876,7 @@ export default function ProgramDetailPage() {
                             <Plus className="w-4 h-4" /> Link a survey
                           </button>
                           <span className="text-gray-300 text-xs">or</span>
-                          <Link href={`/surveys/new?programId=${program.id}`}
+                          <Link href={`/surveys/new?programId=${program.id}&from=/program-flow/${id}`}
                             className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
                             <Plus className="w-4 h-4" /> Create new &amp; link
                           </Link>
@@ -916,11 +931,19 @@ export default function ProgramDetailPage() {
                         <div className="border-t border-gray-100 bg-amber-50/40 px-3 py-2.5 space-y-2">
                           <div className="flex items-center justify-between">
                             <p className="text-[10px] text-gray-400">Message employees will receive → ticks above</p>
-                            <button type="button" onClick={() => enhance('commMessage', 'employee communication message announcing a workforce survey', commMessage, setCommMessage)}
-                              disabled={!commMessage.trim() || !!enhancing}
-                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                              <Sparkles className="w-3 h-3" />{enhancing === 'commMessage' ? 'Enhancing…' : 'Enhance'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button type="button" onClick={generateCommMessage}
+                                disabled={!program.problemStatement?.trim() || generatingCommMsg || !!enhancing}
+                                title="Generate from problem statement & objective"
+                                className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <Sparkles className="w-3 h-3" />{generatingCommMsg ? 'Generating…' : 'Generate'}
+                              </button>
+                              <button type="button" onClick={() => enhance('commMessage', 'employee communication message announcing a workforce survey', commMessage, setCommMessage)}
+                                disabled={!commMessage.trim() || !!enhancing}
+                                className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <Sparkles className="w-3 h-3" />{enhancing === 'commMessage' ? 'Enhancing…' : 'Enhance'}
+                              </button>
+                            </div>
                           </div>
                           <textarea rows={4}
                             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none placeholder:text-gray-400"
@@ -1099,7 +1122,7 @@ export default function ProgramDetailPage() {
                       </div>
                       <span className={`text-sm flex-1 ${rcCl.resultsReviewed ? 'text-green-700 line-through' : 'text-gray-700'}`}>Survey results reviewed</span>
                       {program.linkedSurveyId && (
-                        <Link href={`/surveys/${program.linkedSurveyId}/results`} onClick={(e) => e.stopPropagation()}
+                        <Link href={`/surveys/${program.linkedSurveyId}/results?from=/program-flow/${id}`} onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700">
                           <ExternalLink className="w-3 h-3" /> View results
                         </Link>
@@ -1147,7 +1170,7 @@ export default function ProgramDetailPage() {
 
                         {/* Links */}
                         <div className="flex items-center gap-3 pt-0.5 flex-wrap">
-                          <Link href={`/surveys/${program.linkedSurveyId}/results`}
+                          <Link href={`/surveys/${program.linkedSurveyId}/results?from=/program-flow/${id}`}
                             className="flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:text-blue-700">
                             <ExternalLink className="w-3 h-3" /> View full results
                           </Link>
@@ -1227,7 +1250,7 @@ export default function ProgramDetailPage() {
                         <div className="border-t border-gray-100 px-3 py-2.5 space-y-2">
                           {(relatedWork as any[]).map((issue) => (
                             <div key={issue.id} className="space-y-0.5">
-                              <Link href={`/issues/${issue.id}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
+                              <Link href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
                                 <AlertCircle className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
                                 <span className="flex-1 truncate font-medium">{issue.title}</span>
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
@@ -1236,7 +1259,7 @@ export default function ProgramDetailPage() {
                                 }`}>{issue.status.replace(/_/g, ' ')}</span>
                               </Link>
                               {(issue.tasks ?? []).map((task: any) => (
-                                <Link key={task.id} href={`/issues/${issue.id}`} className="flex items-center gap-2 pl-5 text-xs text-gray-500 hover:text-blue-600 group">
+                                <Link key={task.id} href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-2 pl-5 text-xs text-gray-500 hover:text-blue-600 group">
                                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
                                   <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
                                   <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
@@ -1362,14 +1385,14 @@ export default function ProgramDetailPage() {
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' : issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {issue.status.replace(/_/g, ' ')}
                               </span>
-                              <Link href={`/issues/${issue.id}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
+                              <Link href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
                                 <SquarePen className="w-3 h-3" /> View
                               </Link>
                             </div>
                             {(issue.tasks ?? []).length > 0 && (
                               <div className="pl-5 space-y-1">
                                 {(issue.tasks ?? []).map((task: any) => (
-                                  <Link key={task.id} href={`/issues/${issue.id}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 group">
+                                  <Link key={task.id} href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 group">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
                                     <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
                                     <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
@@ -1598,7 +1621,7 @@ export default function ProgramDetailPage() {
                 <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                   <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                   <p className="text-sm font-medium text-green-800 flex-1 truncate">{linkedSurvey.title}</p>
-                  <Link href={`/surveys/${program.linkedSurveyId}/edit`}
+                  <Link href={`/surveys/${program.linkedSurveyId}/edit?from=/program-flow/${id}`}
                     className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium">
                     <ExternalLink className="w-3.5 h-3.5" /> Open
                   </Link>

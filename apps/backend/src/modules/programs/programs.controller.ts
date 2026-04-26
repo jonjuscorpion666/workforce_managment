@@ -125,6 +125,13 @@ export class ProgramsController {
     return this.svc.cancel(id, body.reason);
   }
 
+  @Post(':id/ai-communication-message')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI: generate employee communication message from problem statement & objective' })
+  aiCommunicationMessage(@Param('id') id: string) {
+    return this.svc.aiGenerateCommunicationMessage(id);
+  }
+
   @Post('ai-enhance')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'AI: enhance/rewrite a free-text field into professional prose' })
