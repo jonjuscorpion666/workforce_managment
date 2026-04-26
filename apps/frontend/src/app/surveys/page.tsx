@@ -87,7 +87,7 @@ export default function SurveysPage() {
   });
 
   function copyLink(surveyId: string) {
-    const url = `${window.location.origin}/survey/${surveyId}`;
+    const url = `${window.location.origin}/surveys/respond/${surveyId}`;
     navigator.clipboard.writeText(url);
     setCopiedId(surveyId);
     setTimeout(() => setCopiedId(null), 2000);

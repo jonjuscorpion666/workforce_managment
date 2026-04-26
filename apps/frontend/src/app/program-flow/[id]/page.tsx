@@ -1031,11 +1031,11 @@ export default function ProgramDetailPage() {
                       <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Employee Survey Link</p>
                       <div className="flex items-center gap-2">
                         <code className="text-[11px] text-indigo-700 bg-white border border-indigo-100 rounded px-2 py-1 flex-1 truncate">
-                          {typeof window !== 'undefined' ? `${window.location.origin}/surveys/respond/${program.surveyToken}` : `/surveys/respond/${program.surveyToken}`}
+                          {typeof window !== 'undefined' ? `${window.location.origin}/surveys/respond/${program.surveyToken ?? program.linkedSurveyId}` : `/surveys/respond/${program.surveyToken ?? program.linkedSurveyId}`}
                         </code>
                         <button
                           onClick={() => {
-                            const url = `${window.location.origin}/surveys/respond/${program.surveyToken}`;
+                            const url = `${window.location.origin}/surveys/respond/${program.surveyToken ?? program.linkedSurveyId}`;
                             navigator.clipboard.writeText(url);
                             toast.success('Link copied');
                           }}

@@ -231,7 +231,9 @@ export class ProgramsService {
   }
 
   async resolveToken(token: string) {
-    const p = await this.repo.findOne({ where: { surveyToken: token } });
+    // Try by surveyToken first, then fall back to direct survey ID lookup
+    let p = await this.repo.findOne({ where: { surveyToken: token } });
+    if (!p) p = await this.repo.findOne({ where: { linkedSurveyId: token } });
     if (!p || !p.linkedSurveyId) throw new NotFoundException('Survey link not found');
     return {
       programId:   p.id,
