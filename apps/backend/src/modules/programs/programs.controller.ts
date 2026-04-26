@@ -132,6 +132,13 @@ export class ProgramsController {
     return this.svc.aiEnhanceText(body.text, body.fieldContext);
   }
 
+  @Post('ai-suggest-objective')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI: suggest objective and success criteria from a problem statement' })
+  aiSuggestObjective(@Body() body: { problemStatement: string }) {
+    return this.svc.aiSuggestObjective(body.problemStatement);
+  }
+
   @Get(':id/survey-summary')
   @ApiOperation({ summary: 'Get response count, avg score, and 3 lowest questions for the linked survey' })
   surveySummary(@Param('id') id: string) {

@@ -190,6 +190,21 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
     targetLaunchDate: '', targetCompletionDate: '',
   });
   const [enhancing, setEnhancing] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+
+  async function suggestObjective() {
+    if (!form.problemStatement.trim()) return;
+    setSuggesting(true);
+    try {
+      const { data } = await api.post('/programs/ai-suggest-objective', { problemStatement: form.problemStatement });
+      setForm((f) => ({ ...f, objective: data.objective, successCriteria: data.successCriteria }));
+      toast.success('Objective & success criteria generated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'Suggestion failed');
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function enhance(field: 'problemStatement' | 'objective' | 'successCriteria', fieldContext: string) {
     const text = form[field];
@@ -321,11 +336,24 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-semibold text-gray-700">Objective <span className="text-red-500">*</span></label>
-              <button type="button" onClick={() => enhance('objective', 'objective/goal for a healthcare workforce improvement program')}
-                disabled={!form.objective.trim() || !!enhancing}
-                className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                <Sparkles className="w-3 h-3" />{enhancing === 'objective' ? 'Enhancing…' : 'Enhance'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={suggestObjective}
+                  disabled={!form.problemStatement.trim() || suggesting || !!enhancing}
+                  title="Auto-generate objective & success criteria from your problem statement"
+                  className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Sparkles className="w-3 h-3" />{suggesting ? 'Suggesting…' : 'Suggest from problem'}
+                </button>
+                {form.objective.trim() && (
+                  <>
+                    <span className="text-gray-200">|</span>
+                    <button type="button" onClick={() => enhance('objective', 'objective/goal for a healthcare workforce improvement program')}
+                      disabled={!!enhancing || suggesting}
+                      className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                      <Sparkles className="w-3 h-3" />{enhancing === 'objective' ? 'Enhancing…' : 'Enhance'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <textarea rows={2}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
@@ -339,11 +367,13 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-semibold text-gray-700">Success criteria <span className="text-gray-400">(optional)</span></label>
-              <button type="button" onClick={() => enhance('successCriteria', 'success criteria / measurable outcomes for a healthcare workforce improvement program')}
-                disabled={!form.successCriteria.trim() || !!enhancing}
-                className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                <Sparkles className="w-3 h-3" />{enhancing === 'successCriteria' ? 'Enhancing…' : 'Enhance'}
-              </button>
+              {form.successCriteria.trim() && (
+                <button type="button" onClick={() => enhance('successCriteria', 'success criteria / measurable outcomes for a healthcare workforce improvement program')}
+                  disabled={!!enhancing || suggesting}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Sparkles className="w-3 h-3" />{enhancing === 'successCriteria' ? 'Enhancing…' : 'Enhance'}
+                </button>
+              )}
             </div>
             <textarea rows={2}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"

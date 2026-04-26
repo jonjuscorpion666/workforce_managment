@@ -135,6 +135,10 @@ export default function ProgramDetailPage() {
   const [showAiIssues, setShowAiIssues]   = useState(false);
   const [aiIssueDrafts, setAiIssueDrafts] = useState<{ title: string; description: string; severity: string; selected: boolean }[]>([]);
   const [enhancing, setEnhancing]         = useState<string | null>(null);
+  const [suggesting, setSuggesting]       = useState(false);
+  const [editProblem, setEditProblem]     = useState('');
+  const [editObjective, setEditObjective] = useState('');
+  const [editCriteria, setEditCriteria]   = useState('');
   const [remPlan, setRemPlan]             = useState('');
   const [commOpen, setCommOpen]           = useState(false);
   const [valOpen, setValOpen]             = useState(false);
@@ -174,6 +178,9 @@ export default function ProgramDetailPage() {
   // Sync local text state on first load
   useEffect(() => {
     if (!program) return;
+    setEditProblem(program.problemStatement ?? '');
+    setEditObjective(program.objective ?? '');
+    setEditCriteria(program.successCriteria ?? '');
     setCommMessage(program.setupChecklist?.communicationMessage ?? '');
     setRcFindings(program.rootCauseChecklist?.findings ?? '');
     setRemPlan(program.remediationChecklist?.actionPlan ?? '');
@@ -401,6 +408,28 @@ export default function ProgramDetailPage() {
     enabled: !!program?.linkedSurveyId,
     staleTime: 5 * 60_000,
   });
+
+  const updateProgramMutation = useMutation({
+    mutationFn: (u: Record<string, any>) => api.patch(`/programs/${id}`, u),
+    onSuccess: invalidate,
+    onError: () => toast.error('Failed to save'),
+  });
+
+  async function suggestObjective() {
+    if (!editProblem.trim()) return;
+    setSuggesting(true);
+    try {
+      const { data } = await api.post('/programs/ai-suggest-objective', { problemStatement: editProblem });
+      setEditObjective(data.objective);
+      setEditCriteria(data.successCriteria);
+      updateProgramMutation.mutate({ objective: data.objective, successCriteria: data.successCriteria });
+      toast.success('Objective & success criteria generated');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'Suggestion failed');
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   // ── AI mutations ──────────────────────────────────────────────────────────
 
@@ -661,17 +690,78 @@ export default function ProgramDetailPage() {
         {/* ── Details tab ──────────────────────────────────────────────────── */}
         {activeTab === 'details' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-5">
+
+            {/* Problem statement */}
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Problem</p>
-              <p className="text-sm text-gray-700">{program.problemStatement || '—'}</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Problem Statement</p>
+                <button type="button"
+                  onClick={() => enhance('editProblem', 'problem statement for a healthcare workforce improvement program', editProblem, setEditProblem)}
+                  disabled={!editProblem.trim() || !!enhancing || suggesting}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Sparkles className="w-3 h-3" />{enhancing === 'editProblem' ? 'Enhancing…' : 'Enhance'}
+                </button>
+              </div>
+              <textarea rows={3}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                value={editProblem}
+                onChange={(e) => setEditProblem(e.target.value)}
+                onBlur={() => editProblem.trim() !== program.problemStatement && updateProgramMutation.mutate({ problemStatement: editProblem.trim() })}
+              />
             </div>
+
+            {/* Objective */}
             <div className="border-t border-gray-50 pt-5">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Objective</p>
-              <p className="text-sm text-gray-700">{program.objective || '—'}</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Objective</p>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={suggestObjective}
+                    disabled={!editProblem.trim() || suggesting || !!enhancing}
+                    title="Generate objective & success criteria from problem statement"
+                    className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <Sparkles className="w-3 h-3" />{suggesting ? 'Suggesting…' : 'Suggest'}
+                  </button>
+                  {editObjective.trim() && (
+                    <>
+                      <span className="text-gray-200">|</span>
+                      <button type="button"
+                        onClick={() => enhance('editObjective', 'objective/goal for a healthcare workforce improvement program', editObjective, setEditObjective)}
+                        disabled={!!enhancing || suggesting}
+                        className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <Sparkles className="w-3 h-3" />{enhancing === 'editObjective' ? 'Enhancing…' : 'Enhance'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <textarea rows={3}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                value={editObjective}
+                onChange={(e) => setEditObjective(e.target.value)}
+                onBlur={() => editObjective.trim() !== program.objective && updateProgramMutation.mutate({ objective: editObjective.trim() })}
+              />
             </div>
+
+            {/* Success criteria */}
             <div className="border-t border-gray-50 pt-5">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Success Criteria</p>
-              <p className="text-sm text-gray-700">{program.successCriteria || '—'}</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Success Criteria</p>
+                {editCriteria.trim() && (
+                  <button type="button"
+                    onClick={() => enhance('editCriteria', 'success criteria / measurable outcomes for a healthcare workforce improvement program', editCriteria, setEditCriteria)}
+                    disabled={!!enhancing || suggesting}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <Sparkles className="w-3 h-3" />{enhancing === 'editCriteria' ? 'Enhancing…' : 'Enhance'}
+                  </button>
+                )}
+              </div>
+              <textarea rows={3}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                placeholder="e.g. Response rate >60%, actionable themes identified"
+                value={editCriteria}
+                onChange={(e) => setEditCriteria(e.target.value)}
+                onBlur={() => editCriteria.trim() !== program.successCriteria && updateProgramMutation.mutate({ successCriteria: editCriteria.trim() })}
+              />
             </div>
           </div>
         )}

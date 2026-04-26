@@ -532,6 +532,45 @@ export class ProgramsService {
     });
   }
 
+  // ── AI: suggest objective + success criteria from problem statement ─────────
+
+  async aiSuggestObjective(problemStatement: string) {
+    if (!problemStatement?.trim()) throw new BadRequestException('Problem statement cannot be empty');
+
+    const prompt = `You are a healthcare workforce improvement program specialist.
+
+A program manager has written the following problem statement:
+"${problemStatement}"
+
+Based on this problem statement, generate:
+1. A clear, measurable OBJECTIVE (1-2 sentences) — what the program aims to achieve
+2. 2-3 specific SUCCESS CRITERIA — how success will be measured (each on a new line, starting with "- ")
+
+Format your response EXACTLY as valid JSON:
+{
+  "objective": "...",
+  "successCriteria": "- criterion 1\\n- criterion 2\\n- criterion 3"
+}
+
+Return ONLY the JSON object, no explanation, no markdown fences.`;
+
+    try {
+      const msg = await this.ai.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const raw = (msg.content[0] as any).text?.trim() ?? '';
+      const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+      let parsed: { objective: string; successCriteria: string };
+      try { parsed = JSON.parse(cleaned); } catch { throw new BadRequestException('AI returned unexpected format. Please try again.'); }
+      return { objective: parsed.objective?.trim() ?? '', successCriteria: parsed.successCriteria?.trim() ?? '' };
+    } catch (err: any) {
+      if (err?.status) throw err;
+      throw new BadGatewayException(`AI error: ${err?.message ?? 'Unknown'}`);
+    }
+  }
+
   // ── AI: enhance free-text field ────────────────────────────────────────────
 
   async aiEnhanceText(text: string, fieldContext: string) {
