@@ -10,7 +10,7 @@ import {
   Flag, Megaphone, BarChart2, Wrench, ShieldCheck, AlertTriangle,
   BellRing, Activity, ExternalLink, SquarePen, Plus, ChevronRight,
   UserCircle, Calendar, FileText, Target, Sparkles, TrendingDown,
-  Users, Star, Trash2,
+  Users, Star, Trash2, Lock,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -201,6 +201,8 @@ export default function ProgramDetailPage() {
   const inExecOrLater = program && ['EXECUTION', 'ROOT_CAUSE', 'REMEDIATION', 'COMMUNICATION', 'VALIDATION', 'COMPLETED'].includes(program.currentStage);
   const inRCOrLater   = program && (['ROOT_CAUSE', 'REMEDIATION', 'COMMUNICATION', 'VALIDATION'].includes(program.currentStage) || program.status === 'COMPLETED');
   const inRemOrLater  = program && (['REMEDIATION', 'COMMUNICATION', 'VALIDATION'].includes(program.currentStage) || program.status === 'COMPLETED');
+  const inCommOrLater = program && (['COMMUNICATION', 'VALIDATION'].includes(program.currentStage) || program.status === 'COMPLETED');
+  const inValOrLater  = program && (program.currentStage === 'VALIDATION' || program.status === 'COMPLETED');
 
   const { data: participation } = useQuery<any>({
     queryKey: ['participation', program?.linkedSurveyId, program?.id],
@@ -982,19 +984,21 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* EXECUTION ORCHESTRATOR */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <button type="button" onClick={() => setExecOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-5 py-4">
+            <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!inExecOrLater ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
+              <button type="button" onClick={() => inExecOrLater && setExecOpen((o) => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${!inExecOrLater ? 'cursor-not-allowed' : ''}`}>
                 <div className="flex items-center gap-3">
+                  {!inExecOrLater && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <span className="text-sm font-bold text-gray-700 tracking-wide">EXECUTION ORCHESTRATOR</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${execDone === 3 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {execDone}/3 done
-                  </span>
+                  {inExecOrLater
+                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${execDone === 3 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{execDone}/3 done</span>
+                    : <span className="text-[11px] text-gray-400">Advance to Execution to unlock</span>
+                  }
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${execOpen ? 'rotate-180' : ''}`} />
+                {inExecOrLater && <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${execOpen ? 'rotate-180' : ''}`} />}
               </button>
 
-              {execOpen && (
+              {execOpen && inExecOrLater && (
                 <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
                   {/* Stats bar */}
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 mb-1">
@@ -1098,19 +1102,21 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* ROOT CAUSE ANALYSIS */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <button type="button" onClick={() => setRootCauseOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-5 py-4">
+            <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!inRCOrLater ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
+              <button type="button" onClick={() => inRCOrLater && setRootCauseOpen((o) => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${!inRCOrLater ? 'cursor-not-allowed' : ''}`}>
                 <div className="flex items-center gap-3">
+                  {!inRCOrLater && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <span className="text-sm font-bold text-gray-700 tracking-wide">ROOT CAUSE ANALYSIS</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${rcDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {rcDone}/4 done
-                  </span>
+                  {inRCOrLater
+                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${rcDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{rcDone}/4 done</span>
+                    : <span className="text-[11px] text-gray-400">Advance to Root Cause to unlock</span>
+                  }
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${rootCauseOpen ? 'rotate-180' : ''}`} />
+                {inRCOrLater && <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${rootCauseOpen ? 'rotate-180' : ''}`} />}
               </button>
 
-              {rootCauseOpen && (
+              {rootCauseOpen && inRCOrLater && (
                 <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
 
                   {/* 1. Results reviewed */}
@@ -1318,19 +1324,21 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* REMEDIATION */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <button type="button" onClick={() => setRemOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-5 py-4">
+            <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!inRemOrLater ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
+              <button type="button" onClick={() => inRemOrLater && setRemOpen((o) => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${!inRemOrLater ? 'cursor-not-allowed' : ''}`}>
                 <div className="flex items-center gap-3">
+                  {!inRemOrLater && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <span className="text-sm font-bold text-gray-700 tracking-wide">REMEDIATION</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${remDone === 3 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {remDone}/3 done
-                  </span>
+                  {inRemOrLater
+                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${remDone === 3 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{remDone}/3 done</span>
+                    : <span className="text-[11px] text-gray-400">Advance to Remediation to unlock</span>
+                  }
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${remOpen ? 'rotate-180' : ''}`} />
+                {inRemOrLater && <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${remOpen ? 'rotate-180' : ''}`} />}
               </button>
 
-              {remOpen && (
+              {remOpen && inRemOrLater && (
                 <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
 
                   {/* 1. Action plan */}
@@ -1423,19 +1431,21 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* COMMUNICATION */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <button type="button" onClick={() => setCommOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-5 py-4">
+            <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!inCommOrLater ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
+              <button type="button" onClick={() => inCommOrLater && setCommOpen((o) => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${!inCommOrLater ? 'cursor-not-allowed' : ''}`}>
                 <div className="flex items-center gap-3">
+                  {!inCommOrLater && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <span className="text-sm font-bold text-gray-700 tracking-wide">COMMUNICATION</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${commDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {commDone}/4 done
-                  </span>
+                  {inCommOrLater
+                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${commDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{commDone}/4 done</span>
+                    : <span className="text-[11px] text-gray-400">Advance to Communication to unlock</span>
+                  }
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${commOpen ? 'rotate-180' : ''}`} />
+                {inCommOrLater && <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${commOpen ? 'rotate-180' : ''}`} />}
               </button>
 
-              {commOpen && (
+              {commOpen && inCommOrLater && (
                 <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
 
                   {/* 1. Report prepared — auto from text */}
@@ -1524,19 +1534,21 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* VALIDATION */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <button type="button" onClick={() => setValOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-5 py-4">
+            <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!inValOrLater ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
+              <button type="button" onClick={() => inValOrLater && setValOpen((o) => !o)}
+                className={`w-full flex items-center justify-between px-5 py-4 ${!inValOrLater ? 'cursor-not-allowed' : ''}`}>
                 <div className="flex items-center gap-3">
+                  {!inValOrLater && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <span className="text-sm font-bold text-gray-700 tracking-wide">VALIDATION</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${valDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {valDone}/4 done
-                  </span>
+                  {inValOrLater
+                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${valDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{valDone}/4 done</span>
+                    : <span className="text-[11px] text-gray-400">Advance to Validation to unlock</span>
+                  }
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${valOpen ? 'rotate-180' : ''}`} />
+                {inValOrLater && <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${valOpen ? 'rotate-180' : ''}`} />}
               </button>
 
-              {valOpen && (
+              {valOpen && inValOrLater && (
                 <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
 
                   {/* 1. Follow-up planned — manual */}
