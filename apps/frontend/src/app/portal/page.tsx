@@ -13,6 +13,16 @@ import Link from 'next/link';
 import api from '@/lib/nurse-api';
 import { useNurseAuth } from '@/lib/nurse-auth';
 import { formatDate } from '@/lib/utils';
+
+function linkify(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) =>
+    urlRegex.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{part}</a>
+      : part
+  );
+}
 import { useToast } from '@/components/ui/Toast';
 
 type Tab = 'home' | 'updates' | 'issues' | 'tasks' | 'analytics' | 'guide';
@@ -105,7 +115,7 @@ function AnnouncementCard({ ann, onMarkRead, onAcknowledge }: {
       {/* Expanded body */}
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{ann.body}</p>
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{linkify(ann.body)}</p>
 
           {/* Tags */}
           {ann.tags?.length > 0 && (
