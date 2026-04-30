@@ -576,6 +576,13 @@ export default function ProgramDetailPage() {
   const commDone = ['reportPrepared', 'leadershipBriefed', 'employeesUpdated', 'documentationSaved'].filter(k => !!(commCl as any)[k]).length;
   const valDone  = ['followUpPlanned', 'metricsReviewed', 'successEvaluated', 'outcomesDocumented'].filter(k => !!(valCl as any)[k]).length;
 
+  const checklistDone  = setupDone + execDone + rcDone + remDone + commDone + valDone;
+  const checklistTotal = 23;
+  const checklistDotColor =
+    checklistDone === 0            ? 'bg-gray-300'
+    : checklistDone < checklistTotal ? 'bg-yellow-400'
+    :                                  'bg-green-500';
+
   const linkedSurvey    = (surveys as any[]).find((s) => s.id === program.linkedSurveyId);
   const surveyHasScope  = !!(linkedSurvey?.targetOrgUnitIds?.length || linkedSurvey?.targetRoles?.length || linkedSurvey?.focusGroupUserIds?.length || linkedSurvey?.targetShifts?.length || (linkedSurvey?.targetScope && linkedSurvey.targetScope !== 'SYSTEM'));
   const responseCount   = participation?.responseCount ?? 0;
@@ -655,6 +662,9 @@ export default function ProgramDetailPage() {
             >
               <Icon className="w-4 h-4" />
               {label}
+              {key === 'checklists' && (
+                <span className={`w-2 h-2 rounded-full ${checklistDotColor}`} />
+              )}
             </button>
           ))}
         </div>

@@ -180,7 +180,7 @@ function ProgramCard({ program, surveys, onClick }: { program: any; surveys: any
 function CreateProgramModal({ hospitals, onClose, onCreated }: {
   hospitals: any[];
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (id: string) => void;
 }) {
   const toast = useToast();
   const qc = useQueryClient();
@@ -191,6 +191,7 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
   });
   const [enhancing, setEnhancing] = useState<string | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   async function suggestObjective() {
     if (!form.problemStatement.trim()) return;
@@ -228,10 +229,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
       targetLaunchDate:      form.targetLaunchDate || undefined,
       targetCompletionDate:  form.targetCompletionDate || undefined,
     }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['programs'] });
       toast.success('Program created');
-      onCreated();
+      onCreated(res.data.id);
     },
     onError: () => toast.error('Failed to create program'),
   });
@@ -388,17 +389,28 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Target launch</label>
               <input type="date"
+                min={today}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={form.targetLaunchDate}
-                onChange={(e) => setForm((f) => ({ ...f, targetLaunchDate: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v && v < today) return;
+                  setForm((f) => ({ ...f, targetLaunchDate: v }));
+                }}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Target completion</label>
               <input type="date"
+                min={form.targetLaunchDate || today}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={form.targetCompletionDate}
-                onChange={(e) => setForm((f) => ({ ...f, targetCompletionDate: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const floor = form.targetLaunchDate || today;
+                  if (v && v < floor) return;
+                  setForm((f) => ({ ...f, targetCompletionDate: v }));
+                }}
               />
             </div>
           </div>
@@ -593,7 +605,7 @@ export default function ProgramFlowPage() {
         <CreateProgramModal
           hospitals={hospitals}
           onClose={() => setShowCreate(false)}
-          onCreated={() => setShowCreate(false)}
+          onCreated={(id) => { setShowCreate(false); router.push(`/program-flow/${id}`); }}
         />
       )}
 
