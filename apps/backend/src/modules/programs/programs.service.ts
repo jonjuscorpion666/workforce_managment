@@ -336,7 +336,7 @@ export class ProgramsService {
     }
 
     // 3. Build the full survey respond URL
-    const baseUrl = (process.env.FRONTEND_URL ?? 'https://workforce-platform-frontend-production.up.railway.app').replace(/\/$/, '');
+    const baseUrl = (process.env.FRONTEND_URL ?? 'https://workforcefrontend-production.up.railway.app').replace(/\/$/, '');
     const surveyUrl = p.surveyToken
       ? `${baseUrl}/surveys/respond/${p.surveyToken}`
       : `${baseUrl}/surveys/${survey.id}`;
