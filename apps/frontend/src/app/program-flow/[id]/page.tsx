@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, CheckCircle2, Circle, AlertCircle,
@@ -114,11 +114,16 @@ function CheckRow({ checked, label, auto, onClick }: {
 export default function ProgramDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const qc = useQueryClient();
   const { hasRole } = useAuth();
 
-  const [activeTab, setActiveTab]         = useState<Tab>('overview');
+  const initialTab: Tab = (() => {
+    const t = searchParams?.get('tab');
+    return t === 'details' || t === 'checklists' || t === 'info' || t === 'overview' ? t : 'overview';
+  })();
+  const [activeTab, setActiveTab]         = useState<Tab>(initialTab);
   const [rejectReason, setRejectReason]   = useState('');
   const [showReject, setShowReject]       = useState(false);
   const [cancelReason, setCancelReason]   = useState('');
@@ -583,6 +588,22 @@ export default function ProgramDetailPage() {
     : checklistDone < checklistTotal ? 'bg-yellow-400'
     :                                  'bg-green-500';
 
+  const detailsFilled =
+    [program.problemStatement, program.objective, program.successCriteria].filter(v => !!v?.trim()).length;
+  const detailsDotColor =
+    detailsFilled === 0 ? 'bg-gray-300'
+    : detailsFilled < 3 ? 'bg-yellow-400'
+    :                     'bg-green-500';
+  const overviewDotColor = detailsDotColor;
+  const infoDotColor     = 'bg-green-500';
+
+  const tabDotColor: Record<Tab, string> = {
+    overview:   overviewDotColor,
+    details:    detailsDotColor,
+    checklists: checklistDotColor,
+    info:       infoDotColor,
+  };
+
   const linkedSurvey    = (surveys as any[]).find((s) => s.id === program.linkedSurveyId);
   const surveyHasScope  = !!(linkedSurvey?.targetOrgUnitIds?.length || linkedSurvey?.targetRoles?.length || linkedSurvey?.focusGroupUserIds?.length || linkedSurvey?.targetShifts?.length || (linkedSurvey?.targetScope && linkedSurvey.targetScope !== 'SYSTEM'));
   const responseCount   = participation?.responseCount ?? 0;
@@ -662,9 +683,7 @@ export default function ProgramDetailPage() {
             >
               <Icon className="w-4 h-4" />
               {label}
-              {key === 'checklists' && (
-                <span className={`w-2 h-2 rounded-full ${checklistDotColor}`} />
-              )}
+              <span className={`w-2 h-2 rounded-full ${tabDotColor[key]}`} />
             </button>
           ))}
         </div>

@@ -605,7 +605,7 @@ export default function ProgramFlowPage() {
         <CreateProgramModal
           hospitals={hospitals}
           onClose={() => setShowCreate(false)}
-          onCreated={(id) => { setShowCreate(false); router.push(`/program-flow/${id}`); }}
+          onCreated={(id) => { setShowCreate(false); router.push(`/program-flow/${id}?tab=checklists`); }}
         />
       )}
 
