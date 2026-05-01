@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { Config } from '../admin/entities/config.entity';
 import { Response as SurveyResponse } from '../responses/entities/response.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
+import { Program } from '../programs/entities/program.entity';
 
 // Roles that bypass the approval workflow
 const FULL_AUTHORITY_ROLES = ['SVP', 'SUPER_ADMIN'];
@@ -19,6 +20,7 @@ export class SurveysService {
     @InjectRepository(Config)          private readonly configRepo:   Repository<Config>,
     @InjectRepository(SurveyResponse)  private readonly responseRepo:  Repository<SurveyResponse>,
     @InjectRepository(OrgUnit)         private readonly orgUnitRepo:  Repository<OrgUnit>,
+    @InjectRepository(Program)         private readonly programRepo:  Repository<Program>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -165,7 +167,23 @@ export class SurveysService {
   async update(id: string, data: any) {
     const survey = await this.findOne(id);
     Object.assign(survey, data);
-    return this.surveyRepo.save(survey);
+    const saved = await this.surveyRepo.save(survey);
+
+    const hasScopeDefined = !!(
+      (saved.targetRoles      && saved.targetRoles.length      > 0) ||
+      (saved.targetOrgUnitIds && saved.targetOrgUnitIds.length > 0) ||
+      (saved.focusGroupUserIds && saved.focusGroupUserIds.length > 0) ||
+      (saved.targetShifts     && saved.targetShifts.length     > 0)
+    );
+    if (hasScopeDefined) {
+      const linkedProgram = await this.programRepo.findOne({ where: { linkedSurveyId: id } });
+      if (linkedProgram && !linkedProgram.setupChecklist?.employeeScopeDefined) {
+        linkedProgram.setupChecklist = { ...linkedProgram.setupChecklist, employeeScopeDefined: true };
+        await this.programRepo.save(linkedProgram);
+      }
+    }
+
+    return saved;
   }
 
   async publish(id: string, publisherRole?: string) {

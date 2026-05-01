@@ -203,6 +203,24 @@ export default function ProgramDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [program?.id]);
 
+  // Auto-tick "Employee scope defined" whenever the linked survey has scope but the program checklist hasn't recorded it yet
+  useEffect(() => {
+    if (!program?.linkedSurveyId) return;
+    const linked = (surveys as any[]).find((s) => s.id === program.linkedSurveyId);
+    if (!linked) return;
+    const hasScope = !!(
+      linked.targetOrgUnitIds?.length ||
+      linked.targetRoles?.length ||
+      linked.focusGroupUserIds?.length ||
+      linked.targetShifts?.length ||
+      (linked.targetScope && linked.targetScope !== 'SYSTEM')
+    );
+    if (hasScope && !program.setupChecklist?.employeeScopeDefined) {
+      checklistMutation.mutate({ employeeScopeDefined: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [program?.linkedSurveyId, program?.setupChecklist?.employeeScopeDefined, surveys]);
+
   const inExecOrLater = program && ['EXECUTION', 'ROOT_CAUSE', 'REMEDIATION', 'COMMUNICATION', 'VALIDATION', 'COMPLETED'].includes(program.currentStage);
   const inRCOrLater   = program && (['ROOT_CAUSE', 'REMEDIATION', 'COMMUNICATION', 'VALIDATION'].includes(program.currentStage) || program.status === 'COMPLETED');
   const inRemOrLater  = program && (['REMEDIATION', 'COMMUNICATION', 'VALIDATION'].includes(program.currentStage) || program.status === 'COMPLETED');
