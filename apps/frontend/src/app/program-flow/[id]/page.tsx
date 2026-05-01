@@ -912,7 +912,7 @@ export default function ProgramDetailPage() {
                       <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                         <p className="text-sm text-green-700 flex-1 truncate">{linkedSurvey?.title ?? 'Survey linked'}</p>
-                        <Link href={`/surveys/${program.linkedSurveyId}/edit?from=/program-flow/${id}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
+                        <Link href={`/surveys/${program.linkedSurveyId}/edit?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
                           <ExternalLink className="w-3 h-3" /> Open
                         </Link>
                         <button
@@ -930,7 +930,7 @@ export default function ProgramDetailPage() {
                             <Plus className="w-4 h-4" /> Link a survey
                           </button>
                           <span className="text-gray-300 text-xs">or</span>
-                          <Link href={`/surveys/new?programId=${program.id}&from=/program-flow/${id}`}
+                          <Link href={`/surveys/new?programId=${program.id}&from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`}
                             className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
                             <Plus className="w-4 h-4" /> Create new &amp; link
                           </Link>
