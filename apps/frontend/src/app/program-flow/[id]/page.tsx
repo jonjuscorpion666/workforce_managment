@@ -914,7 +914,7 @@ export default function ProgramDetailPage() {
                         </div>
                       ) : (
                         <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
-                          {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED').map((s) => {
+                          {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED' && s.status !== 'CLOSED').map((s) => {
                             const taken = takenSurveyIds.has(s.id);
                             const takenBy = taken ? (allPrograms as any[]).find((p) => p.linkedSurveyId === s.id) : null;
                             return (

@@ -192,6 +192,14 @@ export class ProgramsService {
     const p = await this.repo.findOne({ where: { id } });
     if (!p) throw new NotFoundException('Program not found');
 
+    const survey = await this.surveyRepo.findOne({ where: { id: surveyId } });
+    if (!survey) throw new NotFoundException('Survey not found');
+    if (survey.status === SurveyStatus.CLOSED || survey.status === SurveyStatus.ARCHIVED) {
+      throw new BadRequestException(
+        `Cannot link a ${survey.status.toLowerCase()} survey. Only DRAFT or ACTIVE surveys can be linked.`,
+      );
+    }
+
     // Ensure this survey is not already linked to a different active program
     const existing = await this.repo.findOne({ where: { linkedSurveyId: surveyId } });
     if (existing && existing.id !== id && ![ProgramStatus.COMPLETED, ProgramStatus.CANCELLED].includes(existing.status)) {
@@ -204,7 +212,6 @@ export class ProgramsService {
     p.surveyToken    = uuidv4();
 
     // Auto-tick "Employee scope defined" if the survey has any targeting configured
-    const survey = await this.surveyRepo.findOne({ where: { id: surveyId } });
     const hasScopeDefined = !!(
       survey &&
       (
