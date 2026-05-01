@@ -913,23 +913,29 @@ export default function ProgramDetailPage() {
                           </Link>
                         </div>
                       ) : (
-                        <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
-                          {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED' && s.status !== 'CLOSED').map((s) => {
-                            const taken = takenSurveyIds.has(s.id);
-                            const takenBy = taken ? (allPrograms as any[]).find((p) => p.linkedSurveyId === s.id) : null;
-                            return (
-                              <button key={s.id} type="button"
-                                disabled={taken}
-                                onClick={() => linkSurveyMutation.mutate(s.id)}
-                                className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 ${taken ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-50'}`}>
-                                <p className={`font-medium truncate ${taken ? 'text-gray-400' : 'text-gray-800'}`}>{s.title}</p>
-                                <p className="text-xs text-gray-400">
-                                  {taken ? `Linked to "${takenBy?.name ?? 'another program'}"` : `${s.status} · ${s.type}`}
-                                </p>
-                              </button>
-                            );
-                          })}
-                          {(surveys as any[]).length === 0 && <p className="text-sm text-gray-400 px-3 py-3">No surveys available</p>}
+                        <div className="space-y-2">
+                          <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
+                            {(surveys as any[]).filter((s) => s.status !== 'ARCHIVED' && s.status !== 'CLOSED').map((s) => {
+                              const taken = takenSurveyIds.has(s.id);
+                              const takenBy = taken ? (allPrograms as any[]).find((p) => p.linkedSurveyId === s.id) : null;
+                              return (
+                                <button key={s.id} type="button"
+                                  disabled={taken}
+                                  onClick={() => linkSurveyMutation.mutate(s.id)}
+                                  className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 ${taken ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-50'}`}>
+                                  <p className={`font-medium truncate ${taken ? 'text-gray-400' : 'text-gray-800'}`}>{s.title}</p>
+                                  <p className="text-xs text-gray-400">
+                                    {taken ? `Linked to "${takenBy?.name ?? 'another program'}"` : `${s.status} · ${s.type}`}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                            {(surveys as any[]).length === 0 && <p className="text-sm text-gray-400 px-3 py-3">No surveys available</p>}
+                          </div>
+                          <button type="button" onClick={() => setSurveyPicker(false)}
+                            className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                            Cancel
+                          </button>
                         </div>
                       )
                     )}
