@@ -443,7 +443,7 @@ export default function ProgramFlowPage() {
   const { hasRole } = useAuth();
   const router = useRouter();
   const [hospitalFilter, setHospitalFilter] = useState('');
-  const [statusFilter, setStatusFilter]     = useState('');
+  const [statusFilter, setStatusFilter]     = useState('ACTIVE');
   const [searchQuery, setSearchQuery]       = useState('');
   const [showCreate, setShowCreate]         = useState(false);
 
@@ -565,10 +565,10 @@ export default function ProgramFlowPage() {
           ))}
         </select>
 
-        {(hospitalFilter || statusFilter) && (
-          <button onClick={() => { setHospitalFilter(''); setStatusFilter(''); }}
-            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-            <X className="w-3.5 h-3.5" /> Clear
+        {(hospitalFilter || statusFilter !== 'ACTIVE') && (
+          <button onClick={() => { setHospitalFilter(''); setStatusFilter('ACTIVE'); }}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
+            <X className="w-3.5 h-3.5" /> Reset filters
           </button>
         )}
       </div>
