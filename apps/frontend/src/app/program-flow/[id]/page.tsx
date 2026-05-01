@@ -574,6 +574,7 @@ export default function ProgramDetailPage() {
   const rcCl        = program.rootCauseChecklist   ?? {};
   const remCl       = program.remediationChecklist ?? {};
   const setupDone   = ['meetingScheduled','questionsDrafted','employeeScopeDefined','communicationDrafted','employeesNotified'].filter(k => !!(cl as any)[k]).length;
+  const setupPreApprovalDone = ['meetingScheduled','questionsDrafted','employeeScopeDefined','communicationDrafted'].filter(k => !!(cl as any)[k]).length;
   const execDone    = ['surveyLaunched','reminderSent','surveyClosed'].filter(k => !!(execCl as any)[k]).length;
   const rcDone      = ['resultsReviewed','findingsDocumented','issuesCreated','teamAgreed'].filter(k => !!(rcCl as any)[k]).length;
   const remDone     = ['actionPlanDrafted','tasksAssigned','progressReviewed'].filter(k => !!(remCl as any)[k]).length;
@@ -1720,17 +1721,17 @@ export default function ProgramDetailPage() {
               </div>
             )}
 
-            {/* Submit for approval — only after Setup checklist is fully completed */}
-            {program.status === 'DRAFT' && setupDone === 5 && (
+            {/* Submit for approval — once the 4 pre-approval Setup items are done (Employees Notified happens post-approval, after the email is sent) */}
+            {program.status === 'DRAFT' && setupPreApprovalDone === 4 && (
               <button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}
                 className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                 <ShieldCheck className="w-4 h-4" />
                 {submitMutation.isPending ? 'Submitting…' : `Submit for ${program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} Approval`}
               </button>
             )}
-            {program.status === 'DRAFT' && setupDone < 5 && (
+            {program.status === 'DRAFT' && setupPreApprovalDone < 4 && (
               <p className="w-full text-center text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl py-3 px-4">
-                Complete the Setup checklist ({setupDone}/5) to unlock approval
+                Finish Setup steps 1–4 ({setupPreApprovalDone}/4) to request approval — Employees Notified is sent after approval.
               </p>
             )}
 
