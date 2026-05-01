@@ -890,7 +890,7 @@ function ConfirmDeleteModal({
       <div className="flex justify-end gap-3 pt-2">
         <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
         <button onClick={onConfirm} disabled={loading}
-          className="text-sm flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-xl transition-colors disabled:opacity-60">
+          className="text-sm flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl transition-colors disabled:opacity-60">
           <Trash2 className="w-4 h-4" />
           {loading ? 'Deleting…' : 'Delete'}
         </button>

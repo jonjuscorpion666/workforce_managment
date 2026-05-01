@@ -169,7 +169,7 @@ function AnnouncementCard({
                 {ann.requiresAcknowledgement && !ann.isAcknowledged && (
                   <button
                     onClick={() => onAck(ann.id)}
-                    className="text-xs bg-rose-500 hover:bg-rose-600 text-white px-3 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors">
+                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors">
                     <CheckSquare className="w-3.5 h-3.5" /> Acknowledge
                   </button>
                 )}

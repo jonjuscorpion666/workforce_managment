@@ -162,7 +162,7 @@ function AnnouncementsPanel({ userId, showAll = false }: { userId: string; showA
                     <button
                       onClick={() => archiveMutation.mutate(a.id)}
                       disabled={archiveMutation.isPending}
-                      className="text-xs bg-red-500 text-white px-2 py-1 rounded font-medium hover:bg-red-600 disabled:opacity-50"
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-medium hover:bg-blue-700 disabled:opacity-50"
                     >
                       Yes
                     </button>

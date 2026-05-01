@@ -212,7 +212,7 @@ export default function AnnouncementDetailPage() {
                 <button
                   onClick={() => acknowledge.mutate()}
                   disabled={acknowledge.isPending}
-                  className="mt-3 flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
+                  className="mt-3 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
                   <Check className="w-4 h-4" />
                   {acknowledge.isPending ? 'Submitting...' : 'I acknowledge this announcement'}
                 </button>

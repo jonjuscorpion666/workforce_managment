@@ -1112,7 +1112,7 @@ export default function NewSurveyPage() {
           <div className="flex gap-2">
             <button
               onClick={() => { setAiStep('pick'); setAiSuggestions([]); if (linkedProgramId) { setAiProgramId(linkedProgramId); } setShowAiModal(true); }}
-              className="flex items-center gap-1.5 text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-xl transition-colors">
+              className="flex items-center gap-1.5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl transition-colors">
               <Zap className="w-4 h-4" /> Generate with AI
             </button>
             <button
@@ -1184,7 +1184,7 @@ export default function NewSurveyPage() {
             </button>
 
             {needsApproval ? (
-              <button onClick={handleApproval} disabled={isBusy} className="flex items-center gap-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+              <button onClick={handleApproval} disabled={isBusy} className="flex items-center gap-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                 <Eye className="w-4 h-4" />
                 {isDirector ? 'Preview & Submit' : 'Preview & Submit for Approval'}
               </button>

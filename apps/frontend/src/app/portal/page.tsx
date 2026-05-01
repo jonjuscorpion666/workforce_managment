@@ -137,7 +137,7 @@ function AnnouncementCard({ ann, onMarkRead, onAcknowledge }: {
                 </p>
                 <button
                   onClick={(e) => { e.stopPropagation(); onAcknowledge(ann.id); }}
-                  className="mt-2 flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
+                  className="mt-2 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
                   <Check className="w-3.5 h-3.5" /> I acknowledge this
                 </button>
               </div>

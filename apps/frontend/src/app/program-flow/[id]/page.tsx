@@ -1730,7 +1730,7 @@ export default function ProgramDetailPage() {
                 />
                 <div className="flex gap-2">
                   <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm">
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm">
                     {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
                   </button>
                   <button onClick={() => { setShowCancel(false); setCancelReason(''); }} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">Back</button>
@@ -1741,7 +1741,7 @@ export default function ProgramDetailPage() {
             {/* Submit for approval — once the 3 pre-approval Setup items are done (Employees Notified happens post-approval, after the email is sent) */}
             {program.status === 'DRAFT' && setupPreApprovalDone === 3 && (
               <button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}
-                className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                 <ShieldCheck className="w-4 h-4" />
                 {submitMutation.isPending ? 'Submitting…' : `Submit for ${program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} Approval`}
               </button>
@@ -1756,12 +1756,12 @@ export default function ProgramDetailPage() {
             {canApprove && !showReject && (
               <div className="flex gap-2">
                 <button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm">
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm">
                   <CheckCircle2 className="w-4 h-4" />
                   {approveMutation.isPending ? 'Approving…' : 'Approve'}
                 </button>
                 <button onClick={() => setShowReject(true)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3 rounded-xl text-sm border border-red-200">
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm">
                   <X className="w-4 h-4" /> Reject
                 </button>
               </div>
@@ -1775,7 +1775,7 @@ export default function ProgramDetailPage() {
                 />
                 <div className="flex gap-2">
                   <button onClick={() => rejectMutation.mutate()} disabled={!rejectReason.trim() || rejectMutation.isPending}
-                    className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm">
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm">
                     {rejectMutation.isPending ? 'Rejecting…' : 'Confirm Reject'}
                   </button>
                   <button onClick={() => setShowReject(false)} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl">Cancel</button>

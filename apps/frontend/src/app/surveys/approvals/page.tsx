@@ -147,7 +147,7 @@ function SurveyCard({ survey, onApprove, onReject, onPreview, isActing }: {
               <button
                 onClick={onPreview}
                 disabled={isActing}
-                className="flex items-center gap-1.5 text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
               >
                 <Eye className="w-4 h-4" />
                 Preview & Approve
@@ -164,7 +164,7 @@ function SurveyCard({ survey, onApprove, onReject, onPreview, isActing }: {
                 autoFocus
               />
               <button onClick={submitReject} disabled={!reason.trim() || isActing}
-                className="flex items-center gap-1.5 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-2 rounded-lg disabled:opacity-50 transition-colors">
+                className="flex items-center gap-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg disabled:opacity-50 transition-colors">
                 <XCircle className="w-4 h-4" /> Send
               </button>
               <button onClick={() => { setRejecting(false); setReason(''); }} className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg">
