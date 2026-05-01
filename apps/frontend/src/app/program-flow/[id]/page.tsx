@@ -16,6 +16,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
+import { AIDisclaimer } from '@/components/ui/AIDisclaimer';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -754,6 +755,7 @@ export default function ProgramDetailPage() {
                 onChange={(e) => setEditProblem(e.target.value)}
                 onBlur={() => editProblem.trim() !== program.problemStatement && updateProgramMutation.mutate({ problemStatement: editProblem.trim() })}
               />
+              <AIDisclaimer />
             </div>
 
             {/* Objective */}
@@ -786,6 +788,7 @@ export default function ProgramDetailPage() {
                 onChange={(e) => setEditObjective(e.target.value)}
                 onBlur={() => editObjective.trim() !== program.objective && updateProgramMutation.mutate({ objective: editObjective.trim() })}
               />
+              <AIDisclaimer />
             </div>
 
             {/* Success criteria */}
@@ -808,6 +811,7 @@ export default function ProgramDetailPage() {
                 onChange={(e) => setEditCriteria(e.target.value)}
                 onBlur={() => editCriteria.trim() !== program.successCriteria && updateProgramMutation.mutate({ successCriteria: editCriteria.trim() })}
               />
+              <AIDisclaimer />
             </div>
           </div>
         )}
@@ -878,6 +882,7 @@ export default function ProgramDetailPage() {
                           onChange={(e) => setMeetingNotes(e.target.value)}
                           onBlur={() => checklistMutation.mutate({ meetingNotes })}
                         />
+                        <AIDisclaimer />
                       </div>
                     </div>
                   </div>
@@ -992,6 +997,7 @@ export default function ProgramDetailPage() {
                               checklistMutation.mutate({ communicationMessage: t, communicationDrafted: !!t });
                             }}
                           />
+                          <AIDisclaimer />
                           <div className="flex items-center gap-2 flex-wrap">
                             <button
                               disabled={program.status !== 'ACTIVE' || !program.linkedSurveyId || !commMessage.trim() || sendAnnouncementMutation.isPending || notified}
@@ -1404,6 +1410,7 @@ export default function ProgramDetailPage() {
                             onChange={(e) => setRemPlan(e.target.value)}
                             onBlur={() => { const t = remPlan.trim(); remediationMutation.mutate({ actionPlan: t, actionPlanDrafted: !!t }); }}
                           />
+                          <AIDisclaimer />
                         </div>
                       </div>
                     );
@@ -1511,6 +1518,7 @@ export default function ProgramDetailPage() {
                             onChange={(e) => setCommReport(e.target.value)}
                             onBlur={() => { const t = commReport.trim(); communicationMutation.mutate({ report: t, reportPrepared: !!t }); }}
                           />
+                          <AIDisclaimer />
                         </div>
                       </div>
                     );
@@ -1629,6 +1637,7 @@ export default function ProgramDetailPage() {
                             onChange={(e) => setValOutcomes(e.target.value)}
                             onBlur={() => { const t = valOutcomes.trim(); validationMutation.mutate({ outcomesDoc: t, outcomesDocumented: !!t }); }}
                           />
+                          <AIDisclaimer />
                         </div>
                       </div>
                     );

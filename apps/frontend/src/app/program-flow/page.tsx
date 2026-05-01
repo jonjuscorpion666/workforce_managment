@@ -15,6 +15,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
+import { AIDisclaimer } from '@/components/ui/AIDisclaimer';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -331,6 +332,7 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
               value={form.problemStatement}
               onChange={(e) => setForm((f) => ({ ...f, problemStatement: e.target.value }))}
             />
+            <AIDisclaimer />
           </div>
 
           {/* Objective */}
@@ -362,6 +364,7 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
               value={form.objective}
               onChange={(e) => setForm((f) => ({ ...f, objective: e.target.value }))}
             />
+            <AIDisclaimer />
           </div>
 
           {/* Success criteria */}
@@ -382,6 +385,7 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
               value={form.successCriteria}
               onChange={(e) => setForm((f) => ({ ...f, successCriteria: e.target.value }))}
             />
+            <AIDisclaimer />
           </div>
 
           {/* Dates */}
