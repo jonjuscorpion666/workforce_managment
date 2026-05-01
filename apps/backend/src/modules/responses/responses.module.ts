@@ -7,10 +7,11 @@ import { SurveysModule } from '../surveys/surveys.module';
 import { AuditModule } from '../audit/audit.module';
 import { User } from '../auth/entities/user.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
+import { Program } from '../programs/entities/program.entity';
 import { ProgramsModule } from '../programs/programs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Response, User, OrgUnit]), SurveysModule, AuditModule, ProgramsModule],
+  imports: [TypeOrmModule.forFeature([Response, User, OrgUnit, Program]), SurveysModule, AuditModule, ProgramsModule],
   controllers: [ResponsesController],
   providers: [ResponsesService],
   exports: [ResponsesService, TypeOrmModule],

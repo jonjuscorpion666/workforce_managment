@@ -6,6 +6,8 @@ import { Response } from './entities/response.entity';
 import { SurveysService } from '../surveys/surveys.service';
 import { User } from '../auth/entities/user.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
+import { Program, ProgramStatus } from '../programs/entities/program.entity';
+import { Not, In } from 'typeorm';
 
 @Injectable()
 export class ResponsesService {
@@ -13,6 +15,7 @@ export class ResponsesService {
     @InjectRepository(Response)  private readonly repo:     Repository<Response>,
     @InjectRepository(User)      private readonly userRepo: Repository<User>,
     @InjectRepository(OrgUnit)   private readonly orgRepo:  Repository<OrgUnit>,
+    @InjectRepository(Program)   private readonly programRepo: Repository<Program>,
     private readonly surveysService: SurveysService,
   ) {}
 
@@ -54,9 +57,23 @@ export class ResponsesService {
     const ip     = req.ip || req.headers['x-forwarded-for'];
     const ipHash = crypto.createHash('sha256').update((ip ?? 'unknown') + data.surveyId).digest('hex');
 
+    // Auto-resolve programId from the active program linked to this survey, in case the
+    // submitter (e.g. the legacy /portal/survey/[id] page) didn't include it. Only one
+    // non-terminal program can be linked to a given survey at a time (enforced in linkSurvey).
+    let programId: string | null = data.programId ?? null;
+    if (!programId) {
+      const linked = await this.programRepo.findOne({
+        where: {
+          linkedSurveyId: data.surveyId,
+          status: Not(In([ProgramStatus.COMPLETED, ProgramStatus.CANCELLED])),
+        },
+      });
+      if (linked) programId = linked.id;
+    }
+
     const response = this.repo.create({
       surveyId:    data.surveyId,
-      programId:   data.programId ?? null,
+      programId,
       survey,
       isAnonymous: survey.isAnonymous,
       respondentId,
