@@ -939,7 +939,7 @@ export default function ProgramDetailPage() {
                             {(surveys as any[]).length === 0 && <p className="text-sm text-gray-400 px-3 py-3">No surveys available</p>}
                           </div>
                           <button type="button" onClick={() => setSurveyPicker(false)}
-                            className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300">
                             Cancel
                           </button>
                         </div>
