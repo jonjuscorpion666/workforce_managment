@@ -31,7 +31,6 @@ const STAGES = [
 
 const CHECKLIST_ITEMS = [
   { key: 'meetingScheduled',     label: 'Kickoff meeting scheduled' },
-  { key: 'questionsDrafted',     label: 'Survey questions drafted from objective' },
   { key: 'employeeScopeDefined', label: 'Employee scope defined' },
   { key: 'communicationDrafted', label: 'Communication message drafted' },
   { key: 'employeesNotified',    label: 'Employees notified & explained' },
@@ -338,7 +337,7 @@ export default function ProgramDetailPage() {
     onSuccess: (_, surveyId) => {
       const linked = (surveys as any[]).find((s) => s.id === surveyId);
       const scopeDefined = !!(linked?.targetOrgUnitIds?.length || linked?.targetRoles?.length || linked?.focusGroupUserIds?.length || linked?.targetShifts?.length || (linked?.targetScope && linked.targetScope !== 'SYSTEM'));
-      checklistMutation.mutate({ questionsDrafted: true, employeeScopeDefined: scopeDefined });
+      checklistMutation.mutate({ employeeScopeDefined: scopeDefined });
       invalidate();
       setSurveyPicker(false);
       toast.success(scopeDefined ? 'Survey linked — scope auto-detected' : 'Survey linked');
@@ -544,7 +543,7 @@ export default function ProgramDetailPage() {
     ['DRAFT', 'PENDING_APPROVAL', 'ACTIVE'].includes(program.status);
 
   const cl = program.setupChecklist ?? {};
-  const setupAllDone = cl.meetingScheduled && cl.questionsDrafted && cl.employeeScopeDefined && cl.communicationDrafted && cl.employeesNotified;
+  const setupAllDone = cl.meetingScheduled && cl.employeeScopeDefined && cl.communicationDrafted && cl.employeesNotified;
 
   const advanceBlockReason: string | null = (() => {
     if (program.status !== 'ACTIVE') return null;
@@ -573,8 +572,8 @@ export default function ProgramDetailPage() {
   const execCl      = program.executionChecklist   ?? {};
   const rcCl        = program.rootCauseChecklist   ?? {};
   const remCl       = program.remediationChecklist ?? {};
-  const setupDone   = ['meetingScheduled','questionsDrafted','employeeScopeDefined','communicationDrafted','employeesNotified'].filter(k => !!(cl as any)[k]).length;
-  const setupPreApprovalDone = ['meetingScheduled','questionsDrafted','employeeScopeDefined','communicationDrafted'].filter(k => !!(cl as any)[k]).length;
+  const setupDone   = ['meetingScheduled','employeeScopeDefined','communicationDrafted','employeesNotified'].filter(k => !!(cl as any)[k]).length;
+  const setupPreApprovalDone = ['meetingScheduled','employeeScopeDefined','communicationDrafted'].filter(k => !!(cl as any)[k]).length;
   const execDone    = ['surveyLaunched','reminderSent','surveyClosed'].filter(k => !!(execCl as any)[k]).length;
   const rcDone      = ['resultsReviewed','findingsDocumented','issuesCreated','teamAgreed'].filter(k => !!(rcCl as any)[k]).length;
   const remDone     = ['actionPlanDrafted','tasksAssigned','progressReviewed'].filter(k => !!(remCl as any)[k]).length;
@@ -584,7 +583,7 @@ export default function ProgramDetailPage() {
   const valDone  = ['followUpPlanned', 'metricsReviewed', 'successEvaluated', 'outcomesDocumented'].filter(k => !!(valCl as any)[k]).length;
 
   const checklistDone  = setupDone + execDone + rcDone + remDone + commDone + valDone;
-  const checklistTotal = 23;
+  const checklistTotal = 22;
   const checklistDotColor =
     checklistDone === 0            ? 'bg-gray-300'
     : checklistDone < checklistTotal ? 'bg-yellow-400'
@@ -707,7 +706,7 @@ export default function ProgramDetailPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Checklist Progress</p>
               {[
-                { label: 'Setup Checklist',       done: setupDone, total: 5 },
+                { label: 'Setup Checklist',       done: setupDone, total: 4 },
                 { label: 'Execution Orchestrator', done: execDone,  total: 3 },
                 { label: 'Root Cause Analysis',    done: rcDone,    total: 4 },
                 { label: 'Remediation',            done: remDone,   total: 3 },
@@ -827,8 +826,8 @@ export default function ProgramDetailPage() {
                 className="w-full flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-gray-700 tracking-wide">SETUP CHECKLIST</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${setupDone === 5 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
-                    {setupDone}/5 done
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${setupDone === 4 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>
+                    {setupDone}/4 done
                   </span>
                 </div>
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${setupOpen ? 'rotate-180' : ''}`} />
@@ -947,10 +946,10 @@ export default function ProgramDetailPage() {
                     )}
                   </div>
 
-                  {/* Questions drafted + scope — auto when survey linked */}
+                  {/* Scope defined — auto when survey has scope */}
                   {CHECKLIST_ITEMS.filter(({ key }) => !['meetingScheduled','communicationDrafted','employeesNotified'].includes(key)).map(({ key, label }) => {
                     const checked = !!(cl as any)[key];
-                    const isAuto  = (key === 'questionsDrafted' && !!program.linkedSurveyId) || (key === 'employeeScopeDefined' && surveyHasScope);
+                    const isAuto  = key === 'employeeScopeDefined' && surveyHasScope;
                     return (
                       <CheckRow key={key} checked={checked} label={label} auto={isAuto}
                         onClick={isAuto ? undefined : () => checklistMutation.mutate({ [key]: !checked })}
@@ -1721,17 +1720,17 @@ export default function ProgramDetailPage() {
               </div>
             )}
 
-            {/* Submit for approval — once the 4 pre-approval Setup items are done (Employees Notified happens post-approval, after the email is sent) */}
-            {program.status === 'DRAFT' && setupPreApprovalDone === 4 && (
+            {/* Submit for approval — once the 3 pre-approval Setup items are done (Employees Notified happens post-approval, after the email is sent) */}
+            {program.status === 'DRAFT' && setupPreApprovalDone === 3 && (
               <button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}
                 className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                 <ShieldCheck className="w-4 h-4" />
                 {submitMutation.isPending ? 'Submitting…' : `Submit for ${program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} Approval`}
               </button>
             )}
-            {program.status === 'DRAFT' && setupPreApprovalDone < 4 && (
+            {program.status === 'DRAFT' && setupPreApprovalDone < 3 && (
               <p className="w-full text-center text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl py-3 px-4">
-                Finish Setup steps 1–4 ({setupPreApprovalDone}/4) to request approval — Employees Notified is sent after approval.
+                Finish Setup steps 1–3 ({setupPreApprovalDone}/3) to request approval — Employees Notified is sent after approval.
               </p>
             )}
 
