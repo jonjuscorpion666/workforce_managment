@@ -1208,7 +1208,7 @@ export default function NewSurveyPage() {
           isAnonymous={isAnonymous}
           questions={questions}
           onClose={() => setShowPreview(false)}
-          confirmLabel={pendingAction === 'publish' ? 'Confirm & Publish' : isDirector ? 'Confirm & Submit for Approval' : 'Confirm & Submit for SVP Approval'}
+          confirmLabel="Confirm and Save"
           confirmIcon={pendingAction === 'publish' ? 'publish' : 'submit'}
           isPending={isBusy}
           onConfirm={() => {
