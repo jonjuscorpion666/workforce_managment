@@ -1705,13 +1705,18 @@ export default function ProgramDetailPage() {
               </div>
             )}
 
-            {/* Submit for approval */}
-            {program.status === 'DRAFT' && (
+            {/* Submit for approval — only after Setup checklist is fully completed */}
+            {program.status === 'DRAFT' && setupDone === 5 && (
               <button onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}
                 className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
                 <ShieldCheck className="w-4 h-4" />
                 {submitMutation.isPending ? 'Submitting…' : `Submit for ${program.scope === 'GLOBAL' ? 'SVP' : 'CNO'} Approval`}
               </button>
+            )}
+            {program.status === 'DRAFT' && setupDone < 5 && (
+              <p className="w-full text-center text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl py-3 px-4">
+                Complete the Setup checklist ({setupDone}/5) to unlock approval
+              </p>
             )}
 
             {/* Approve / Reject */}
