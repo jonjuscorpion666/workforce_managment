@@ -422,7 +422,7 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl">Cancel</button>
           <button
             onClick={() => mutation.mutate()}
             disabled={!canSubmit || mutation.isPending}

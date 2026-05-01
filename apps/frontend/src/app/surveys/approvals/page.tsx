@@ -167,7 +167,7 @@ function SurveyCard({ survey, onApprove, onReject, onPreview, isActing }: {
                 className="flex items-center gap-1.5 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-2 rounded-lg disabled:opacity-50 transition-colors">
                 <XCircle className="w-4 h-4" /> Send
               </button>
-              <button onClick={() => { setRejecting(false); setReason(''); }} className="text-sm text-gray-400 hover:text-gray-600 px-2">
+              <button onClick={() => { setRejecting(false); setReason(''); }} className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg">
                 Cancel
               </button>
             </div>

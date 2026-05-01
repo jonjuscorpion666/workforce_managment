@@ -1011,9 +1011,8 @@ export default function NewSurveyPage() {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-medium text-gray-700">Select hospitals</p>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setSelectedHospitals(hospitals.map((h) => h.id))} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Select all</button>
-                    <span className="text-gray-300">|</span>
-                    <button type="button" onClick={() => setSelectedHospitals([])} className="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+                    <button type="button" onClick={() => setSelectedHospitals(hospitals.map((h) => h.id))} className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md">Select all</button>
+                    <button type="button" onClick={() => setSelectedHospitals([])} className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md">Clear</button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

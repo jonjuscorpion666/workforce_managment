@@ -166,7 +166,7 @@ function AnnouncementsPanel({ userId, showAll = false }: { userId: string; showA
                     >
                       Yes
                     </button>
-                    <button onClick={() => setConfirmArchive(null)} className="text-xs text-gray-500 hover:text-gray-700 px-1">
+                    <button onClick={() => setConfirmArchive(null)} className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded">
                       No
                     </button>
                   </div>

@@ -307,7 +307,7 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
           </div>
         </div>
         <button
-          className="text-xs text-blue-600 hover:text-blue-800 font-medium flex-shrink-0"
+          className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex-shrink-0"
           onClick={() => setShowEditForm((v) => !v)}
         >
           {showEditForm ? 'Cancel' : 'Edit Plan'}
@@ -403,7 +403,7 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-medium text-gray-700">Milestones</span>
           <button
-            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
             onClick={() => setShowAddMilestone((v) => !v)}
           >
             <Plus className="w-3 h-3" /> Add
@@ -435,7 +435,7 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
                       {completeMilestone.isPending ? 'Saving…' : 'Confirm'}
                     </button>
                     <button
-                      className="text-xs text-gray-400 hover:text-gray-600"
+                      className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded"
                       onClick={() => setConfirmCompleteId(null)}
                     >
                       Cancel
@@ -469,7 +469,7 @@ function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           title="Edit milestone"
-                          className="text-xs text-gray-400 hover:text-blue-600 px-1"
+                          className="px-2 py-0.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded"
                           onClick={() => setEditingMilestone(m)}
                         >
                           Edit
@@ -593,7 +593,7 @@ function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: ()
                   )}
                 </div>
               ))}
-              <button onClick={addAction} className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <button onClick={addAction} className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
                 <Plus className="w-3.5 h-3.5" /> Add action
               </button>
             </div>

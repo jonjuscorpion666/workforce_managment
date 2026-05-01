@@ -939,7 +939,7 @@ export default function ProgramDetailPage() {
                             {(surveys as any[]).length === 0 && <p className="text-sm text-gray-400 px-3 py-3">No surveys available</p>}
                           </div>
                           <button type="button" onClick={() => setSurveyPicker(false)}
-                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300">
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
                             Cancel
                           </button>
                         </div>
@@ -1348,7 +1348,7 @@ export default function ProgramDetailPage() {
                                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
                                   {createIssueMutation.isPending ? 'Creating…' : 'Create'}
                                 </button>
-                                <button onClick={() => setShowCreateIssue(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                                <button onClick={() => setShowCreateIssue(false)} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">Cancel</button>
                               </div>
                             </div>
                           )}
@@ -1716,7 +1716,7 @@ export default function ProgramDetailPage() {
                     className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm">
                     {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
                   </button>
-                  <button onClick={() => { setShowCancel(false); setCancelReason(''); }} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Back</button>
+                  <button onClick={() => { setShowCancel(false); setCancelReason(''); }} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">Back</button>
                 </div>
               </div>
             )}
@@ -1761,7 +1761,7 @@ export default function ProgramDetailPage() {
                     className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm">
                     {rejectMutation.isPending ? 'Rejecting…' : 'Confirm Reject'}
                   </button>
-                  <button onClick={() => setShowReject(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                  <button onClick={() => setShowReject(false)} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl">Cancel</button>
                 </div>
               </div>
             )}

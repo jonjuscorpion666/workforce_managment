@@ -473,7 +473,7 @@ function TaskDetailPanel({
           {nextStatuses.length > 0 && (
             <div className="relative ml-auto">
               <button
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
                 onClick={() => setChangingStatus((v) => !v)}
               >
                 Change status ↓
@@ -1124,7 +1124,7 @@ export default function TasksPage() {
         {/* Clear filters */}
         {hasActiveFilters && (
           <button
-            className="text-sm text-gray-400 hover:text-gray-600 flex items-center gap-1"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
             onClick={() => {
               setFilterMyTasks(false);
               setFilterStatus('ALL');

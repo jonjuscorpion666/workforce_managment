@@ -964,7 +964,7 @@ export default function NursePortalPage() {
               </p>
             </div>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors">
+          <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
             <LogOut className="w-4 h-4" /> Sign Out
           </button>
         </div>
@@ -1086,7 +1086,7 @@ export default function NursePortalPage() {
                         </span>
                       )}
                     </div>
-                    <button onClick={() => setTab('updates')} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                    <button onClick={() => setTab('updates')} className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md">
                       View all
                     </button>
                   </div>
