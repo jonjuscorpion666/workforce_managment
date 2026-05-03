@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -366,7 +367,8 @@ function RootCausePanel({ surveyId, orgUnits }: { surveyId: string; orgUnits: an
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
-  const [surveyId, setSurveyId] = useState<string>('');
+  const searchParams = useSearchParams();
+  const [surveyId, setSurveyId] = useState<string>(searchParams?.get('surveyId') ?? '');
 
   const { data: surveys = [] } = useQuery({
     queryKey: ['surveys-list'],
