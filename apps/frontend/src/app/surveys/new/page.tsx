@@ -123,7 +123,7 @@ function QuestionCard({
   const [optionInput, setOptionInput] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const isNumeric = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING'].includes(q.type);
-  const maxThreshold = q.type === 'NPS' ? 6 : q.type === 'LIKERT_10' ? 5 : 3;
+  const maxThreshold = q.type === 'NPS' || q.type === 'LIKERT_10' ? 10 : 5;
   const hasAdvancedConfig = !!(q.dimension || q.followUpThreshold != null);
 
   function addOption() {
