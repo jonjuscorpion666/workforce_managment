@@ -137,6 +137,8 @@ export default function ProgramDetailPage() {
   const [remOpen, setRemOpen]             = useState(false);
   const [showCreateIssue, setShowCreateIssue] = useState(false);
   const [newIssue, setNewIssue]           = useState({ title: '', severity: 'MEDIUM' });
+  const [inlineTaskIssueId, setInlineTaskIssueId] = useState<string | null>(null);
+  const [inlineTask, setInlineTask] = useState({ title: '', assignedToId: '', dueDate: '' });
   const [rcFindings, setRcFindings]       = useState('');
   const [showAiIssues, setShowAiIssues]   = useState(false);
   const [aiIssueDrafts, setAiIssueDrafts] = useState<{ title: string; description: string; severity: string; selected: boolean }[]>([]);
@@ -165,6 +167,13 @@ export default function ProgramDetailPage() {
   const { data: surveys = [] } = useQuery<any[]>({
     queryKey: ['surveys'],
     queryFn: () => api.get('/surveys').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+
+  // Users list for assigning tasks inline from the Remediation section
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ['admin-users'],
+    queryFn: () => api.get('/admin/users', { params: { limit: 500 } }).then((r) => r.data.data),
     staleTime: 5 * 60_000,
   });
 
@@ -244,6 +253,18 @@ export default function ProgramDetailPage() {
     refetchInterval: inRCOrLater ? 30_000 : false,
   });
 
+  // Auto-tick "Tasks assigned" whenever any linked issue has at least one task with both an owner and a due date
+  useEffect(() => {
+    if (!program) return;
+    const anyAssigned = (relatedWork as any[]).some((i) =>
+      (i.tasks ?? []).some((t: any) => t.assignedToId && t.dueDate),
+    );
+    if (anyAssigned && !program.remediationChecklist?.tasksAssigned) {
+      remediationMutation.mutate({ tasksAssigned: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relatedWork, program?.remediationChecklist?.tasksAssigned]);
+
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const invalidate = () => {
@@ -273,6 +294,17 @@ export default function ProgramDetailPage() {
     mutationFn: (u: Record<string, any>) => api.patch(`/programs/${id}/remediation-checklist`, u),
     onSuccess: invalidate,
     onError: () => toast.error('Failed to update'),
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: (data: any) => api.post('/tasks', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['related-work', id] });
+      setInlineTaskIssueId(null);
+      setInlineTask({ title: '', assignedToId: '', dueDate: '' });
+      toast.success('Task created');
+    },
+    onError: () => toast.error('Failed to create task'),
   });
 
   const communicationMutation = useMutation({
@@ -592,6 +624,9 @@ export default function ProgramDetailPage() {
   const execCl      = program.executionChecklist   ?? {};
   const rcCl        = program.rootCauseChecklist   ?? {};
   const remCl       = program.remediationChecklist ?? {};
+  const tasksAreAssigned = (relatedWork as any[]).some((i) =>
+    (i.tasks ?? []).some((t: any) => t.assignedToId && t.dueDate),
+  );
   const setupDone   = ['meetingScheduled','employeeScopeDefined','communicationDrafted','employeesNotified'].filter(k => !!(cl as any)[k]).length;
   const setupPreApprovalDone = ['meetingScheduled','employeeScopeDefined','communicationDrafted'].filter(k => !!(cl as any)[k]).length;
   const execDone    = ['surveyLaunched','reminderSent','surveyClosed'].filter(k => !!(execCl as any)[k]).length;
@@ -1481,6 +1516,11 @@ export default function ProgramDetailPage() {
                               <Link href={`/issues/${issue.id}?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
                                 <SquarePen className="w-3 h-3" /> View
                               </Link>
+                              <button type="button"
+                                onClick={() => { setInlineTaskIssueId(inlineTaskIssueId === issue.id ? null : issue.id); setInlineTask({ title: '', assignedToId: '', dueDate: '' }); }}
+                                className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded">
+                                <Plus className="w-3 h-3" /> Add task
+                              </button>
                             </div>
                             {(issue.tasks ?? []).length > 0 && (
                               <div className="pl-5 space-y-1">
@@ -1488,9 +1528,54 @@ export default function ProgramDetailPage() {
                                   <Link key={task.id} href={`/issues/${issue.id}?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 group">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
                                     <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
+                                    {task.assignedToId && task.dueDate && <span className="text-[10px] text-gray-400">· assigned</span>}
                                     <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
                                   </Link>
                                 ))}
+                              </div>
+                            )}
+                            {inlineTaskIssueId === issue.id && (
+                              <div className="pl-5 mt-1 space-y-1.5 bg-blue-50/40 border border-blue-100 rounded-md p-2">
+                                <input
+                                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  placeholder="Task title"
+                                  value={inlineTask.title}
+                                  onChange={(e) => setInlineTask((t) => ({ ...t, title: e.target.value }))}
+                                />
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <select
+                                    className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    value={inlineTask.assignedToId}
+                                    onChange={(e) => setInlineTask((t) => ({ ...t, assignedToId: e.target.value }))}>
+                                    <option value="">Assign owner…</option>
+                                    {(users as any[]).map((u) => (
+                                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    type="date"
+                                    min={new Date().toISOString().slice(0, 10)}
+                                    className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    value={inlineTask.dueDate}
+                                    onChange={(e) => setInlineTask((t) => ({ ...t, dueDate: e.target.value }))}
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-1.5">
+                                  <button type="button" onClick={() => setInlineTaskIssueId(null)}
+                                    className="px-2.5 py-1 text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded">Cancel</button>
+                                  <button type="button"
+                                    disabled={!inlineTask.title.trim() || createTaskMutation.isPending}
+                                    onClick={() => createTaskMutation.mutate({
+                                      title: inlineTask.title.trim(),
+                                      issueId: issue.id,
+                                      assignedToId: inlineTask.assignedToId || undefined,
+                                      dueDate: inlineTask.dueDate || undefined,
+                                      priority: 'MEDIUM',
+                                    })}
+                                    className="px-2.5 py-1 text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded">
+                                    {createTaskMutation.isPending ? 'Creating…' : 'Create'}
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1502,9 +1587,10 @@ export default function ProgramDetailPage() {
                     )}
                   </div>
 
-                  {/* 3. Tasks assigned */}
+                  {/* 3. Tasks assigned — auto when at least one issue has a task with owner + due date */}
                   <CheckRow checked={!!remCl.tasksAssigned} label="Tasks assigned with owners & due dates"
-                    onClick={() => remediationMutation.mutate({ tasksAssigned: !remCl.tasksAssigned })}
+                    auto={tasksAreAssigned}
+                    onClick={tasksAreAssigned ? undefined : () => remediationMutation.mutate({ tasksAssigned: !remCl.tasksAssigned })}
                   />
 
                   {/* 4. Progress reviewed */}
