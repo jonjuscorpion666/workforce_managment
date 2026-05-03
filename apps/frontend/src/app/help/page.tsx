@@ -26,6 +26,7 @@ const SECTIONS: Section[] = [
   { id: 'tasks',         label: 'Tasks & Milestones',      icon: CheckSquare    },
   { id: 'analytics',    label: 'Analytics',               icon: BarChart2      },
   { id: 'program-flow', label: 'Program Flow',            icon: GitBranch      },
+  { id: 'program-flow-walkthrough', label: 'Program Flow — Walkthrough', icon: Milestone },
 ];
 
 // ─── Small UI helpers ─────────────────────────────────────────────────────────
@@ -871,6 +872,327 @@ function ProgramFlowSection() {
   );
 }
 
+// ─── Walkthrough helpers ──────────────────────────────────────────────────────
+
+function MockScreen({ caption, children }: { caption: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-5">
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden bg-gray-50">
+        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-300" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-300" />
+          <span className="w-2.5 h-2.5 rounded-full bg-green-300" />
+          <span className="ml-3 text-[11px] text-gray-400 font-mono">{caption}</span>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function MockBtn({ label, color = 'blue' }: { label: string; color?: 'blue' | 'gray' | 'green' | 'amber' }) {
+  const styles = {
+    blue:  'bg-blue-600 text-white',
+    gray:  'bg-gray-100 text-gray-700 border border-gray-200',
+    green: 'bg-green-600 text-white',
+    amber: 'bg-amber-500 text-white',
+  }[color];
+  return <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold ${styles}`}>{label}</span>;
+}
+
+function MockField({ label, value, placeholder }: { label: string; value?: string; placeholder?: string }) {
+  return (
+    <div className="mb-2">
+      <div className="text-[10px] font-semibold text-gray-500 uppercase mb-1">{label}</div>
+      <div className={`bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs ${value ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+        {value || placeholder || '—'}
+      </div>
+    </div>
+  );
+}
+
+function MockTabs({ active, dots }: { active: string; dots: Record<string, 'green' | 'yellow' | 'gray'> }) {
+  const tabs = ['Overview', 'Details', 'Checklists', 'Info'];
+  const dotColor = { green: 'bg-green-500', yellow: 'bg-yellow-400', gray: 'bg-gray-300' };
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-1 flex gap-1 mb-3">
+      {tabs.map((t) => (
+        <div key={t} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded text-xs ${active === t ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-gray-500'}`}>
+          {t}
+          <span className={`w-1.5 h-1.5 rounded-full ${dotColor[dots[t]]}`} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MockCheckRow({ label, checked, auto }: { label: string; checked: boolean; auto?: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded text-xs mb-1 border ${checked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+      <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${checked ? 'bg-green-500 border-green-500 text-white text-[10px]' : 'bg-white border-gray-300'}`}>
+        {checked ? '✓' : ''}
+      </span>
+      <span className={`flex-1 ${checked ? 'text-green-700 line-through' : 'text-gray-700'}`}>{label}</span>
+      {auto && <span className="text-[10px] text-gray-400">auto</span>}
+    </div>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-start gap-3 mb-3">
+        <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</span>
+        <h3 className="text-base font-semibold text-gray-900 mt-0.5">{title}</h3>
+      </div>
+      <div className="ml-10">{children}</div>
+    </div>
+  );
+}
+
+// ─── Walkthrough section ──────────────────────────────────────────────────────
+
+function ProgramFlowWalkthroughSection() {
+  return (
+    <section>
+      <SectionHeading
+        id="program-flow-walkthrough"
+        icon={Milestone}
+        title="Program Flow — Walkthrough"
+        subtitle="A step-by-step tour of running a program end-to-end, with annotated mock-ups of every screen."
+      />
+
+      <P>
+        This walkthrough mirrors the actual user journey for a CNO/Director/SVP running a program from scratch — from
+        clicking <strong>New Program</strong> on the dashboard through to documenting validation outcomes after the
+        improvement cycle. Each step shows a small mock-up of the screen so you know what you should be seeing.
+      </P>
+      <Callout type="note" title="Audience: internal program owners">
+        <p>This guide is for users who <em>create and run</em> programs — typically CNOs, Directors, VPs, and SVPs. Nurses respond to surveys via the portal and don&apos;t see these screens.</p>
+      </Callout>
+
+      <Step n={1} title="Open the Program Flow dashboard">
+        <P>
+          From the left sidebar, click <strong>Program Flow</strong>. The dashboard opens with the
+          <strong> Active</strong> status filter applied by default — you only see programs currently in flight.
+          Switch the dropdown to <em>All statuses</em> to widen the view.
+        </P>
+        <MockScreen caption="/program-flow">
+          <div className="flex items-center gap-2 mb-3">
+            <select className="bg-white border border-gray-200 rounded px-2 py-1 text-xs text-gray-600">
+              <option>All hospitals</option>
+            </select>
+            <select className="bg-white border border-gray-200 rounded px-2 py-1 text-xs text-gray-600">
+              <option>ACTIVE ▾</option>
+            </select>
+            <div className="ml-auto"><MockBtn label="+ New Program" color="blue" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { name: 'Float Pool — Q2 Pulse', stage: 'Execution', pct: 60 },
+              { name: 'ICU Nurse Turnover',    stage: 'Root Cause', pct: 40 },
+            ].map((p) => (
+              <div key={p.name} className="bg-white border border-gray-200 rounded-lg p-3">
+                <div className="text-xs font-semibold text-gray-800 mb-1.5 truncate">{p.name}</div>
+                <div className="text-[10px] text-gray-400 mb-2">Stage · {p.stage}</div>
+                <div className="bg-gray-100 rounded-full h-1.5"><div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${p.pct}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        </MockScreen>
+      </Step>
+
+      <Step n={2} title="Click + New Program — fill the create form">
+        <P>
+          A modal opens. <strong>Program name</strong>, <strong>Problem statement</strong>, and <strong>Objective</strong> are
+          required. <strong>Success criteria</strong> is optional but strongly recommended — it&apos;s what you measure against
+          in Validation. Use the <em>Sparkles</em> AI buttons to enhance / suggest text from your problem statement.
+        </P>
+        <MockScreen caption="New Program (modal)">
+          <MockField label="Program name *" value="Float Pool — Q2 Pulse" />
+          <MockField label="Hospital scope" value="HOSPITAL_SPECIFIC · St Joseph" />
+          <MockField label="Problem statement *" value="Float Pool turnover rose 18% last quarter…" />
+          <div className="flex items-center justify-between text-[10px] text-indigo-600 mt-1 mb-2">
+            <span>✨ Suggest from problem</span><span>✨ Enhance</span>
+          </div>
+          <MockField label="Objective *" value="Identify root causes of disengagement in night-shift nurses…" />
+          <MockField label="Success criteria" value="Response rate &gt; 60%, 3+ actionable themes identified" />
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <MockField label="Target launch" value="2026-05-10" />
+            <MockField label="Target completion" value="2026-07-10" />
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <MockBtn label="Cancel" color="blue" />
+            <MockBtn label="Create Program" color="blue" />
+          </div>
+        </MockScreen>
+        <Callout type="tip" title="Past dates are blocked">
+          <p>Target launch and Target completion can&apos;t be earlier than today, and Target completion can&apos;t be earlier than Target launch.</p>
+        </Callout>
+      </Step>
+
+      <Step n={3} title="Land on the program detail — Checklists tab">
+        <P>
+          After saving, you&apos;re sent directly to the <strong>Checklists</strong> tab on the program detail. The four
+          tabs at the top show a small status dot: green (complete), yellow (partial), grey (not started). Right after
+          create, Overview / Details / Info are green and Checklists is grey.
+        </P>
+        <MockScreen caption="/program-flow/{id}?tab=checklists">
+          <MockTabs active="Checklists" dots={{ Overview: 'green', Details: 'green', Checklists: 'gray', Info: 'green' }} />
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-gray-700 tracking-wide">SETUP CHECKLIST</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">0/4 done</span>
+            </div>
+            <MockCheckRow label="Kickoff meeting scheduled" checked={false} />
+            <MockCheckRow label="Employee scope defined" checked={false} auto />
+            <MockCheckRow label="Communication message drafted" checked={false} auto />
+            <MockCheckRow label="Employees notified & explained" checked={false} auto />
+          </div>
+        </MockScreen>
+        <Callout type="note" title="What the &lsquo;auto&rsquo; label means">
+          <p>Three of the four setup items tick themselves automatically: <strong>Employee scope defined</strong> when the linked survey targets a specific group; <strong>Communication message drafted</strong> when you write the message; <strong>Employees notified</strong> after the announcement email is actually sent.</p>
+        </Callout>
+      </Step>
+
+      <Step n={4} title="Setup → Schedule kickoff meeting + link a survey">
+        <P>
+          Tick <strong>Kickoff meeting scheduled</strong> manually after you&apos;ve booked the meeting. Then either
+          link an existing survey via <em>Link a survey</em> (closed/archived surveys are filtered out) or click
+          <em> Create new &amp; link</em> to build one from scratch — saving the new survey returns you here, on the
+          Checklists tab, with the survey already linked.
+        </P>
+        <MockScreen caption="Setup → Linked Survey">
+          <div className="text-[10px] font-semibold text-gray-500 uppercase mb-1">LINKED SURVEY</div>
+          <div className="bg-gray-50 border border-gray-200 rounded-md divide-y divide-gray-200 mb-2">
+            <div className="px-3 py-2 text-xs"><div className="font-medium text-gray-800">Float Pool — March Pulse</div><div className="text-[10px] text-gray-400">DRAFT · PULSE</div></div>
+            <div className="px-3 py-2 text-xs"><div className="font-medium text-gray-800">Q1 Engagement</div><div className="text-[10px] text-gray-400">DRAFT · ANNUAL</div></div>
+          </div>
+          <div className="flex justify-end"><MockBtn label="Cancel" color="blue" /></div>
+        </MockScreen>
+      </Step>
+
+      <Step n={5} title="Setup → Draft the communication message">
+        <P>
+          Write the message employees will see in their portal feed when the survey launches. Click <em>Generate</em>
+          to AI-author one from your problem statement and objective; click <em>Enhance</em> to refine your draft. The
+          AI-generated note appears under every textarea — always review and edit before saving.
+        </P>
+        <MockScreen caption="Setup → Communication message">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[10px] text-gray-400">Message employees will receive → ticks above</div>
+            <div className="flex gap-2 text-[10px] font-semibold">
+              <span className="text-blue-600">✨ Generate</span>
+              <span className="text-indigo-600">✨ Enhance</span>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-md px-2 py-1.5 text-xs text-gray-700 mb-1 leading-relaxed">
+            Hi team,<br />We&apos;re running a short, anonymous pulse survey this week to understand what&apos;s driving turnover in the Float Pool…
+          </div>
+          <div className="text-[10px] text-amber-700 flex items-center gap-1">⚠ AI-generated — please review and edit before saving.</div>
+        </MockScreen>
+      </Step>
+
+      <Step n={6} title="Submit for SVP/CNO Approval">
+        <P>
+          Once the three pre-approval setup items are ticked (kickoff meeting, employee scope, communication
+          drafted), the blue <strong>Submit for SVP/CNO Approval</strong> button appears in the sticky footer.
+          <em> Employees Notified</em> happens <strong>after</strong> approval — when the announcement email is sent —
+          so it&apos;s intentionally not part of the pre-approval gate.
+        </P>
+        <MockScreen caption="Sticky footer (DRAFT, 3/3 ready)">
+          <div className="bg-blue-600 text-white text-xs font-semibold rounded-lg py-2.5 text-center">🛡 Submit for SVP Approval</div>
+        </MockScreen>
+        <p className="text-xs text-gray-500 mb-3">
+          Before the gate is met, the footer shows a hint: <em>Finish Setup steps 1–3 (X/3) to request approval — Employees Notified is sent after approval.</em>
+        </p>
+      </Step>
+
+      <Step n={7} title="Approver: review and approve (or reject)">
+        <P>
+          When you&apos;re an SVP/CNO and the program is in <strong>PENDING_APPROVAL</strong>, the footer shows
+          <em> Approve</em> and <em>Reject</em> buttons side-by-side. Reject opens a textarea to capture the reason —
+          the requester sees this in the rejection banner on Overview.
+        </P>
+        <MockScreen caption="Sticky footer (PENDING_APPROVAL, approver view)">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-blue-600 text-white text-xs font-semibold rounded-lg py-2.5 text-center">✓ Approve</div>
+            <div className="bg-blue-600 text-white text-xs font-semibold rounded-lg py-2.5 text-center">✕ Reject</div>
+          </div>
+        </MockScreen>
+      </Step>
+
+      <Step n={8} title="After approval — send the announcement">
+        <P>
+          Status flips to <strong>ACTIVE</strong>. Inside Setup → Communication message, the
+          <em> Send announcement</em> button is now enabled. Clicking it publishes a SURVEY_LAUNCH announcement to
+          the targeted org units, and the survey itself is published. <strong>Employees Notified</strong> auto-ticks.
+        </P>
+        <MockScreen caption="Setup → Send announcement (ACTIVE)">
+          <div className="flex items-center gap-2 flex-wrap">
+            <MockBtn label="📣 Send announcement" color="blue" />
+            <span className="text-[10px] text-gray-500">→ ticks &lsquo;Employees Notified&rsquo; once delivered</span>
+          </div>
+        </MockScreen>
+      </Step>
+
+      <Step n={9} title="Execution Orchestrator — monitor responses + send reminders + close">
+        <P>
+          Once the survey is live, the Execution stage opens. The orchestrator card shows live response count, days
+          remaining, and a unique survey link you can copy. Use <em>Send reminder</em> to nudge non-responders, and
+          <em> Close survey</em> when participation is acceptable.
+        </P>
+        <MockScreen caption="Execution Orchestrator">
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-semibold text-blue-600 uppercase">RESPONSES COLLECTED</div>
+                <div className="text-2xl font-bold text-blue-700">42</div>
+                <div className="text-[10px] text-gray-500">2 reminders sent</div>
+              </div>
+              <div className="text-right">
+                <span className="bg-green-100 text-green-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">● Live</span>
+                <div className="text-[10px] text-gray-500 mt-1">Closes 23/05</div>
+                <div className="text-[10px] font-semibold text-gray-700">12d remaining</div>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2"><MockBtn label="🔔 Send reminder" color="blue" /><MockBtn label="✕ Close survey" color="blue" /></div>
+        </MockScreen>
+      </Step>
+
+      <Step n={10} title="Root Cause + Remediation + Communication + Validation">
+        <P>
+          After the survey closes, the program advances through the remaining four stages. Each has its own
+          checklist (3–4 items) and free-text field with AI helpers for drafting findings, action plans, and reports.
+          A status dot on the Checklists tab tracks overall progress (22 items across all 6 stages).
+        </P>
+        <MockScreen caption="Stage progression">
+          <Flow steps={[
+            { label: 'Root Cause',    sub: 'Issues created' },
+            { label: 'Remediation',   sub: 'Action plan'    },
+            { label: 'Communication', sub: 'Report shared'  },
+            { label: 'Validation',    sub: 'Outcomes done'  },
+          ]} />
+          <Table
+            heads={['Stage', 'Key step', 'When done']}
+            rows={[
+              ['Root Cause',    'Review survey results, draft findings, create issues, get team agreement', 'All four checklist items ticked'],
+              ['Remediation',   'Draft action plan, assign tasks, review progress',                          'Tasks marked done in the Tasks page'],
+              ['Communication', 'Brief leadership, update employees, document the report',                   'All four checklist items ticked'],
+              ['Validation',    'Plan follow-up pulse, review metrics vs. baseline, document outcomes',      'Outcomes documented; program advances to COMPLETED'],
+            ]}
+          />
+        </MockScreen>
+      </Step>
+
+      <Callout type="tip" title="If you get stuck">
+        <p>Every stage in the program detail has the same shape: a checklist on the left, free-text fields with AI helpers on the right. If a checkbox shows <em>auto</em>, you can&apos;t tick it manually — finish the underlying step (link a survey, send the email, etc.) and it ticks itself.</p>
+      </Callout>
+    </section>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HelpPage() {
@@ -937,6 +1259,8 @@ export default function HelpPage() {
         <AnalyticsSection />
         <Divider />
         <ProgramFlowSection />
+        <Divider />
+        <ProgramFlowWalkthroughSection />
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-200 text-xs text-gray-400 text-center">
