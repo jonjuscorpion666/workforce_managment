@@ -1330,7 +1330,7 @@ export default function ProgramDetailPage() {
                         <div className="border-t border-gray-100 px-3 py-2.5 space-y-2">
                           {(relatedWork as any[]).map((issue) => (
                             <div key={issue.id} className="space-y-0.5">
-                              <Link href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
+                              <Link href={`/issues/${issue.id}?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 group">
                                 <AlertCircle className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
                                 <span className="flex-1 truncate font-medium">{issue.title}</span>
                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
@@ -1339,7 +1339,7 @@ export default function ProgramDetailPage() {
                                 }`}>{issue.status.replace(/_/g, ' ')}</span>
                               </Link>
                               {(issue.tasks ?? []).map((task: any) => (
-                                <Link key={task.id} href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-2 pl-5 text-xs text-gray-500 hover:text-blue-600 group">
+                                <Link key={task.id} href={`/issues/${issue.id}?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="flex items-center gap-2 pl-5 text-xs text-gray-500 hover:text-blue-600 group">
                                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
                                   <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
                                   <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
@@ -1468,14 +1468,14 @@ export default function ProgramDetailPage() {
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${issue.status === 'RESOLVED' || issue.status === 'CLOSED' ? 'bg-green-100 text-green-700' : issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {issue.status.replace(/_/g, ' ')}
                               </span>
-                              <Link href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
+                              <Link href={`/issues/${issue.id}?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex-shrink-0">
                                 <SquarePen className="w-3 h-3" /> View
                               </Link>
                             </div>
                             {(issue.tasks ?? []).length > 0 && (
                               <div className="pl-5 space-y-1">
                                 {(issue.tasks ?? []).map((task: any) => (
-                                  <Link key={task.id} href={`/issues/${issue.id}?from=/program-flow/${id}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 group">
+                                  <Link key={task.id} href={`/issues/${issue.id}?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 group">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'DONE' ? 'bg-green-400' : task.status === 'IN_PROGRESS' ? 'bg-blue-400' : 'bg-gray-300'}`} />
                                     <span className="flex-1 truncate group-hover:text-blue-600">{task.title}</span>
                                     <span className={`text-[10px] ${task.status === 'DONE' ? 'text-green-600' : 'text-gray-400'}`}>{task.status.replace(/_/g, ' ')}</span>
