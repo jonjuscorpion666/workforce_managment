@@ -142,6 +142,14 @@ export class ProgramsService {
       throw new BadRequestException('Cannot edit a completed or cancelled program');
     }
 
+    // Details fields (problem statement, objective, success criteria) are locked once a program
+    // is approved — editing them after approval would alter the basis on which approval was given.
+    const DETAILS_FIELDS = ['problemStatement', 'objective', 'successCriteria'];
+    const POST_APPROVAL = [ProgramStatus.ACTIVE, ProgramStatus.COMPLETED, ProgramStatus.CANCELLED];
+    if (POST_APPROVAL.includes(p.status) && Object.keys(data).some((k) => DETAILS_FIELDS.includes(k))) {
+      throw new BadRequestException('Problem statement, objective, and success criteria are locked once a program is approved');
+    }
+
     Object.assign(p, data);
     return this.repo.save(p);
   }

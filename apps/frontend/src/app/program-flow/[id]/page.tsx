@@ -562,6 +562,7 @@ export default function ProgramDetailPage() {
 
   const cl = program.setupChecklist ?? {};
   const setupAllDone = cl.meetingScheduled && cl.employeeScopeDefined && cl.communicationDrafted && cl.employeesNotified;
+  const detailsLocked = ['ACTIVE', 'COMPLETED', 'CANCELLED'].includes(program.status);
 
   const advanceBlockReason: string | null = (() => {
     if (program.status !== 'ACTIVE') return null;
@@ -756,64 +757,77 @@ export default function ProgramDetailPage() {
         {activeTab === 'details' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-5 space-y-5">
 
+            {detailsLocked && (
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-600">
+                <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Read-only — Details are locked once the program is approved.</span>
+              </div>
+            )}
+
             {/* Problem statement */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Problem Statement</p>
-                <button type="button"
-                  onClick={() => enhance('editProblem', 'problem statement for a healthcare workforce improvement program', editProblem, setEditProblem)}
-                  disabled={!editProblem.trim() || !!enhancing || suggesting}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <Sparkles className="w-3 h-3" />{enhancing === 'editProblem' ? 'Enhancing…' : 'Enhance'}
-                </button>
+                {!detailsLocked && (
+                  <button type="button"
+                    onClick={() => enhance('editProblem', 'problem statement for a healthcare workforce improvement program', editProblem, setEditProblem)}
+                    disabled={!editProblem.trim() || !!enhancing || suggesting}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <Sparkles className="w-3 h-3" />{enhancing === 'editProblem' ? 'Enhancing…' : 'Enhance'}
+                  </button>
+                )}
               </div>
               <textarea rows={3}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                readOnly={detailsLocked}
+                className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none ${detailsLocked ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : 'bg-white'}`}
                 value={editProblem}
                 onChange={(e) => setEditProblem(e.target.value)}
-                onBlur={() => editProblem.trim() !== program.problemStatement && updateProgramMutation.mutate({ problemStatement: editProblem.trim() })}
+                onBlur={() => !detailsLocked && editProblem.trim() !== program.problemStatement && updateProgramMutation.mutate({ problemStatement: editProblem.trim() })}
               />
-              <AIDisclaimer />
+              {!detailsLocked && <AIDisclaimer />}
             </div>
 
             {/* Objective */}
             <div className="border-t border-gray-50 pt-5">
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Objective</p>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={suggestObjective}
-                    disabled={!editProblem.trim() || suggesting || !!enhancing}
-                    title="Generate objective & success criteria from problem statement"
-                    className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                    <Sparkles className="w-3 h-3" />{suggesting ? 'Suggesting…' : 'Suggest'}
-                  </button>
-                  {editObjective.trim() && (
-                    <>
-                      <span className="text-gray-200">|</span>
-                      <button type="button"
-                        onClick={() => enhance('editObjective', 'objective/goal for a healthcare workforce improvement program', editObjective, setEditObjective)}
-                        disabled={!!enhancing || suggesting}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                        <Sparkles className="w-3 h-3" />{enhancing === 'editObjective' ? 'Enhancing…' : 'Enhance'}
-                      </button>
-                    </>
-                  )}
-                </div>
+                {!detailsLocked && (
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={suggestObjective}
+                      disabled={!editProblem.trim() || suggesting || !!enhancing}
+                      title="Generate objective & success criteria from problem statement"
+                      className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                      <Sparkles className="w-3 h-3" />{suggesting ? 'Suggesting…' : 'Suggest'}
+                    </button>
+                    {editObjective.trim() && (
+                      <>
+                        <span className="text-gray-200">|</span>
+                        <button type="button"
+                          onClick={() => enhance('editObjective', 'objective/goal for a healthcare workforce improvement program', editObjective, setEditObjective)}
+                          disabled={!!enhancing || suggesting}
+                          className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                          <Sparkles className="w-3 h-3" />{enhancing === 'editObjective' ? 'Enhancing…' : 'Enhance'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <textarea rows={3}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                readOnly={detailsLocked}
+                className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none ${detailsLocked ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : 'bg-white'}`}
                 value={editObjective}
                 onChange={(e) => setEditObjective(e.target.value)}
-                onBlur={() => editObjective.trim() !== program.objective && updateProgramMutation.mutate({ objective: editObjective.trim() })}
+                onBlur={() => !detailsLocked && editObjective.trim() !== program.objective && updateProgramMutation.mutate({ objective: editObjective.trim() })}
               />
-              <AIDisclaimer />
+              {!detailsLocked && <AIDisclaimer />}
             </div>
 
             {/* Success criteria */}
             <div className="border-t border-gray-50 pt-5">
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Success Criteria</p>
-                {editCriteria.trim() && (
+                {!detailsLocked && editCriteria.trim() && (
                   <button type="button"
                     onClick={() => enhance('editCriteria', 'success criteria / measurable outcomes for a healthcare workforce improvement program', editCriteria, setEditCriteria)}
                     disabled={!!enhancing || suggesting}
@@ -823,13 +837,14 @@ export default function ProgramDetailPage() {
                 )}
               </div>
               <textarea rows={3}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                readOnly={detailsLocked}
+                className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none ${detailsLocked ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : 'bg-white'}`}
                 placeholder="e.g. Response rate >60%, actionable themes identified"
                 value={editCriteria}
                 onChange={(e) => setEditCriteria(e.target.value)}
-                onBlur={() => editCriteria.trim() !== program.successCriteria && updateProgramMutation.mutate({ successCriteria: editCriteria.trim() })}
+                onBlur={() => !detailsLocked && editCriteria.trim() !== program.successCriteria && updateProgramMutation.mutate({ successCriteria: editCriteria.trim() })}
               />
-              <AIDisclaimer />
+              {!detailsLocked && <AIDisclaimer />}
             </div>
           </div>
         )}
