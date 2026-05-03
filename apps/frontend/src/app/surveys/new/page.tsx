@@ -424,6 +424,7 @@ export default function NewSurveyPage() {
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [opensAt, setOpensAt]         = useState('');
   const [closesAt, setClosesAt]       = useState('');
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
   // Targeting scope — Director locked to UNIT, CNO locked to HOSPITAL
   const defaultScope: TargetScope = isDirector ? 'UNIT' : isCNO ? 'HOSPITAL' : 'SYSTEM';
@@ -931,11 +932,13 @@ export default function NewSurveyPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Opens At</label>
-            <input type="datetime-local" className="input text-sm" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} />
+            <input type="datetime-local" min={nowLocal} className="input text-sm" value={opensAt}
+              onChange={(e) => { const v = e.target.value; if (v && v < nowLocal) return; setOpensAt(v); }} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Closes At</label>
-            <input type="datetime-local" className="input text-sm" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
+            <input type="datetime-local" min={opensAt || nowLocal} className="input text-sm" value={closesAt}
+              onChange={(e) => { const v = e.target.value; const floor = opensAt || nowLocal; if (v && v < floor) return; setClosesAt(v); }} />
           </div>
         </div>
       </div>

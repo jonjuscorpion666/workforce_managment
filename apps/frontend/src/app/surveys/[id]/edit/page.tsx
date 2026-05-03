@@ -282,6 +282,7 @@ export default function EditSurveyPage() {
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [opensAt, setOpensAt]         = useState('');
   const [closesAt, setClosesAt]       = useState('');
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   const [questions, setQuestions]     = useState<QuestionDraft[]>([makeQuestion()]);
   const [error, setError]             = useState('');
   const [loaded, setLoaded]           = useState(false);
@@ -566,11 +567,13 @@ export default function EditSurveyPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Opens At</label>
-            <input className="input text-sm" type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} />
+            <input className="input text-sm" type="datetime-local" min={nowLocal} value={opensAt}
+              onChange={(e) => { const v = e.target.value; if (v && v < nowLocal) return; setOpensAt(v); }} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Closes At</label>
-            <input className="input text-sm" type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
+            <input className="input text-sm" type="datetime-local" min={opensAt || nowLocal} value={closesAt}
+              onChange={(e) => { const v = e.target.value; const floor = opensAt || nowLocal; if (v && v < floor) return; setClosesAt(v); }} />
           </div>
         </div>
       </div>
