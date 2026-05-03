@@ -10,6 +10,7 @@ import {
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
+import { FieldHint } from '@/components/ui/FieldHint';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -158,13 +159,25 @@ function AddMilestoneForm({ planId, onDone }: { planId: string; onDone: () => vo
 
   return (
     <div className="border border-dashed border-gray-300 rounded-lg p-3 mt-2 space-y-2">
-      <input
-        className="input text-sm"
-        placeholder="Milestone title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-      <input type="date" className="input text-sm" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">
+          Milestone title
+          <FieldHint significance="A phase or checkpoint within the action plan — chunks the plan into deliverable phases." example="Mentor pairing complete" />
+        </label>
+        <input
+          className="input text-sm"
+          placeholder="Milestone title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">
+          Due date
+          <FieldHint significance="When this milestone should be complete. Drives 'Overdue' status and progress percentage." example="2026-06-15" />
+        </label>
+        <input type="date" className="input text-sm" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+      </div>
       <div className="flex gap-2">
         <button
           className="btn-primary text-xs py-1 px-3"
@@ -564,19 +577,31 @@ function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: ()
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Title <span className="text-red-500">*</span>
+              <FieldHint significance="Short name for this action plan, distinct from the program." example="Night-shift Buddy Program" />
+            </label>
             <input className="input" value={form.title} onChange={(e) => set('title', e.target.value)} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Objective</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Objective
+              <FieldHint significance="What this plan specifically tries to achieve, in plain language." example="Pair every night-shift nurse with a senior mentor for 90 days." />
+            </label>
             <textarea className="input" rows={2} value={form.objective} onChange={(e) => set('objective', e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Root Cause Summary</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Root Cause Summary
+              <FieldHint significance="Why the problem exists — the underlying causes, not the symptoms." example="Night-shift nurses report isolation and lack of escalation support." />
+            </label>
             <textarea className="input" rows={2} value={form.rootCauseSummary} onChange={(e) => set('rootCauseSummary', e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Planned Actions</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Planned Actions
+              <FieldHint significance="Numbered high-level tactical steps you will take to deliver the plan." example="1. Match mentors. 2. Train mentors. 3. Weekly check-ins." />
+            </label>
             <div className="space-y-2">
               {actions.map((a, i) => (
                 <div key={i} className="flex gap-2">
@@ -599,17 +624,26 @@ function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: ()
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Success Criteria</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Success Criteria
+              <FieldHint significance="How you will know the plan worked — ideally a measurable target." example="Float Pool engagement score ≥ 70% by Q3." />
+            </label>
             <textarea className="input" rows={2} value={form.successCriteria} onChange={(e) => set('successCriteria', e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+                <FieldHint significance="When the plan should be fully completed." example="2026-09-30" />
+              </label>
               <input type="date" className="input" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes
+              <FieldHint significance="Optional internal context — assumptions, dependencies, or caveats not covered above." example="Mentor stipend approved by HR; rollout paused during August holidays." />
+            </label>
             <textarea className="input" rows={2} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
           </div>
 

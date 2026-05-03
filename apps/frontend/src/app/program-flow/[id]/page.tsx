@@ -17,6 +17,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 import { AIDisclaimer } from '@/components/ui/AIDisclaimer';
+import { FieldHint } from '@/components/ui/FieldHint';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -767,7 +768,10 @@ export default function ProgramDetailPage() {
             {/* Problem statement */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Problem Statement</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">
+                  Problem Statement
+                  <FieldHint significance="The observable issue that motivated this program — what's actually going wrong." example="Float Pool turnover rose 18% last quarter, affecting overnight coverage." />
+                </p>
                 {!detailsLocked && (
                   <button type="button"
                     onClick={() => enhance('editProblem', 'problem statement for a healthcare workforce improvement program', editProblem, setEditProblem)}
@@ -790,7 +794,10 @@ export default function ProgramDetailPage() {
             {/* Objective */}
             <div className="border-t border-gray-50 pt-5">
               <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Objective</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">
+                  Objective
+                  <FieldHint significance="The program-level outcome you are trying to achieve." example="Identify root causes of disengagement in night-shift Float Pool nurses." />
+                </p>
                 {!detailsLocked && (
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={suggestObjective}
@@ -826,7 +833,10 @@ export default function ProgramDetailPage() {
             {/* Success criteria */}
             <div className="border-t border-gray-50 pt-5">
               <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Success Criteria</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">
+                  Success Criteria
+                  <FieldHint significance="How you'll know the program worked — the measurable target you'll validate against." example="Response rate > 60%; turnover trends improving in next pulse." />
+                </p>
                 {!detailsLocked && editCriteria.trim() && (
                   <button type="button"
                     onClick={() => enhance('editCriteria', 'success criteria / measurable outcomes for a healthcare workforce improvement program', editCriteria, setEditCriteria)}

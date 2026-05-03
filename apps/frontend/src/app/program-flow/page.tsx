@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 import { AIDisclaimer } from '@/components/ui/AIDisclaimer';
+import { FieldHint } from '@/components/ui/FieldHint';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -263,7 +264,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Program name <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Program name <span className="text-red-500">*</span>
+              <FieldHint significance="Short, recognisable name for the entire engagement initiative." example="Float Pool — Q2 Pulse" />
+            </label>
             <input
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               placeholder="e.g. Q2 Nurse Engagement — Carmel Hospital"
@@ -274,7 +278,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
 
           {/* Scope */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Scope <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Scope <span className="text-red-500">*</span>
+              <FieldHint significance="Whether this program runs at one or more specific hospitals (CNO-approvable) or system-wide (SVP-approvable only)." example="Hospital-specific · St Joseph" />
+            </label>
             <div className="flex gap-2">
               {[
                 { value: 'HOSPITAL_SPECIFIC', label: 'Hospital-specific', icon: Building2 },
@@ -296,6 +303,7 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                 Target hospital(s) <span className="text-red-500">*</span>
+                <FieldHint significance="Which hospitals this hospital-specific program will run at — staff at those hospitals see the resulting survey and announcements." example="St Joseph, Carmel" />
               </label>
               <div className="border border-gray-200 rounded-lg overflow-hidden max-h-36 overflow-y-auto">
                 {hospitals.map((h) => (
@@ -319,7 +327,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
           {/* Problem statement */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-gray-700">Problem statement <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-gray-700">
+                Problem statement <span className="text-red-500">*</span>
+                <FieldHint significance="The observable issue that motivated this program — what's actually going wrong, ideally with a number." example="Float Pool turnover rose 18% last quarter, affecting overnight coverage." />
+              </label>
               <button type="button" onClick={() => enhance('problemStatement', 'problem statement for a healthcare workforce improvement program')}
                 disabled={!form.problemStatement.trim() || !!enhancing}
                 className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -338,7 +349,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
           {/* Objective */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-gray-700">Objective <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-gray-700">
+                Objective <span className="text-red-500">*</span>
+                <FieldHint significance="The program-level outcome you are trying to achieve — broader than any single tactic." example="Identify root causes of disengagement in night-shift Float Pool nurses." />
+              </label>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={suggestObjective}
                   disabled={!form.problemStatement.trim() || suggesting || !!enhancing}
@@ -370,7 +384,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
           {/* Success criteria */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-gray-700">Success criteria <span className="text-gray-400">(optional)</span></label>
+              <label className="text-xs font-semibold text-gray-700">
+                Success criteria <span className="text-gray-400">(optional)</span>
+                <FieldHint significance="How you'll know the program worked — what you'll measure against in the Validation stage." example="Response rate > 60%; 3+ actionable themes identified; turnover trends improving in next pulse." />
+              </label>
               {form.successCriteria.trim() && (
                 <button type="button" onClick={() => enhance('successCriteria', 'success criteria / measurable outcomes for a healthcare workforce improvement program')}
                   disabled={!!enhancing || suggesting}
@@ -391,7 +408,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
           {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Target launch</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Target launch
+                <FieldHint significance="When you intend to publish the survey and notify staff — kicks off the Execution stage." example="2026-05-15" />
+              </label>
               <input type="date"
                 min={today}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -404,7 +424,10 @@ function CreateProgramModal({ hospitals, onClose, onCreated }: {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Target completion</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Target completion
+                <FieldHint significance="When the program should reach Validation and close out — covers all 6 stages end-to-end." example="2026-09-30" />
+              </label>
               <input type="date"
                 min={form.targetLaunchDate || today}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"

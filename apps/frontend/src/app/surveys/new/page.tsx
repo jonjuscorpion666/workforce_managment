@@ -14,6 +14,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/ui/Toast';
+import { FieldHint } from '@/components/ui/FieldHint';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -877,12 +878,18 @@ export default function NewSurveyPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Title <span className="text-red-500">*</span>
+            <FieldHint significance="What respondents see at the top of the survey — make it scannable and specific." example="ICU Team Pulse — March 2026" />
+          </label>
           <input className="input" placeholder="e.g. ICU Team Pulse — March" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Description
+            <FieldHint significance="One or two sentences shown to respondents above the questions — sets context and tone." example="Quick 5-minute pulse on shift handover and workload. Your responses are anonymous." />
+          </label>
           <textarea className="input resize-none h-20 text-sm" placeholder="Brief description shown to respondents..." value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
 
@@ -890,6 +897,7 @@ export default function NewSurveyPage() {
           <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
             <Target className="w-4 h-4 text-gray-400" />
             Objective {(isCNO || isDirector) && <span className="text-red-500">*</span>}
+            <FieldHint significance="Internal-only — what this survey is meant to learn or measure. Helps approvers evaluate the request." example="Identify top drivers of overtime and burnout among night-shift ICU nurses." />
           </label>
           <textarea
             className="input resize-none h-20 text-sm"
@@ -910,7 +918,10 @@ export default function NewSurveyPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Survey Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Survey Type
+              <FieldHint significance="Determines templates, defaults, and how analytics groups responses. Pulse = short check-in; Annual = full engagement; Onboarding/Exit = lifecycle." example="Pulse" />
+            </label>
             {isDirector ? (
               <div className="input text-sm bg-gray-50 text-gray-500 flex items-center gap-2 cursor-not-allowed">
                 <Lock className="w-3.5 h-3.5" /> Pulse (Directors only)
@@ -926,17 +937,24 @@ export default function NewSurveyPage() {
               <input type="checkbox" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} className="w-4 h-4 accent-blue-600" />
               <span>Anonymous responses</span>
             </label>
+            <FieldHint significance="When ON, responses are never linked to an individual. Recommended for sensitive topics — irreversible once a response is submitted." example="ON for engagement / wellbeing pulses; OFF for onboarding check-ins." />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Opens At</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Opens At
+              <FieldHint significance="When the survey publishes and respondents can begin answering. Must be in the future." example="2026-05-15 09:00" />
+            </label>
             <input type="datetime-local" min={nowLocal} className="input text-sm" value={opensAt}
               onChange={(e) => { const v = e.target.value; if (v && v < nowLocal) return; setOpensAt(v); }} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Closes At</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Closes At
+              <FieldHint significance="After this time, no further responses are accepted. Pulses typically run 7–14 days." example="2026-05-29 23:59" />
+            </label>
             <input type="datetime-local" min={opensAt || nowLocal} className="input text-sm" value={closesAt}
               onChange={(e) => { const v = e.target.value; const floor = opensAt || nowLocal; if (v && v < floor) return; setClosesAt(v); }} />
           </div>

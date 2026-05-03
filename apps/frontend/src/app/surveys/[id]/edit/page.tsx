@@ -12,6 +12,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
 import { useToast } from '@/components/ui/Toast';
+import { FieldHint } from '@/components/ui/FieldHint';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -550,7 +551,10 @@ export default function EditSurveyPage() {
         <textarea className="input resize-none" rows={2} placeholder="Objective (optional)" value={objective} onChange={(e) => setObjective(e.target.value)} />
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Type
+              <FieldHint significance="Determines templates, defaults, and how analytics groups responses." example="Pulse" />
+            </label>
             <select className="input text-sm" value={type} onChange={(e) => setType(e.target.value)}>
               {['PULSE','ANNUAL','ONBOARDING','EXIT','AD_HOC','VALIDATION'].map((t) => (
                 <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase().replace('_', ' ')}</option>
@@ -566,12 +570,18 @@ export default function EditSurveyPage() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Opens At</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Opens At
+              <FieldHint significance="When the survey publishes and respondents can begin answering." example="2026-05-15 09:00" />
+            </label>
             <input className="input text-sm" type="datetime-local" min={nowLocal} value={opensAt}
               onChange={(e) => { const v = e.target.value; if (v && v < nowLocal) return; setOpensAt(v); }} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Closes At</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Closes At
+              <FieldHint significance="After this time, no further responses are accepted." example="2026-05-29 23:59" />
+            </label>
             <input className="input text-sm" type="datetime-local" min={opensAt || nowLocal} value={closesAt}
               onChange={(e) => { const v = e.target.value; const floor = opensAt || nowLocal; if (v && v < floor) return; setClosesAt(v); }} />
           </div>
