@@ -262,6 +262,18 @@ const QUESTIONS: Partial<QuestionBankItem>[] = [
     helpText: '1 = Never, 5 = Every shift', isValidated: false,
     followUpThreshold: 2, followUpPrompt: 'What time of day / which patient flow is hardest?',
   },
+  {
+    text: 'How often does tight staffing make your shift harder rather than getting handled smoothly?',
+    type: 'LIKERT_5', category: QuestionCategory.UNPREDICTABILITY, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What specifically makes tight-staffing days worse?',
+  },
+  {
+    text: 'How often do staffing or assignment rules feel disconnected from the reality of your shift?',
+    type: 'LIKERT_5', category: QuestionCategory.UNPREDICTABILITY, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Which rule, specifically?',
+  },
 
   // ── Burden Pulse — ROLE DRIFT (doing others\' work, unclear delegation) ────
   {
@@ -301,6 +313,18 @@ const QUESTIONS: Partial<QuestionBankItem>[] = [
     type: 'LIKERT_5', category: QuestionCategory.EMOTIONAL_TAX, framework: QuestionFramework.CUSTOM,
     helpText: '1 = Never, 5 = Constantly', isValidated: false,
     followUpThreshold: 2, followUpPrompt: 'What feels unfair, specifically?',
+  },
+  {
+    text: 'How often do you feel blamed for things outside your control?',
+    type: 'LIKERT_5', category: QuestionCategory.EMOTIONAL_TAX, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What kinds of things, and by whom?',
+  },
+  {
+    text: 'How often do you find yourself thinking about calling off or leaving your shift early?',
+    type: 'LIKERT_5', category: QuestionCategory.EMOTIONAL_TAX, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What pushes you toward that thought most?',
   },
 
   // ── Burden Pulse — Closing prompts (One-Thing Test + prioritization filter) ─

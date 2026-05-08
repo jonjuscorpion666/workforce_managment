@@ -82,7 +82,24 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'What time of day or which patient flow is hardest?',
     },
+    // G1 — gap from focus-group guide (RN-C2 / PCT applicable)
+    {
+      text: 'How often does tight staffing make your shift harder rather than getting handled smoothly?',
+      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
+      followUpThreshold: 2, followUpPrompt: 'What specifically makes tight-staffing days worse?',
+    },
   );
+
+  // G2 — RN only: staffing rules feel disconnected from reality (RN-C3)
+  if (isRN) {
+    items.push({
+      text: 'How often do staffing or assignment rules feel disconnected from the reality of your shift?',
+      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
+      followUpThreshold: 2, followUpPrompt: 'Which rule, specifically?',
+    });
+  }
 
   // ── ROLE DRIFT ───────────────────────────────────────────────────────────
   items.push(
@@ -133,6 +150,24 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       followUpThreshold: 2, followUpPrompt: 'What feels unfair, specifically?',
     },
   );
+
+  // G3 — PCT only: blamed for things outside their control (PCT-B2)
+  if (!isRN) {
+    items.push({
+      text: 'How often do you feel blamed for things outside your control?',
+      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
+      followUpThreshold: 2, followUpPrompt: 'What kinds of things, and by whom?',
+    });
+  }
+
+  // G4 — both: turnover-intent leading indicator (PCT-C2; equally relevant to RNs)
+  items.push({
+    text: 'How often do you find yourself thinking about calling off or leaving your shift early?',
+    type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+    category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
+    followUpThreshold: 2, followUpPrompt: 'What pushes you toward that thought most?',
+  });
 
   return items;
 }
