@@ -40,6 +40,7 @@ import { seedGovernance } from './governance.seed';
 import { seedAdhocSurvey } from './adhoc-survey.seed';
 import { seedFloatPoolIssue } from './float-pool-issue.seed';
 import { seedQuestionBank } from './question-bank.seed';
+import { seedBurdenPulseTemplates } from './burden-pulse-templates.seed';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -75,6 +76,7 @@ async function main() {
   await seedAdhocSurvey(AppDataSource);
   await seedFloatPoolIssue(AppDataSource);
   await seedQuestionBank(AppDataSource);
+  await seedBurdenPulseTemplates(AppDataSource);
   await AppDataSource.destroy();
   console.log('🎉 Seed complete.\n');
 }

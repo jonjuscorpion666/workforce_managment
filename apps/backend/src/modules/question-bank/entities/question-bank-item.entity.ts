@@ -3,17 +3,23 @@ import {
 } from 'typeorm';
 
 export enum QuestionCategory {
-  BURNOUT       = 'BURNOUT',
-  ENGAGEMENT    = 'ENGAGEMENT',
-  WORKLOAD      = 'WORKLOAD',
-  COMMUNICATION = 'COMMUNICATION',
-  LEADERSHIP    = 'LEADERSHIP',
-  WELLBEING     = 'WELLBEING',
-  TEAMWORK      = 'TEAMWORK',
-  SAFETY        = 'SAFETY',
-  RECOGNITION   = 'RECOGNITION',
-  GROWTH        = 'GROWTH',
-  GENERAL       = 'GENERAL',
+  BURNOUT          = 'BURNOUT',
+  ENGAGEMENT       = 'ENGAGEMENT',
+  WORKLOAD         = 'WORKLOAD',
+  COMMUNICATION    = 'COMMUNICATION',
+  LEADERSHIP       = 'LEADERSHIP',
+  WELLBEING        = 'WELLBEING',
+  TEAMWORK         = 'TEAMWORK',
+  SAFETY           = 'SAFETY',
+  RECOGNITION      = 'RECOGNITION',
+  GROWTH           = 'GROWTH',
+  GENERAL          = 'GENERAL',
+  // Nursing burden-pulse buckets — sourced from the Burden Assessment Focus Group framework
+  WASTE            = 'WASTE',
+  FRICTION         = 'FRICTION',
+  UNPREDICTABILITY = 'UNPREDICTABILITY',
+  ROLE_DRIFT       = 'ROLE_DRIFT',
+  EMOTIONAL_TAX    = 'EMOTIONAL_TAX',
 }
 
 export enum QuestionFramework {

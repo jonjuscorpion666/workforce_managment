@@ -202,6 +202,133 @@ const QUESTIONS: Partial<QuestionBankItem>[] = [
     type: 'OPEN_TEXT', category: QuestionCategory.GENERAL, framework: QuestionFramework.CUSTOM,
     isValidated: false,
   },
+
+  // ── Burden Pulse — WASTE (duplication, rework, unnecessary documentation) ──
+  {
+    text: 'How often does duplicated documentation slow you down during a shift?',
+    type: 'LIKERT_5', category: QuestionCategory.WASTE, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Which documentation feels redundant? Be specific (form name / time of day).',
+  },
+  {
+    text: 'How often do you redo work because of unclear handoffs or miscommunication?',
+    type: 'LIKERT_5', category: QuestionCategory.WASTE, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Describe a recent example.',
+  },
+  {
+    text: 'How much do non-clinical administrative tasks drain time from patient care?',
+    type: 'LIKERT_5', category: QuestionCategory.WASTE, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Not at all, 5 = Constantly', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Which task, if removed, would give you back the most time?',
+  },
+
+  // ── Burden Pulse — FRICTION (supplies, interruptions, broken workflows) ────
+  {
+    text: 'How often do supply hunts or missing equipment delay your work?',
+    type: 'LIKERT_5', category: QuestionCategory.FRICTION, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Which supplies / where in the unit?',
+  },
+  {
+    text: 'How often do interruptions break your concentration on patient care?',
+    type: 'LIKERT_5', category: QuestionCategory.FRICTION, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Constantly', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What kinds of interruptions are most common?',
+  },
+  {
+    text: 'How often do broken workflows or poor teamwork slow you down?',
+    type: 'LIKERT_5', category: QuestionCategory.FRICTION, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Which workflow or which team interaction?',
+  },
+
+  // ── Burden Pulse — UNPREDICTABILITY (schedule, floating, admit/discharge) ──
+  {
+    text: 'How predictable is your schedule each week?',
+    type: 'LIKERT_5', category: QuestionCategory.UNPREDICTABILITY, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Very unpredictable, 5 = Fully predictable', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What aspect of scheduling feels most unpredictable?',
+  },
+  {
+    text: 'How disruptive is daily floating or last-minute reassignment?',
+    type: 'LIKERT_5', category: QuestionCategory.UNPREDICTABILITY, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Not disruptive, 5 = Severely disruptive', isValidated: false,
+    followUpThreshold: 4, followUpPrompt: 'What would make floating less disruptive?',
+  },
+  {
+    text: 'How often does admission/discharge timing add chaos to your shift?',
+    type: 'LIKERT_5', category: QuestionCategory.UNPREDICTABILITY, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What time of day / which patient flow is hardest?',
+  },
+
+  // ── Burden Pulse — ROLE DRIFT (doing others\' work, unclear delegation) ────
+  {
+    text: 'How often do you do work that does not feel like your role?',
+    type: 'LIKERT_5', category: QuestionCategory.ROLE_DRIFT, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What tasks feel outside your role?',
+  },
+  {
+    text: 'How often do unclear delegation lines cause confusion or rework?',
+    type: 'LIKERT_5', category: QuestionCategory.ROLE_DRIFT, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'Where does the confusion typically arise?',
+  },
+  {
+    text: 'How often do you feel pulled in too many directions at once?',
+    type: 'LIKERT_5', category: QuestionCategory.ROLE_DRIFT, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Constantly', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'When during the shift does this happen most?',
+  },
+
+  // ── Burden Pulse — EMOTIONAL TAX (fear, second-guessing, escalation) ──────
+  {
+    text: 'How often do you feel mentally exhausted before the end of your shift?',
+    type: 'LIKERT_5', category: QuestionCategory.EMOTIONAL_TAX, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Every shift', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What is contributing most to this exhaustion?',
+  },
+  {
+    text: 'How often do you feel anxious or second-guess decisions during your shift?',
+    type: 'LIKERT_5', category: QuestionCategory.EMOTIONAL_TAX, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Constantly', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What kind of decisions cause the most anxiety?',
+  },
+  {
+    text: 'How often does work feel unfair compared to other units or shifts?',
+    type: 'LIKERT_5', category: QuestionCategory.EMOTIONAL_TAX, framework: QuestionFramework.CUSTOM,
+    helpText: '1 = Never, 5 = Constantly', isValidated: false,
+    followUpThreshold: 2, followUpPrompt: 'What feels unfair, specifically?',
+  },
+
+  // ── Burden Pulse — Closing prompts (One-Thing Test + prioritization filter) ─
+  {
+    text: 'Of the burdens you flagged, which one is happening most often?',
+    type: 'OPEN_TEXT', category: QuestionCategory.GENERAL, framework: QuestionFramework.CUSTOM,
+    helpText: 'One sentence is fine.', isValidated: false,
+  },
+  {
+    text: 'Is the burden you most want fixed within unit / leadership control?',
+    type: 'YES_NO', category: QuestionCategory.GENERAL, framework: QuestionFramework.CUSTOM,
+    isValidated: false,
+  },
+  {
+    text: 'Would removing this burden make tomorrow\'s shift noticeably easier?',
+    type: 'YES_NO', category: QuestionCategory.GENERAL, framework: QuestionFramework.CUSTOM,
+    isValidated: false,
+  },
+  {
+    text: 'If leadership fixed ONE thing in the next 30 days, what should it be? Be specific — name the task, the time of day, or the workflow.',
+    type: 'OPEN_TEXT', category: QuestionCategory.GENERAL, framework: QuestionFramework.CUSTOM,
+    isValidated: false,
+  },
+  {
+    text: 'Would you be willing to join a 30-minute burden-removal session?',
+    type: 'YES_NO', category: QuestionCategory.GENERAL, framework: QuestionFramework.CUSTOM,
+    isValidated: false,
+  },
 ];
 
 export async function seedQuestionBank(dataSource: DataSource) {
