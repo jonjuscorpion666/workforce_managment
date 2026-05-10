@@ -3,16 +3,15 @@ import { Survey, SurveyType, SurveyStatus, ApprovalStatus, TargetScope } from '.
 import { Question, QuestionType } from '../../modules/surveys/entities/question.entity';
 
 // Two reusable survey templates derived from the Nursing & PCT Burden Assessment
-// Focus Group Guide. Both follow the same shape so analytics roll up identically:
-// 5 burden buckets × 3 questions each, plus 3-question prioritisation filter,
-// the One-Thing Test, and an optional volunteer flag.
+// Focus Group Guide. Both follow a similar 5-bucket shape, but the RN template
+// has been refined per facilitator feedback (rewordings, helpText examples, two
+// removed cumulative items, and one item moved from EMOTIONAL_TAX → GENERAL).
 
 const BUCKETS = ['WASTE', 'FRICTION', 'UNPREDICTABILITY', 'ROLE_DRIFT', 'EMOTIONAL_TAX'] as const;
 
 type QSpec = Partial<Question> & { text: string; type: QuestionType };
 
 function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
-  // 15 score items: 3 per bucket. Phrasing is gently tuned per role where it matters.
   const isRN = role === 'RN';
   const items: QSpec[] = [];
 
@@ -25,7 +24,9 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       followUpThreshold: 2, followUpPrompt: 'Which documentation feels redundant? Be specific (form name / time of day).',
     },
     {
-      text: 'How often do you redo work because of unclear handoffs or miscommunication?',
+      text: isRN
+        ? 'How often do unclear handoffs or miscommunication make you redo work?'
+        : 'How often do you redo work because of unclear handoffs or miscommunication?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Describe a recent example.',
@@ -34,7 +35,10 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       text: isRN
         ? 'How much do non-clinical administrative tasks drain time from patient care?'
         : 'How much do non-care tasks pull you away from supporting patients?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Not at all, 5 = Constantly',
+      type: QuestionType.LIKERT_5,
+      helpText: isRN
+        ? '1 = Not at all, 5 = Constantly. e.g., incident-reporting paperwork, discharge case management, ambulance/paramedic coordination, compliance audits, patient & family phone calls, completing CBTs.'
+        : '1 = Not at all, 5 = Constantly',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Which task, if removed, would give you back the most time?',
     },
@@ -56,7 +60,10 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
     },
     {
       text: 'How often do broken workflows or poor teamwork slow you down?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      type: QuestionType.LIKERT_5,
+      helpText: isRN
+        ? '1 = Never, 5 = Every shift. e.g., EMR login delays, malfunctioning devices, devices not integrated with the charting system, role confusion between RN / PCT / RT.'
+        : '1 = Never, 5 = Every shift',
       category: 'FRICTION', dimension: 'FRICTION', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Which workflow or which team interaction?',
     },
@@ -77,27 +84,35 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       followUpThreshold: 4, followUpPrompt: 'What would make floating less disruptive?',
     },
     {
-      text: 'How often does admission/discharge timing add chaos to your shift?',
+      text: isRN
+        ? 'How often does continuous admission and discharge add chaos to your daily shift?'
+        : 'How often does admission/discharge timing add chaos to your shift?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'What time of day or which patient flow is hardest?',
     },
-    // G1 — gap from focus-group guide (RN-C2 / PCT applicable)
+    // G1 — gap from focus-group guide
     {
-      text: 'How often does tight staffing make your shift harder rather than getting handled smoothly?',
+      text: isRN
+        ? 'How often does inadequate staffing (less than what the grid recommends) make it difficult to complete your shift work efficiently?'
+        : 'How often does tight staffing make your shift harder rather than getting handled smoothly?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What specifically makes tight-staffing days worse?',
+      followUpThreshold: 2,
+      followUpPrompt: isRN
+        ? 'What specifically makes inadequately-staffed days worse?'
+        : 'What specifically makes tight-staffing days worse?',
     },
   );
 
-  // G2 — RN only: staffing rules feel disconnected from reality (RN-C3)
+  // G2 — RN only: staffing/assignment guidelines disconnected from reality
   if (isRN) {
     items.push({
-      text: 'How often do staffing or assignment rules feel disconnected from the reality of your shift?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      text: 'How often do staffing or assignment guidelines feel disconnected from the reality of your shift?',
+      type: QuestionType.LIKERT_5,
+      helpText: '1 = Never, 5 = Every shift. e.g., fixed nurse-to-patient ratio (1:5 med-surg) regardless of acuity; geographic assignment causing unequal burden; no accounting for invisible work; excessive documentation burden for high-acuity assignments.',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Which rule, specifically?',
+      followUpThreshold: 2, followUpPrompt: 'Which guideline, specifically?',
     });
   }
 
@@ -105,17 +120,25 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
   items.push(
     {
       text: isRN
-        ? 'How often do you do work that does not feel like nursing?'
+        ? 'How often do you do non-RN work that takes you away from RN work?'
         : 'How often do you do tasks that do not really feel like your job?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What tasks feel outside your role?',
+      followUpThreshold: 2,
+      followUpPrompt: isRN
+        ? 'What non-RN tasks are taking you away from RN work?'
+        : 'What tasks feel outside your role?',
     },
     {
-      text: 'How often do unclear delegation lines cause confusion or rework?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      text: isRN
+        ? 'How often does unclear delegation cause rework?'
+        : 'How often do unclear delegation lines cause confusion or rework?',
+      type: QuestionType.LIKERT_5,
+      helpText: isRN
+        ? '1 = Never, 5 = Every shift. e.g., vague or incomplete physician orders; "watch my patient while I\'m on break"; "tell me when urine output is low"; assigning feeding evaluations that are out of RN scope.'
+        : '1 = Never, 5 = Every shift',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Where does the confusion typically arise?',
+      followUpThreshold: 2, followUpPrompt: 'Where does this typically happen?',
     },
     {
       text: 'How often do you feel pulled in too many directions at once?',
@@ -126,56 +149,73 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
   );
 
   // ── EMOTIONAL TAX ────────────────────────────────────────────────────────
-  items.push(
-    {
-      text: 'How often do you feel mentally exhausted before the end of your shift?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
-      category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What is contributing most to this exhaustion?',
-    },
-    {
-      text: isRN
-        ? 'How often do you feel anxious or second-guess clinical decisions during your shift?'
-        : 'How often do you feel least supported on the unit?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
-      category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: isRN
-        ? 'What kind of decisions cause the most anxiety?'
-        : 'When and from whom does the lack of support typically come?',
-    },
-    {
-      text: 'How often does work feel unfair compared to other units or shifts?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
-      category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What feels unfair, specifically?',
-    },
-  );
-
-  // G3 — PCT only: blamed for things outside their control (PCT-B2)
-  if (!isRN) {
-    items.push({
-      text: 'How often do you feel blamed for things outside your control?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
-      category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What kinds of things, and by whom?',
-    });
-  }
-
-  // G4 — both: turnover-intent leading indicator (PCT-C2; equally relevant to RNs)
+  // RN keeps only the anxious/second-guess item per facilitator feedback.
+  // PCT keeps the original three (mentally exhausted, least supported, unfair) plus G3 (blamed).
   items.push({
-    text: 'How often do you find yourself thinking about calling off or leaving your shift early?',
-    type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+    text: isRN
+      ? 'How often do you feel anxious or second-guess clinical decisions during your shift?'
+      : 'How often do you feel least supported on the unit?',
+    type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
     category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-    followUpThreshold: 2, followUpPrompt: 'What pushes you toward that thought most?',
+    followUpThreshold: 2,
+    followUpPrompt: isRN
+      ? 'What kind of decisions cause the most anxiety?'
+      : 'When and from whom does the lack of support typically come?',
   });
+
+  if (!isRN) {
+    items.push(
+      {
+        text: 'How often do you feel mentally exhausted before the end of your shift?',
+        type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+        category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
+        followUpThreshold: 2, followUpPrompt: 'What is contributing most to this exhaustion?',
+      },
+      {
+        text: 'How often does work feel unfair compared to other units or shifts?',
+        type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
+        category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
+        followUpThreshold: 2, followUpPrompt: 'What feels unfair, specifically?',
+      },
+      // G3 — PCT only: blamed for things outside their control
+      {
+        text: 'How often do you feel blamed for things outside your control?',
+        type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+        category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
+        followUpThreshold: 2, followUpPrompt: 'What kinds of things, and by whom?',
+      },
+      // G4 (PCT) — turnover-intent stays in EMOTIONAL_TAX
+      {
+        text: 'How often do you find yourself thinking about calling off or leaving your shift early?',
+        type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+        category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
+        followUpThreshold: 2, followUpPrompt: 'What pushes you toward that thought most?',
+      },
+    );
+  }
 
   return items;
 }
 
-function closingQuestions(): QSpec[] {
-  return [
+function closingQuestions(role: 'RN' | 'PCT'): QSpec[] {
+  const isRN = role === 'RN';
+  const items: QSpec[] = [];
+
+  // RN only — G4 (calling off / leaving early) lives here as a GENERAL reflective item, not in EMOTIONAL_TAX
+  if (isRN) {
+    items.push({
+      text: 'How often do you find yourself thinking about calling off or leaving your shift early?',
+      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
+      category: 'GENERAL', dimension: 'GENERAL', source: 'CUSTOM',
+      followUpThreshold: 2, followUpPrompt: 'What pushes you toward that thought most?',
+    });
+  }
+
+  items.push(
     {
-      text: 'Of the burdens you flagged, which one is happening most often?',
+      text: isRN
+        ? 'Of all the burdens you identified, which one are you experiencing most frequently?'
+        : 'Of the burdens you flagged, which one is happening most often?',
       type: QuestionType.OPEN_TEXT, helpText: 'One sentence is fine.',
       category: 'PRIORITISATION', dimension: 'GENERAL', source: 'CUSTOM',
     },
@@ -185,7 +225,9 @@ function closingQuestions(): QSpec[] {
       category: 'PRIORITISATION', dimension: 'GENERAL', source: 'CUSTOM',
     },
     {
-      text: 'Would removing this burden make tomorrow\'s shift noticeably easier?',
+      text: isRN
+        ? 'Would removing this burden make tomorrow\'s shift noticeably easier for you?'
+        : 'Would removing this burden make tomorrow\'s shift noticeably easier?',
       type: QuestionType.YES_NO,
       category: 'PRIORITISATION', dimension: 'GENERAL', source: 'CUSTOM',
     },
@@ -199,11 +241,13 @@ function closingQuestions(): QSpec[] {
       type: QuestionType.YES_NO,
       category: 'VOLUNTEER', dimension: 'GENERAL', source: 'CUSTOM',
     },
-  ];
+  );
+
+  return items;
 }
 
 function buildTemplate(role: 'RN' | 'PCT'): { title: string; questions: QSpec[]; description: string; objective: string; targetRoles: string[] } {
-  const all = [...bucketQuestions(role), ...closingQuestions()].map((q, i) => ({ ...q, orderIndex: i, isRequired: q.isRequired ?? false }));
+  const all = [...bucketQuestions(role), ...closingQuestions(role)].map((q, i) => ({ ...q, orderIndex: i, isRequired: q.isRequired ?? false }));
   return {
     title: role === 'RN'
       ? 'Monthly Burden Pulse — RN'
