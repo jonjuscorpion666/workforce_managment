@@ -88,6 +88,43 @@ function getPct(program: any): number {
 
 // ── Checklist checkbox row ────────────────────────────────────────────────────
 
+function AudienceChips({ survey, orgUnits }: { survey: any; orgUnits: any[] }) {
+  if (!survey) return null;
+  const focusGroup = survey.focusGroupUserIds ?? [];
+  const orgIds     = survey.targetOrgUnitIds ?? [];
+  const roles      = survey.targetRoles ?? [];
+  const shifts     = survey.targetShifts ?? [];
+  const isSystem   = !survey.targetScope || survey.targetScope === 'SYSTEM';
+
+  const chips: string[] = [];
+  if (focusGroup.length > 0) {
+    chips.push(`Focus group · ${focusGroup.length} ${focusGroup.length === 1 ? 'person' : 'people'}`);
+  } else if (isSystem && !orgIds.length && !roles.length && !shifts.length) {
+    chips.push('System-wide');
+  } else {
+    if (orgIds.length > 0) {
+      const names = orgIds
+        .map((id: string) => orgUnits.find((o) => o.id === id)?.name)
+        .filter(Boolean) as string[];
+      if (names.length === 1)      chips.push(names[0]);
+      else if (names.length <= 3)  chips.push(names.join(', '));
+      else                         chips.push(`${names[0]} +${names.length - 1} more`);
+    }
+    roles.forEach((r: string)  => chips.push(r));
+    shifts.forEach((s: string) => chips.push(s));
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {chips.map((c, i) => (
+        <span key={i} className="inline-block text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 rounded-full px-2 py-0.5">
+          {c}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function CheckRow({ checked, label, auto, onClick }: {
   checked: boolean; label: string; auto?: boolean; onClick?: () => void;
 }) {
@@ -175,6 +212,13 @@ export default function ProgramDetailPage() {
     queryKey: ['admin-users'],
     queryFn: () => api.get('/admin/users', { params: { limit: 500 } }).then((r) => r.data.data),
     staleTime: 5 * 60_000,
+  });
+
+  // Org units — used to resolve a linked survey's targetOrgUnitIds into human-readable chips
+  const { data: orgUnits = [] } = useQuery<any[]>({
+    queryKey: ['org-units'],
+    queryFn: () => api.get('/org/units').then((r) => r.data),
+    staleTime: 10 * 60_000,
   });
 
   // Used to grey-out surveys already linked to another program in the picker
@@ -969,18 +1013,23 @@ export default function ProgramDetailPage() {
                   <div className="pt-1">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Linked Survey</p>
                     {program.linkedSurveyId ? (
-                      <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <p className="text-sm text-green-700 flex-1 truncate">{linkedSurvey?.title ?? 'Survey linked'}</p>
-                        <Link href={`/surveys/${program.linkedSurveyId}/edit?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
-                          <ExternalLink className="w-3 h-3" /> Open
-                        </Link>
-                        <button
-                          onClick={() => { if (window.confirm('Unlink this survey? This will reset the "Questions drafted" and "Scope defined" checkboxes.')) unlinkSurveyMutation.mutate(); }}
-                          disabled={unlinkSurveyMutation.isPending}
-                          className="text-[10px] text-red-500 hover:text-red-700 font-medium disabled:opacity-40">
-                          Unlink
-                        </button>
+                      <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <p className="text-sm text-green-700 flex-1 truncate">{linkedSurvey?.title ?? 'Survey linked'}</p>
+                          <Link href={`/surveys/${program.linkedSurveyId}/edit?from=${encodeURIComponent(`/program-flow/${id}?tab=checklists`)}`} className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 mr-1">
+                            <ExternalLink className="w-3 h-3" /> Open
+                          </Link>
+                          <button
+                            onClick={() => { if (window.confirm('Unlink this survey? This will reset the "Questions drafted" and "Scope defined" checkboxes.')) unlinkSurveyMutation.mutate(); }}
+                            disabled={unlinkSurveyMutation.isPending}
+                            className="text-[10px] text-red-500 hover:text-red-700 font-medium disabled:opacity-40">
+                            Unlink
+                          </button>
+                        </div>
+                        <div className="pl-6">
+                          <AudienceChips survey={linkedSurvey} orgUnits={orgUnits} />
+                        </div>
                       </div>
                     ) : (
                       !surveyPicker ? (
@@ -1803,13 +1852,19 @@ export default function ProgramDetailPage() {
             <div className="mt-6 pt-5 border-t border-gray-50">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Linked Survey</p>
               {linkedSurvey ? (
-                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                  <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                  <p className="text-sm font-medium text-green-800 flex-1 truncate">{linkedSurvey.title}</p>
-                  <Link href={`/surveys/${program.linkedSurveyId}/edit?from=/program-flow/${id}`}
-                    className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium">
-                    <ExternalLink className="w-3.5 h-3.5" /> Open
-                  </Link>
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <p className="text-sm font-medium text-green-800 flex-1 truncate">{linkedSurvey.title}</p>
+                    <Link href={`/surveys/${program.linkedSurveyId}/edit?from=/program-flow/${id}`}
+                      className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium">
+                      <ExternalLink className="w-3.5 h-3.5" /> Open
+                    </Link>
+                  </div>
+                  <div className="pl-7">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Target audience</p>
+                    <AudienceChips survey={linkedSurvey} orgUnits={orgUnits} />
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-gray-400">No survey linked yet</p>
