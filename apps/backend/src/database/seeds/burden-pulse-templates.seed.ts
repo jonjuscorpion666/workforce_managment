@@ -26,7 +26,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
     {
       text: isRN
         ? 'How often do unclear handoffs or miscommunication make you redo work?'
-        : 'How often do you redo work because of unclear handoffs or miscommunication?',
+        : 'How often do unclear handoffs, unclear delegated orders, or miscommunication cause rework?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Describe a recent example.',
@@ -34,11 +34,11 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
     {
       text: isRN
         ? 'How much do non-clinical administrative tasks drain time from patient care?'
-        : 'How much do non-care tasks pull you away from supporting patients?',
+        : 'How often do non-patient care tasks pull you away from supporting patients?',
       type: QuestionType.LIKERT_5,
       helpText: isRN
         ? '1 = Not at all, 5 = Constantly. e.g., incident-reporting paperwork, discharge case management, ambulance/paramedic coordination, compliance audits, patient & family phone calls, completing CBTs.'
-        : '1 = Not at all, 5 = Constantly. e.g., stocking and restocking supplies, transporting patients, cleaning duties, answering non-care call lights, completing PCT-specific documentation.',
+        : '1 = Never, 5 = Every shift. e.g., stocking and restocking supplies, transporting patients, cleaning duties, answering non-care call lights, completing PCT-specific documentation.',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Which task, if removed, would give you back the most time?',
     },
@@ -47,7 +47,9 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
   // ── FRICTION ─────────────────────────────────────────────────────────────
   items.push(
     {
-      text: 'How often do supply hunts or missing equipment delay your work?',
+      text: isRN
+        ? 'How often do supply hunts or missing equipment delay your work?'
+        : 'How often do supply hunts or missing equipment delay your assigned work?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'FRICTION', dimension: 'FRICTION', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Which supplies and where in the unit?',
@@ -93,13 +95,13 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
     {
       text: isRN
         ? 'How often does inadequate staffing (less than what the grid recommends) make it difficult to complete your shift work efficiently?'
-        : 'How often does tight staffing make your shift harder rather than getting handled smoothly?',
+        : 'How often does being short-staffed make your shift harder than getting things handled smoothly?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
       followUpThreshold: 2,
       followUpPrompt: isRN
         ? 'What specifically makes inadequately-staffed days worse?'
-        : 'What specifically makes tight-staffing days worse?',
+        : 'What specifically makes short-staffed days worse?',
     },
   );
 
@@ -119,23 +121,23 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
     {
       text: isRN
         ? 'How often do you do non-RN work that takes you away from RN work?'
-        : 'How often do you do tasks that do not really feel like your job?',
+        : 'How often do you have to do work that isn\'t really part of your job?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
       followUpThreshold: 2,
       followUpPrompt: isRN
         ? 'What non-RN tasks are taking you away from RN work?'
-        : 'What tasks feel outside your role?',
+        : 'What work isn\'t really part of your job?',
     },
-    {
+    // RN only: 'unclear delegation cause rework' — PCT version is folded into the WASTE
+    // 'unclear handoffs / delegated orders / miscommunication' question above.
+    ...(isRN ? [{
       text: 'How often does unclear delegation cause rework?',
       type: QuestionType.LIKERT_5,
-      helpText: isRN
-        ? '1 = Never, 5 = Every shift. e.g., vague or incomplete physician orders; "watch my patient while I\'m on break"; "tell me when urine output is low"; assigning feeding evaluations that are out of RN scope.'
-        : '1 = Never, 5 = Every shift. e.g., "watch my patient while I\'m on break"; "let me know when X happens"; inconsistent handoffs from the RN; tasks delegated without context or clear acceptance.',
+      helpText: '1 = Never, 5 = Every shift. e.g., vague or incomplete physician orders; "watch my patient while I\'m on break"; "tell me when urine output is low"; assigning feeding evaluations that are out of RN scope.',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
       followUpThreshold: 2, followUpPrompt: 'Where does this typically happen?',
-    },
+    } as QSpec] : []),
     {
       text: 'How often do you feel pulled in too many directions at once?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
@@ -159,17 +161,9 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       : 'When and from whom does the lack of support typically come?',
   });
 
-  if (!isRN) {
-    // G3 — PCT only: blamed for things outside their control
-    items.push({
-      text: 'How often do you feel blamed for things outside your control?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
-      category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What kinds of things, and by whom?',
-    });
-  }
-  // Removed for both roles per facilitator feedback: 'mentally exhausted'
-  // and 'work feels unfair' — cumulative-impact, not specific removable burdens.
+  // Removed for both roles per facilitator feedback:
+  //   - 'mentally exhausted' and 'work feels unfair' — cumulative-impact, not specific removable burdens
+  //   - PCT-only: 'blamed for things outside your control' — blame-framing risk
   // The 'calling off / leaving early' G4 item is emitted in closingQuestions()
   // as a GENERAL reflective indicator, not a burden item.
 
