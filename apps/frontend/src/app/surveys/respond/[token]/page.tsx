@@ -5,15 +5,16 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CheckCircle2, AlertTriangle, ChevronRight, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
+import { getScaleEndpoints } from '@/lib/likertScale';
 
 // ── Answer input components ────────────────────────────────────────────────────
 
-function LikertScale({ value, onChange, max = 5 }: { value: number | null; onChange: (v: number) => void; max?: number }) {
-  const labels: Record<number, { low: string; high: string }> = {
-    5:  { low: 'Strongly Disagree', high: 'Strongly Agree' },
-    10: { low: 'Not at all',        high: 'Extremely' },
-  };
-  const l = labels[max] ?? { low: '1', high: String(max) };
+function LikertScale({ value, onChange, max = 5, helpText }: { value: number | null; onChange: (v: number) => void; max?: number; helpText?: string }) {
+  // Likert-5 legend is derived from helpText (Never→Every shift vs Strongly Disagree→Strongly Agree, etc.);
+  // Likert-10 / NPS keep the legacy default endpoints.
+  const l = max === 5
+    ? getScaleEndpoints(helpText)
+    : (max === 10 ? { low: 'Not at all', high: 'Extremely' } : { low: '1', high: String(max) });
   return (
     <div className="space-y-2">
       <div className="flex gap-1.5 flex-wrap">
@@ -226,9 +227,9 @@ export default function SurveyRespondPage() {
         </div>
 
         <div>
-          {q?.type === 'LIKERT_5'        && <LikertScale  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} max={5} />}
-          {q?.type === 'LIKERT_10'       && <LikertScale  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} max={10} />}
-          {q?.type === 'NPS'             && <LikertScale  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} max={10} />}
+          {q?.type === 'LIKERT_5'        && <LikertScale  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} max={5} helpText={q.helpText} />}
+          {q?.type === 'LIKERT_10'       && <LikertScale  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} max={10} helpText={q.helpText} />}
+          {q?.type === 'NPS'             && <LikertScale  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} max={10} helpText={q.helpText} />}
           {q?.type === 'RATING'          && <RatingStars  value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} />}
           {q?.type === 'YES_NO'          && <YesNo        value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} />}
           {q?.type === 'MULTIPLE_CHOICE' && <MultipleChoice options={q.options ?? []} value={answerValue ?? null} onChange={(v) => setAnswer(q.id, v)} />}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import api from '@/lib/api';
+import { getScaleEndpoints } from '@/lib/likertScale';
 
 interface Question {
   id: string;
@@ -32,8 +33,8 @@ function LikertScale({ question, value, onChange, max }: {
   max: number;
 }) {
   const labels: Record<number, { first: string; last: string }> = {
-    5:  { first: 'Strongly Disagree', last: 'Strongly Agree' },
-    10: { first: 'Not at all',        last: 'Extremely' },
+    5:  (() => { const { low, high } = getScaleEndpoints(question.helpText); return { first: low, last: high }; })(),
+    10: { first: 'Not at all', last: 'Extremely' },
   };
   return (
     <div>

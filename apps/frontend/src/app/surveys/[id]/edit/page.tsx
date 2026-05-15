@@ -10,6 +10,7 @@ import {
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { getScaleLabels } from '@/lib/likertScale';
 import SurveyPreviewModal from '@/components/surveys/SurveyPreviewModal';
 import { useToast } from '@/components/ui/Toast';
 import { FieldHint } from '@/components/ui/FieldHint';
@@ -415,14 +416,17 @@ export default function EditSurveyPage() {
       RATING:          'Rating 1–5',
     };
 
-    const answerPreview: Record<string, string[]> = {
-      LIKERT_5:  ['1 — Strongly Disagree', '2 — Disagree', '3 — Neutral', '4 — Agree', '5 — Strongly Agree'],
-      LIKERT_10: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
-      NPS:       ['0 (Not at all likely)', '…', '10 (Extremely likely)'],
-      YES_NO:    ['Yes', 'No'],
-      RATING:    ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'],
-      OPEN_TEXT: [],
-      MULTIPLE_CHOICE: [],
+    // Likert-5 labels are derived per-question from helpText so a "How often…" question
+    // shows Never/Rarely/Sometimes/Often/Every shift instead of Strongly Disagree/Agree.
+    const answerPreviewFor = (q: any): string[] => {
+      switch (q.type) {
+        case 'LIKERT_5':  return getScaleLabels(q.helpText, 5).map((label, i) => `${i + 1} — ${label}`);
+        case 'LIKERT_10': return ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+        case 'NPS':       return ['0 (Not at all likely)', '…', '10 (Extremely likely)'];
+        case 'YES_NO':    return ['Yes', 'No'];
+        case 'RATING':    return ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'];
+        default:          return [];
+      }
     };
 
     const sortedQuestions = [...(survey?.questions ?? [])].sort((a: any, b: any) => a.orderIndex - b.orderIndex);
@@ -464,7 +468,7 @@ export default function EditSurveyPage() {
         </p>
         <div className="space-y-4">
           {sortedQuestions.map((q: any, i: number) => {
-            const options: string[] = q.options?.length ? q.options : (answerPreview[q.type] ?? []);
+            const options: string[] = q.options?.length ? q.options : answerPreviewFor(q);
             return (
               <div key={q.id ?? i} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">

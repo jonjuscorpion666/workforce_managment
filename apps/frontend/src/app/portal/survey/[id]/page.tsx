@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/nurse-api';
 import { useNurseAuth } from '@/lib/nurse-auth';
+import { getScaleEndpoints } from '@/lib/likertScale';
 
 interface Question {
   id: string;
@@ -45,9 +46,9 @@ function likertColor(n: number, max: number) {
   return LIKERT_COLORS[Math.min(idx, 4)];
 }
 
-function LikertRow({ max, value, onChange }: { max: number; value: AnswerValue; onChange: (v: number) => void }) {
+function LikertRow({ max, value, onChange, helpText }: { max: number; value: AnswerValue; onChange: (v: number) => void; helpText?: string }) {
   const ends = max === 5
-    ? { first: 'Strongly Disagree', last: 'Strongly Agree' }
+    ? (() => { const { low, high } = getScaleEndpoints(helpText); return { first: low, last: high }; })()
     : { first: 'Not at all', last: 'Extremely' };
   return (
     <div className="mt-3">
@@ -115,10 +116,10 @@ function QuestionCard({ question, index, value, onChange, followUpText, onFollow
           {question.helpText && <p className="text-sm text-gray-400 mt-1">{question.helpText}</p>}
 
           {(question.type === 'LIKERT_5' || question.type === 'RATING') && (
-            <LikertRow max={5} value={value} onChange={onChange} />
+            <LikertRow max={5} value={value} onChange={onChange} helpText={question.helpText} />
           )}
           {question.type === 'LIKERT_10' && (
-            <LikertRow max={10} value={value} onChange={onChange} />
+            <LikertRow max={10} value={value} onChange={onChange} helpText={question.helpText} />
           )}
           {question.type === 'NPS' && (
             <NPSRow value={value} onChange={onChange} />
