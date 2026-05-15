@@ -91,9 +91,10 @@ function NPSRow({ value, onChange }: { value: AnswerValue; onChange: (v: number)
   );
 }
 
-function QuestionCard({ question, index, value, onChange, followUpText, onFollowUpChange }: {
+function QuestionCard({ question, index, value, onChange, followUpText, onFollowUpChange, missing }: {
   question: Question; index: number; value: AnswerValue; onChange: (v: AnswerValue) => void;
   followUpText?: string; onFollowUpChange?: (text: string) => void;
+  missing?: boolean;
 }) {
   const isAnswered = value !== null && value !== undefined && value !== '';
   const isNumeric = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING'].includes(question.type);
@@ -101,8 +102,13 @@ function QuestionCard({ question, index, value, onChange, followUpText, onFollow
   const showFollowUp = isNumeric && typeof value === 'number' && shouldShowFollowUp(value, threshold, question.helpText);
 
   return (
-    <div className={`bg-white rounded-xl border-2 transition-colors p-5
-      ${isAnswered ? 'border-blue-200' : 'border-gray-200'}`}>
+    <div
+      data-question-id={question.id}
+      className={`bg-white rounded-xl border-2 transition-colors p-5 ${
+        missing ? 'border-red-400 ring-2 ring-red-100'
+        : isAnswered ? 'border-blue-200'
+        : 'border-gray-200'
+      }`}>
       <div className="flex gap-3">
         <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold
           ${isAnswered ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
@@ -204,6 +210,7 @@ export default function NurseSurveyPage() {
   const [submitting, setSubmitting]   = useState(false);
   const [submitted, setSubmitted]     = useState(false);
   const [validErr, setValidErr]       = useState('');
+  const [missingIds, setMissingIds]   = useState<Set<string>>(new Set());
   const [countdown, setCountdown]     = useState(3);
 
   // Guard
@@ -236,6 +243,13 @@ export default function NurseSurveyPage() {
   function setAnswer(questionId: string, value: AnswerValue) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
     setValidErr('');
+    // Clear the missing flag for this question once the user answers
+    setMissingIds((prev) => {
+      if (!prev.has(questionId)) return prev;
+      const next = new Set(prev);
+      next.delete(questionId);
+      return next;
+    });
   }
 
   function setFollowUp(questionId: string, text: string) {
@@ -244,13 +258,22 @@ export default function NurseSurveyPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const missing = survey!.questions
+    const missingQuestions = survey!.questions
       .filter((q) => q.isRequired && (answers[q.id] === undefined || answers[q.id] === null || answers[q.id] === ''))
-      .map((_, i) => i + 1);
+      .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
 
-    if (missing.length > 0) {
-      setValidErr(`Please answer required question(s): ${missing.join(', ')}`);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (missingQuestions.length > 0) {
+      const numbers = missingQuestions.map((q) => (q.orderIndex ?? 0) + 1).join(', ');
+      const label = missingQuestions.length === 1 ? 'required question' : `${missingQuestions.length} required questions`;
+      setValidErr(`Please answer the ${label} (Q${numbers}).`);
+      setMissingIds(new Set(missingQuestions.map((q) => q.id)));
+      // Scroll the first missing question into view and highlight via the red border
+      const first = missingQuestions[0];
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-question-id="${first.id}"]`);
+        if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        else window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
       return;
     }
 
@@ -388,6 +411,7 @@ export default function NurseSurveyPage() {
               onChange={(v) => setAnswer(q.id, v)}
               followUpText={followUpTexts[q.id]}
               onFollowUpChange={(text) => setFollowUp(q.id, text)}
+              missing={missingIds.has(q.id)}
             />
           ))}
 

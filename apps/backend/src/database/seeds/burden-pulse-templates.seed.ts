@@ -187,17 +187,17 @@ function closingQuestions(_role: 'RN' | 'PCT'): QSpec[] {
   items.push(
     {
       text: 'Of all the burdens you identified, which one are you experiencing most frequently?',
-      type: QuestionType.OPEN_TEXT, helpText: 'One sentence is fine.',
+      type: QuestionType.OPEN_TEXT, helpText: 'One sentence is fine.', isRequired: true,
       category: 'PRIORITISATION', dimension: 'GENERAL', source: 'CUSTOM',
     },
     {
       text: 'Is the burden you most want fixed within unit / leadership control?',
-      type: QuestionType.YES_NO,
+      type: QuestionType.YES_NO, isRequired: true,
       category: 'PRIORITISATION', dimension: 'GENERAL', source: 'CUSTOM',
     },
     {
       text: 'Would removing this burden make tomorrow\'s shift noticeably easier for you?',
-      type: QuestionType.YES_NO,
+      type: QuestionType.YES_NO, isRequired: true,
       category: 'PRIORITISATION', dimension: 'GENERAL', source: 'CUSTOM',
     },
     {
