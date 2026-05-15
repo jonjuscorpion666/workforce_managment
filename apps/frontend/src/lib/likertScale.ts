@@ -17,7 +17,7 @@ const LABELS_5: Record<ScaleFamily, string[]> = {
   DISRUPTIVENESS: ['Not disruptive',    'A little disruptive','Moderately disruptive','Very disruptive','Severely disruptive'],
 };
 
-function detectFamily(helpText: string | null | undefined): ScaleFamily {
+export function detectFamily(helpText: string | null | undefined): ScaleFamily {
   if (!helpText) return 'AGREEMENT';
   const ht = helpText.toLowerCase();
   if (ht.includes('strongly disagree') || ht.includes('strongly agree')) return 'AGREEMENT';
@@ -68,4 +68,26 @@ export function getScaleLabels(helpText: string | null | undefined, max: number 
 export function getScaleEndpoints(helpText: string | null | undefined): { low: string; high: string } {
   const labels = getScaleLabels(helpText, 5);
   return { low: labels[0], high: labels[labels.length - 1] };
+}
+
+/**
+ * Decide whether to surface a follow-up textarea given a numeric answer + the
+ * question's stored followUpThreshold. The comparison direction depends on the
+ * scale family: burden-direction questions (FREQUENCY / INTENSITY /
+ * DISRUPTIVENESS) fire when the answer is at or above the threshold (high
+ * burden answers); engagement-direction questions (AGREEMENT / PREDICTABILITY)
+ * fire when the answer is at or below the threshold (low / negative answers).
+ *
+ * This keeps legacy engagement surveys (MBI, Gallup Q12 etc.) working
+ * unchanged while making the burden-pulse templates fire correctly.
+ */
+export function shouldShowFollowUp(
+  value: number,
+  threshold: number | null | undefined,
+  helpText: string | null | undefined,
+): boolean {
+  if (threshold == null) return false;
+  const family = detectFamily(helpText);
+  const burdenDirection = family === 'FREQUENCY' || family === 'INTENSITY' || family === 'DISRUPTIVENESS';
+  return burdenDirection ? value >= threshold : value <= threshold;
 }

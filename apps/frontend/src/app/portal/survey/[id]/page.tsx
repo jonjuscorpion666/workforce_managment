@@ -6,7 +6,7 @@ import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/nurse-api';
 import { useNurseAuth } from '@/lib/nurse-auth';
-import { getScaleEndpoints } from '@/lib/likertScale';
+import { getScaleEndpoints, shouldShowFollowUp } from '@/lib/likertScale';
 
 interface Question {
   id: string;
@@ -98,7 +98,7 @@ function QuestionCard({ question, index, value, onChange, followUpText, onFollow
   const isAnswered = value !== null && value !== undefined && value !== '';
   const isNumeric = ['LIKERT_5', 'LIKERT_10', 'NPS', 'RATING'].includes(question.type);
   const threshold = question.followUpThreshold;
-  const showFollowUp = isNumeric && threshold != null && typeof value === 'number' && value <= threshold;
+  const showFollowUp = isNumeric && typeof value === 'number' && shouldShowFollowUp(value, threshold, question.helpText);
 
   return (
     <div className={`bg-white rounded-xl border-2 transition-colors p-5

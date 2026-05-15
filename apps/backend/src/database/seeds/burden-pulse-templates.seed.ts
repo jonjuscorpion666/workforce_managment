@@ -21,7 +21,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       text: 'How often does duplicated documentation slow you down during a shift?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Which documentation feels redundant? Be specific (form name / time of day).',
+      followUpThreshold: 4, followUpPrompt: 'Which documentation feels redundant? Be specific (form name / time of day).',
     },
     {
       text: isRN
@@ -29,7 +29,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
         : 'How often do unclear handoffs, unclear delegated orders, or miscommunication cause rework?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Describe a recent example.',
+      followUpThreshold: 4, followUpPrompt: 'Describe a recent example.',
     },
     {
       text: isRN
@@ -40,7 +40,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
         ? '1 = Not at all, 5 = Constantly. e.g., incident-reporting paperwork, discharge case management, ambulance/paramedic coordination, compliance audits, patient & family phone calls, completing CBTs.'
         : '1 = Never, 5 = Every shift. e.g., stocking and restocking supplies, transporting patients, cleaning duties, answering non-care call lights, completing PCT-specific documentation.',
       category: 'WASTE', dimension: 'WASTE', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Which task, if removed, would give you back the most time?',
+      followUpThreshold: 4, followUpPrompt: 'Which task, if removed, would give you back the most time?',
     },
   );
 
@@ -52,13 +52,13 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
         : 'How often do supply hunts or missing equipment delay your assigned work?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'FRICTION', dimension: 'FRICTION', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Which supplies and where in the unit?',
+      followUpThreshold: 4, followUpPrompt: 'Which supplies and where in the unit?',
     },
     {
       text: 'How often do interruptions break your concentration on patient care?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
       category: 'FRICTION', dimension: 'FRICTION', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What kinds of interruptions are most common?',
+      followUpThreshold: 4, followUpPrompt: 'What kinds of interruptions are most common?',
     },
     {
       text: 'How often do broken workflows or poor teamwork slow you down?',
@@ -67,17 +67,18 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
         ? '1 = Never, 5 = Every shift. e.g., EMR login delays, malfunctioning devices, devices not integrated with the charting system, role confusion between RN / PCT / RT.'
         : '1 = Never, 5 = Every shift. e.g., EMR login delays, malfunctioning devices, devices not integrated with the charting system, role confusion between RN, PCT, and ancillary staff.',
       category: 'FRICTION', dimension: 'FRICTION', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Which workflow or which team interaction?',
+      followUpThreshold: 4, followUpPrompt: 'Which workflow or which team interaction?',
     },
   );
 
   // ── UNPREDICTABILITY ─────────────────────────────────────────────────────
   items.push(
     {
-      text: 'How predictable is your schedule each week?',
-      type: QuestionType.LIKERT_5, helpText: '1 = Very unpredictable, 5 = Fully predictable',
+      // Flipped to burden-direction (5 = max burden) so it's consistent with the rest.
+      text: 'How often is your schedule unpredictable?',
+      type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every week',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What aspect of scheduling feels most unpredictable?',
+      followUpThreshold: 4, followUpPrompt: 'What aspect of scheduling feels most unpredictable?',
     },
     {
       text: 'How disruptive is daily floating or last-minute reassignment?',
@@ -89,7 +90,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       text: 'How often does continuous admission and discharge add chaos to your daily shift?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'What time of day or which patient flow is hardest?',
+      followUpThreshold: 4, followUpPrompt: 'What time of day or which patient flow is hardest?',
     },
     // G1 — gap from focus-group guide
     {
@@ -98,7 +99,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
         : 'How often does being short-staffed make your shift harder than getting things handled smoothly?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
-      followUpThreshold: 2,
+      followUpThreshold: 4,
       followUpPrompt: isRN
         ? 'What specifically makes inadequately-staffed days worse?'
         : 'What specifically makes short-staffed days worse?',
@@ -112,7 +113,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       type: QuestionType.LIKERT_5,
       helpText: '1 = Never, 5 = Every shift. e.g., fixed nurse-to-patient ratio (1:5 med-surg) regardless of acuity; geographic assignment causing unequal burden; no accounting for invisible work; excessive documentation burden for high-acuity assignments.',
       category: 'UNPREDICTABILITY', dimension: 'UNPREDICTABILITY', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Which guideline, specifically?',
+      followUpThreshold: 4, followUpPrompt: 'Which guideline, specifically?',
     });
   }
 
@@ -124,7 +125,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
         : 'How often do you have to do work that isn\'t really part of your job?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
-      followUpThreshold: 2,
+      followUpThreshold: 4,
       followUpPrompt: isRN
         ? 'What non-RN tasks are taking you away from RN work?'
         : 'What work isn\'t really part of your job?',
@@ -136,13 +137,13 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       type: QuestionType.LIKERT_5,
       helpText: '1 = Never, 5 = Every shift. e.g., vague or incomplete physician orders; "watch my patient while I\'m on break"; "tell me when urine output is low"; assigning feeding evaluations that are out of RN scope.',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'Where does this typically happen?',
+      followUpThreshold: 4, followUpPrompt: 'Where does this typically happen?',
     } as QSpec] : []),
     {
       text: 'How often do you feel pulled in too many directions at once?',
       type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
       category: 'ROLE_DRIFT', dimension: 'ROLE_DRIFT', source: 'CUSTOM',
-      followUpThreshold: 2, followUpPrompt: 'When during the shift does this happen most?',
+      followUpThreshold: 4, followUpPrompt: 'When during the shift does this happen most?',
     },
   );
 
@@ -155,7 +156,7 @@ function bucketQuestions(role: 'RN' | 'PCT'): QSpec[] {
       : 'How often do you feel least supported on the unit?',
     type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Constantly',
     category: 'EMOTIONAL_TAX', dimension: 'EMOTIONAL_TAX', source: 'CUSTOM',
-    followUpThreshold: 2,
+    followUpThreshold: 4,
     followUpPrompt: isRN
       ? 'What kind of decisions cause the most anxiety?'
       : 'When and from whom does the lack of support typically come?',
@@ -180,7 +181,7 @@ function closingQuestions(_role: 'RN' | 'PCT'): QSpec[] {
     text: 'How often do you find yourself thinking about calling off or leaving your shift early?',
     type: QuestionType.LIKERT_5, helpText: '1 = Never, 5 = Every shift',
     category: 'GENERAL', dimension: 'GENERAL', source: 'CUSTOM',
-    followUpThreshold: 2, followUpPrompt: 'What pushes you toward that thought most?',
+    followUpThreshold: 4, followUpPrompt: 'What pushes you toward that thought most?',
   });
 
   items.push(

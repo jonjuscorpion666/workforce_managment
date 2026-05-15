@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CheckCircle2, AlertTriangle, ChevronRight, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
-import { getScaleEndpoints } from '@/lib/likertScale';
+import { getScaleEndpoints, shouldShowFollowUp } from '@/lib/likertScale';
 
 // ── Answer input components ────────────────────────────────────────────────────
 
@@ -182,9 +182,9 @@ export default function SurveyRespondPage() {
   }
 
   function showFollowUp(q: any) {
-    if (q.followUpThreshold == null) return false;
     const v = answers[q.id];
-    return v != null && typeof v === 'number' && v <= q.followUpThreshold;
+    if (v == null || typeof v !== 'number') return false;
+    return shouldShowFollowUp(v, q.followUpThreshold, q.helpText);
   }
 
   function handleNext() {
