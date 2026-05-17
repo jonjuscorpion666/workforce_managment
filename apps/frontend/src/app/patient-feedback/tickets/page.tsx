@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import Link from 'next/link';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
+import PfHeader from '@/components/patient-feedback/PfHeader';
 
 interface Ticket {
   id: string;
@@ -60,20 +60,10 @@ export default function TicketsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Feedback Tickets</h1>
-          <p className="text-sm text-gray-500">
-            Yellow & red inpatient nursing-care cases needing follow-up.
-          </p>
-        </div>
-        <Link
-          href="/patient-feedback"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-        >
-          Locations
-        </Link>
-      </div>
+      <PfHeader
+        title="Tickets"
+        subtitle="Yellow & red inpatient nursing-care cases needing follow-up."
+      />
 
       <div className="flex gap-2 mb-4">
         <select

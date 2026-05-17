@@ -4,6 +4,8 @@ import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
+import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 import api from '@/lib/api';
 
 interface Location {
@@ -48,16 +50,25 @@ function PrintInner() {
         main { padding: 0 !important; max-width: none !important; }
         @page { margin: 12mm; }
       }`}</style>
-      <div className="no-print mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold">
-          QR labels{ward ? ` — Ward ${ward}` : ''} ({locations.length})
-        </h1>
-        <button
-          onClick={() => window.print()}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+      <div className="no-print mb-4">
+        <Link
+          href="/patient-feedback"
+          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 mb-3"
         >
-          Print
-        </button>
+          <ChevronLeft className="w-3.5 h-3.5" />
+          Patient Feedback
+        </Link>
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-bold">
+            QR labels{ward ? ` — Ward ${ward}` : ''} ({locations.length})
+          </h1>
+          <button
+            onClick={() => window.print()}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+          >
+            Print
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

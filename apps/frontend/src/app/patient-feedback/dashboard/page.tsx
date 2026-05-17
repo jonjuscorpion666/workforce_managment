@@ -6,8 +6,8 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from 'recharts';
-import Link from 'next/link';
 import api from '@/lib/api';
+import PfHeader from '@/components/patient-feedback/PfHeader';
 
 interface Dashboard {
   total: number;
@@ -71,30 +71,22 @@ export default function FeedbackDashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Patient Feedback — Dashboard</h1>
-          <p className="text-sm text-gray-500">Inpatient nursing-care feedback trends.</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PfHeader
+        title="Dashboard"
+        subtitle="Inpatient nursing-care feedback trends."
+        actions={
           <select
             value={hospitalId}
             onChange={(e) => setHospitalId(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
           >
             <option value="">All hospitals</option>
             {hospitals.map((h) => (
               <option key={h.id} value={h.id}>{h.name}</option>
             ))}
           </select>
-          <Link
-            href="/patient-feedback/tickets"
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-          >
-            View tickets
-          </Link>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Stat label="Total feedback" value={data.total} />

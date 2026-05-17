@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
-import { Plus, Printer, QrCode, X, LayoutDashboard, Ticket } from 'lucide-react';
+import { Plus, Printer, QrCode, X } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
+import PfHeader from '@/components/patient-feedback/PfHeader';
 
 interface Location {
   id: string;
@@ -130,47 +131,33 @@ export default function LocationsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Patient Feedback — Locations</h1>
-          <p className="text-sm text-gray-500">
-            Bed & ward QR codes for inpatient nursing-care feedback.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/patient-feedback/dashboard"
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-          >
-            <LayoutDashboard className="w-4 h-4" /> Dashboard
-          </Link>
-          <Link
-            href="/patient-feedback/tickets"
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-          >
-            <Ticket className="w-4 h-4" /> Tickets
-          </Link>
-          <Link
-            href={`/patient-feedback/print${wardFilter ? `?ward=${encodeURIComponent(wardFilter)}` : ''}`}
-            target="_blank"
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-          >
-            <Printer className="w-4 h-4" /> Print labels
-          </Link>
-          <button
-            onClick={() => setShowBulk(true)}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" /> Bulk generate
-          </button>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" /> Add location
-          </button>
-        </div>
-      </div>
+      <PfHeader
+        title="Locations"
+        subtitle="Bed & ward QR codes for inpatient nursing-care feedback."
+        actions={
+          <>
+            <Link
+              href={`/patient-feedback/print${wardFilter ? `?ward=${encodeURIComponent(wardFilter)}` : ''}`}
+              target="_blank"
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+            >
+              <Printer className="w-4 h-4" /> Print labels
+            </Link>
+            <button
+              onClick={() => setShowBulk(true)}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> Bulk generate
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> Add location
+            </button>
+          </>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap gap-2">
         <select
