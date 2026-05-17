@@ -42,9 +42,13 @@ export class FeedbackLocation {
   @Column({ default: 'Inpatient Nursing' })
   department: string;
 
-  // Optional link into the org hierarchy (hospital OrgUnit) for dashboards / RBAC.
+  // Links into the shared org hierarchy (same OrgUnit tree as Surveys/Issues).
+  // hospitalId → HOSPITAL-level OrgUnit; orgUnitId → the ward (UNIT-level).
   @Column({ nullable: true })
   hospitalId: string;
+
+  @Column({ nullable: true })
+  orgUnitId: string;
 
   @Column({ type: 'enum', enum: FeedbackLocationStatus, default: FeedbackLocationStatus.ACTIVE })
   status: FeedbackLocationStatus;

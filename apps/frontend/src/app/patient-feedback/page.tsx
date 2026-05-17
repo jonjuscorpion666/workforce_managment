@@ -24,6 +24,76 @@ function feedbackUrl(token: string) {
   return `${origin}/feedback?t=${token}`;
 }
 
+interface OrgUnit {
+  id: string;
+  name: string;
+  code?: string;
+  level: string;
+  parentId?: string;
+}
+
+// Shares the same org tree as Surveys / Issues (via /org/units).
+function useOrg() {
+  const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
+    queryKey: ['org-units'],
+    queryFn: () => api.get('/org/units').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const byId = new Map(orgUnits.map((u) => [u.id, u] as [string, OrgUnit]));
+  const hospitals = orgUnits
+    .filter((u) => u.level === 'HOSPITAL')
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const units = orgUnits.filter((u) => u.level === 'UNIT');
+  const hospitalOf = (u?: OrgUnit | null): string | null => {
+    let n: OrgUnit | null = u ?? null;
+    while (n && n.level !== 'HOSPITAL') n = n.parentId ? byId.get(n.parentId) ?? null : null;
+    return n?.id ?? null;
+  };
+  return { hospitals, units, hospitalOf };
+}
+
+function OrgPicker({
+  hospitalId, orgUnitId, onChange,
+}: {
+  hospitalId: string;
+  orgUnitId: string;
+  onChange: (v: { hospitalId: string; orgUnitId: string }) => void;
+}) {
+  const { hospitals, units, hospitalOf } = useOrg();
+  const wards = hospitalId ? units.filter((u) => hospitalOf(u) === hospitalId) : units;
+  return (
+    <>
+      <Field label="Hospital">
+        <select
+          className="input"
+          value={hospitalId}
+          onChange={(e) => onChange({ hospitalId: e.target.value, orgUnitId: '' })}
+        >
+          <option value="">— Select hospital —</option>
+          {hospitals.map((h) => (
+            <option key={h.id} value={h.id}>{h.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Ward (unit)">
+        <select
+          className="input"
+          value={orgUnitId}
+          disabled={!hospitalId}
+          onChange={(e) => onChange({ hospitalId, orgUnitId: e.target.value })}
+        >
+          <option value="">{hospitalId ? '— Select ward —' : 'Select a hospital first'}</option>
+          {wards.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}{u.code ? ` (${u.code})` : ''}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </>
+  );
+}
+
 export default function LocationsPage() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -200,7 +270,8 @@ function AddModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [form, setForm] = useState({
-    ward: '', room: '', bed: '', locationType: 'BED', department: 'Inpatient Nursing',
+    hospitalId: '', orgUnitId: '', room: '', bed: '', locationType: 'BED',
+    department: 'Inpatient Nursing',
   });
   const create = useMutation({
     mutationFn: () => api.post('/patient-feedback/locations', form).then((r) => r.data),
@@ -211,14 +282,18 @@ function AddModal({ onClose }: { onClose: () => void }) {
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to create'),
   });
+  const isBed = form.locationType === 'BED';
+  const invalid = !form.orgUnitId || (isBed && (!form.room || !form.bed));
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Add location" onClose={onClose} />
         <div className="space-y-3">
-          <Field label="Ward">
-            <input className="input" value={form.ward} onChange={(e) => setForm({ ...form, ward: e.target.value })} />
-          </Field>
+          <OrgPicker
+            hospitalId={form.hospitalId}
+            orgUnitId={form.orgUnitId}
+            onChange={(v) => setForm({ ...form, ...v })}
+          />
           <Field label="Type">
             <select
               className="input"
@@ -229,7 +304,7 @@ function AddModal({ onClose }: { onClose: () => void }) {
               <option value="WARD">Ward / common area</option>
             </select>
           </Field>
-          {form.locationType === 'BED' && (
+          {isBed && (
             <>
               <Field label="Room">
                 <input className="input" value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} />
@@ -244,7 +319,7 @@ function AddModal({ onClose }: { onClose: () => void }) {
           </Field>
         </div>
         <button
-          disabled={create.isPending || !form.ward}
+          disabled={create.isPending || invalid}
           onClick={() => create.mutate()}
           className="mt-5 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-medium"
         >
@@ -258,12 +333,15 @@ function AddModal({ onClose }: { onClose: () => void }) {
 function BulkModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [form, setForm] = useState({ ward: '', roomsCsv: '', bedsPerRoom: '2', department: 'Inpatient Nursing' });
+  const [form, setForm] = useState({
+    hospitalId: '', orgUnitId: '', roomsCsv: '', bedsPerRoom: '2', department: 'Inpatient Nursing',
+  });
   const create = useMutation({
     mutationFn: () =>
       api
         .post('/patient-feedback/locations/bulk', {
-          ward: form.ward,
+          hospitalId: form.hospitalId || undefined,
+          orgUnitId: form.orgUnitId,
           rooms: form.roomsCsv.split(',').map((s) => s.trim()).filter(Boolean),
           bedsPerRoom: Number(form.bedsPerRoom),
           department: form.department,
@@ -281,9 +359,11 @@ function BulkModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Bulk generate beds" onClose={onClose} />
         <div className="space-y-3">
-          <Field label="Ward">
-            <input className="input" value={form.ward} onChange={(e) => setForm({ ...form, ward: e.target.value })} />
-          </Field>
+          <OrgPicker
+            hospitalId={form.hospitalId}
+            orgUnitId={form.orgUnitId}
+            onChange={(v) => setForm({ ...form, ...v })}
+          />
           <Field label="Rooms (comma separated)">
             <input
               className="input"
@@ -303,7 +383,7 @@ function BulkModal({ onClose }: { onClose: () => void }) {
           </Field>
         </div>
         <button
-          disabled={create.isPending || !form.ward || !form.roomsCsv}
+          disabled={create.isPending || !form.orgUnitId || !form.roomsCsv}
           onClick={() => create.mutate()}
           className="mt-5 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-medium"
         >

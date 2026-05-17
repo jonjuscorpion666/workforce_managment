@@ -10,6 +10,7 @@ import {
 } from './entities/patient-feedback.entity';
 import { FeedbackTicket, FeedbackTicketStatus } from './entities/feedback-ticket.entity';
 import { User } from '../auth/entities/user.entity';
+import { OrgUnit } from '../org/entities/org-unit.entity';
 import {
   FEEDBACK_QUESTIONS, FEEDBACK_FORM_META, classifyFeedback, SLA_HOURS,
 } from './patient-feedback.constants';
@@ -24,7 +25,37 @@ export class PatientFeedbackService {
     @InjectRepository(PatientFeedback)  private readonly feedbackRepo: Repository<PatientFeedback>,
     @InjectRepository(FeedbackTicket)   private readonly ticketRepo:   Repository<FeedbackTicket>,
     @InjectRepository(User)             private readonly userRepo:     Repository<User>,
+    @InjectRepository(OrgUnit)          private readonly orgRepo:      Repository<OrgUnit>,
   ) {}
+
+  /**
+   * Resolve the nursing supervisor for a location: the ward (UNIT) manager or
+   * director, falling back to the hospital's CNO. Returns a user id or null.
+   */
+  private async resolveSupervisor(loc: FeedbackLocation): Promise<string | null> {
+    if (loc.orgUnitId) {
+      const mgr = await this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.roles', 'r')
+        .leftJoin('u.orgUnit', 'ou')
+        .where('ou.id = :ou', { ou: loc.orgUnitId })
+        .andWhere('r.name IN (:...roles)', { roles: ['MANAGER', 'DIRECTOR'] })
+        .orderBy('u.firstName', 'ASC')
+        .getOne();
+      if (mgr) return mgr.id;
+    }
+    if (loc.hospitalId) {
+      const cno = await this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.roles', 'r')
+        .leftJoin('u.orgUnit', 'ou')
+        .where('ou.id = :h', { h: loc.hospitalId })
+        .andWhere('r.name = :cno', { cno: 'CNO' })
+        .getOne();
+      if (cno) return cno.id;
+    }
+    return null;
+  }
 
   // ── Public form ────────────────────────────────────────────────────────────
 
@@ -116,6 +147,7 @@ export class PatientFeedbackService {
     const count = await this.ticketRepo.count();
     const ticketNumber = `FB-${String(count + 1).padStart(6, '0')}`;
     const dueAt = new Date(Date.now() + SLA_HOURS[feedback.severity] * 3600_000);
+    const assignedToId = await this.resolveSupervisor(loc);
 
     return this.ticketRepo.save(
       this.ticketRepo.create({
@@ -126,6 +158,7 @@ export class PatientFeedbackService {
         status: FeedbackTicketStatus.OPEN,
         department: loc.department,
         hospitalId: loc.hospitalId ?? null,
+        assignedToId: assignedToId ?? null,
         actionTaken: reasons.length ? `Auto-flagged: ${reasons.join('; ')}` : null,
         dueAt,
       }),
@@ -157,7 +190,6 @@ export class PatientFeedbackService {
   }
 
   async createLocation(body: any) {
-    if (!body?.ward) throw new BadRequestException('ward is required');
     const locationType: FeedbackLocationType =
       body.locationType === FeedbackLocationType.WARD
         ? FeedbackLocationType.WARD
@@ -165,18 +197,39 @@ export class PatientFeedbackService {
     if (locationType === FeedbackLocationType.BED && (!body.room || !body.bed)) {
       throw new BadRequestException('room and bed are required for a bed location');
     }
+
+    // Ward (UNIT) and hospital come from the shared org tree. The ward label is
+    // derived from the selected UNIT's name unless one is explicitly provided.
+    let ward: string | null = body.ward ?? null;
+    let hospitalId: string | null = body.hospitalId ?? null;
+    if (body.orgUnitId) {
+      const unit = await this.orgRepo.findOne({
+        where: { id: body.orgUnitId },
+        relations: ['parent', 'parent.parent'],
+      });
+      if (!unit) throw new BadRequestException('Selected ward (org unit) not found');
+      if (!ward) ward = unit.name;
+      if (!hospitalId) {
+        let node: any = unit;
+        while (node && node.level !== 'HOSPITAL') node = node.parent ?? null;
+        hospitalId = node?.id ?? null;
+      }
+    }
+    if (!ward) throw new BadRequestException('A ward (org unit) or ward name is required');
+
     const token = await this.genUniqueToken(
       locationType === FeedbackLocationType.WARD ? 'W' : 'B',
     );
     return this.locationRepo.save(
       this.locationRepo.create({
         token,
-        ward: body.ward,
+        ward,
         room: locationType === FeedbackLocationType.BED ? body.room : null,
         bed: locationType === FeedbackLocationType.BED ? body.bed : null,
         locationType,
         department: body.department || 'Inpatient Nursing',
-        hospitalId: body.hospitalId ?? null,
+        hospitalId,
+        orgUnitId: body.orgUnitId ?? null,
         status: FeedbackLocationStatus.ACTIVE,
       }),
     );
@@ -184,16 +237,16 @@ export class PatientFeedbackService {
 
   /** Bulk-create beds for a ward/room range. */
   async bulkCreateLocations(body: any) {
-    const { ward, rooms, bedsPerRoom, department, hospitalId } = body ?? {};
-    if (!ward || !Array.isArray(rooms) || !bedsPerRoom) {
-      throw new BadRequestException('ward, rooms[] and bedsPerRoom are required');
+    const { ward, orgUnitId, rooms, bedsPerRoom, department, hospitalId } = body ?? {};
+    if ((!ward && !orgUnitId) || !Array.isArray(rooms) || !bedsPerRoom) {
+      throw new BadRequestException('a ward (org unit) or ward name, rooms[] and bedsPerRoom are required');
     }
     const created: FeedbackLocation[] = [];
     for (const room of rooms) {
       for (let b = 1; b <= Number(bedsPerRoom); b++) {
         created.push(
           await this.createLocation({
-            ward, room: String(room), bed: String(b),
+            ward, orgUnitId, room: String(room), bed: String(b),
             locationType: FeedbackLocationType.BED, department, hospitalId,
           }),
         );
@@ -211,6 +264,7 @@ export class PatientFeedbackService {
       bed: body.bed ?? loc.bed,
       department: body.department ?? loc.department,
       hospitalId: body.hospitalId ?? loc.hospitalId,
+      orgUnitId: body.orgUnitId ?? loc.orgUnitId,
       status: body.status ?? loc.status,
     });
     return this.locationRepo.save(loc);

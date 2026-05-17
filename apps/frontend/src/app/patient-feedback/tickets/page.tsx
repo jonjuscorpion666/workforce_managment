@@ -189,7 +189,13 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
 
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Follow-up</h3>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Action taken</label>
+
+              <AssigneePicker
+                currentName={ticket.assignedToName}
+                onAssign={(id) => update.mutate({ assignedToId: id, actionTaken: action })}
+              />
+
+              <label className="block text-sm font-medium text-gray-700 mb-1 mt-4">Action taken</label>
               <textarea
                 value={action}
                 onChange={(e) => setAction(e.target.value)}
@@ -232,6 +238,78 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function AssigneePicker({
+  currentName, onAssign,
+}: {
+  currentName: string | null;
+  onAssign: (id: string | null) => void;
+}) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const { data: results = [] } = useQuery<any[]>({
+    queryKey: ['fb-user-search', q],
+    queryFn: () =>
+      api
+        .get('/admin/users/search', { params: { q, roles: 'MANAGER,DIRECTOR,CNO' } })
+        .then((r) => r.data),
+    enabled: q.trim().length >= 2,
+    staleTime: 30_000,
+  });
+
+  return (
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-700 mb-1">Assigned to</label>
+      <p className="text-sm mb-1.5">
+        {currentName ? (
+          <span className="font-medium text-gray-900">{currentName}</span>
+        ) : (
+          <span className="text-gray-400">Unassigned</span>
+        )}
+      </p>
+      <input
+        className="input"
+        placeholder="Search supervisor by name or email…"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+      />
+      {open && results.length > 0 && (
+        <div className="mt-1 border border-gray-200 rounded-xl shadow-sm max-h-44 overflow-y-auto bg-white">
+          {results.map((u: any) => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => {
+                onAssign(u.id);
+                setQ('');
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex justify-between gap-2"
+            >
+              <span>{u.firstName} {u.lastName}</span>
+              <span className="text-xs text-gray-400">
+                {u.roles?.[0]?.name}{u.orgUnit?.name ? ` · ${u.orgUnit.name}` : ''}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {currentName && (
+        <button
+          type="button"
+          onClick={() => onAssign(null)}
+          className="mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium"
+        >
+          Unassign
+        </button>
       )}
     </div>
   );
