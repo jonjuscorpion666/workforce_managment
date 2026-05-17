@@ -32,6 +32,9 @@ import { QuestionBankItem } from '../../modules/question-bank/entities/question-
 import { Program } from '../../modules/programs/entities/program.entity';
 import { ProgramCycle } from '../../modules/program-flow/entities/program-cycle.entity';
 import { CycleStageStatus } from '../../modules/program-flow/entities/cycle-stage-status.entity';
+import { FeedbackLocation } from '../../modules/patient-feedback/entities/feedback-location.entity';
+import { PatientFeedback } from '../../modules/patient-feedback/entities/patient-feedback.entity';
+import { FeedbackTicket } from '../../modules/patient-feedback/entities/feedback-ticket.entity';
 
 import { seedRoles } from './roles.seed';
 import { seedDemoUsers } from './demo-users.seed';
@@ -41,6 +44,7 @@ import { seedAdhocSurvey } from './adhoc-survey.seed';
 import { seedFloatPoolIssue } from './float-pool-issue.seed';
 import { seedQuestionBank } from './question-bank.seed';
 import { seedBurdenPulseTemplates } from './burden-pulse-templates.seed';
+import { seedPatientFeedback } from './patient-feedback.seed';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -62,6 +66,7 @@ const AppDataSource = new DataSource({
     Program,
     ProgramCycle,
     CycleStageStatus,
+    FeedbackLocation, PatientFeedback, FeedbackTicket,
   ],
 });
 
@@ -77,6 +82,8 @@ async function main() {
   await seedFloatPoolIssue(AppDataSource);
   await seedQuestionBank(AppDataSource);
   await seedBurdenPulseTemplates(AppDataSource);
+  console.log('🌱 Seeding patient feedback (Ward 3A pilot)...');
+  await seedPatientFeedback(AppDataSource);
   await AppDataSource.destroy();
   console.log('🎉 Seed complete.\n');
 }

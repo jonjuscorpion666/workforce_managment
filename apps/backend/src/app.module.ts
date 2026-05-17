@@ -23,6 +23,7 @@ import { OrgModule } from './modules/org/org.module';
 import { ProgramFlowModule } from './modules/program-flow/program-flow.module';
 import { ProgramsModule } from './modules/programs/programs.module';
 import { QuestionBankModule } from './modules/question-bank/question-bank.module';
+import { PatientFeedbackModule } from './modules/patient-feedback/patient-feedback.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { QuestionBankModule } from './modules/question-bank/question-bank.module
     ProgramFlowModule,
     ProgramsModule,
     QuestionBankModule,
+    PatientFeedbackModule,
   ],
 })
 export class AppModule {}
