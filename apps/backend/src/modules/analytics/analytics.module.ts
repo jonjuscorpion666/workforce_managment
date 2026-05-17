@@ -10,13 +10,14 @@ import { Issue } from '../issues/entities/issue.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { User } from '../auth/entities/user.entity';
+import { Question } from '../surveys/entities/question.entity';
 
 @Module({
   imports: [
     ResponsesModule,
     IssuesModule,
     SurveysModule,
-    TypeOrmModule.forFeature([Response, Issue, OrgUnit, Task, User]),
+    TypeOrmModule.forFeature([Response, Issue, OrgUnit, Task, User, Question]),
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],

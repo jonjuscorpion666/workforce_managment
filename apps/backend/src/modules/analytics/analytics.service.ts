@@ -6,11 +6,13 @@ import { Issue } from '../issues/entities/issue.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { User } from '../auth/entities/user.entity';
+import { Question } from '../surveys/entities/question.entity';
 
-// ── Dimension → question ID mapping ─────────────────────────────────────────
-// Each dimension maps to one multiple-choice question in the survey.
-// "Favorable" = respondent selected 0 or 1 option (minimal concerns).
-// "Unfavorable" = respondent selected 2+ options (multiple pain points).
+// ── Legacy engagement-survey dimension → question ID mapping ────────────────
+// Used only by SVP-dashboard / burnout / advocacy endpoints that target the
+// original Workforce Voice Survey. All generic analytics (participation,
+// trends, low-units, heatmap, sentiment) now derive dimensions at runtime
+// from question.dimension so they work for ANY survey shape.
 const DIMENSIONS: Record<string, string> = {
   'Advocacy':              '495e268f-0c96-4806-a0b0-d112f46140fd',
   'Organizational Pride':  'b08d970b-a15b-4509-a7b8-84d0e3dea07a',
@@ -28,12 +30,80 @@ function favorableScore(answers: any[], questionId: string): number | null {
   const answer = answers.find((a: any) => a.questionId === questionId);
   if (!answer) return null;
   const val = answer.value;
-  // Multiple-choice: array of selected options
   if (Array.isArray(val)) {
-    // Favorable = 0 or 1 selection (few pain points)
     return val.length <= 1 ? 100 : 0;
   }
   return null;
+}
+
+// ── Generic favourability scoring (works across survey types) ──────────────
+
+type Direction = 'BURDEN' | 'ENGAGEMENT';
+
+function detectScaleDirection(helpText?: string | null): Direction {
+  if (!helpText) return 'ENGAGEMENT';
+  const ht = helpText.toLowerCase();
+  if (ht.includes('strongly disagree') || ht.includes('strongly agree')) return 'ENGAGEMENT';
+  if (ht.includes('disruptive')) return 'BURDEN';
+  if (ht.includes('never') && /every shift|every week|constantly|always/i.test(helpText)) return 'BURDEN';
+  if (ht.includes('not at all')) return 'BURDEN';
+  if (ht.includes('unpredictable') && !ht.includes('never')) return 'ENGAGEMENT'; // legacy reverse-scored predictability
+  return 'ENGAGEMENT';
+}
+
+// 0-100 favorability for a single answer, given its question.
+// Higher = better (regardless of scale direction).
+function computeFavorability(question: Question, answer: any): number | null {
+  if (!answer) return null;
+  const v = answer.value;
+  if (v === null || v === undefined) return null;
+
+  // Multi-select pain-points list (legacy survey pattern)
+  if (Array.isArray(v)) {
+    return v.length <= 1 ? 100 : 0;
+  }
+
+  if (typeof v !== 'number') return null;
+
+  const dir = detectScaleDirection(question.helpText);
+  const max = question.type === 'LIKERT_10' || question.type === 'NPS' ? (question.type === 'NPS' ? 10 : 10) : 5;
+
+  if (question.type === 'NPS') {
+    // NPS: 0-10, always engagement direction
+    return Math.round((v / 10) * 100);
+  }
+
+  if (question.type === 'LIKERT_5' || question.type === 'LIKERT_10' || question.type === 'RATING') {
+    const range = max - 1;
+    return dir === 'BURDEN'
+      ? Math.round(((max - v) / range) * 100)
+      : Math.round(((v - 1) / range) * 100);
+  }
+
+  return null;
+}
+
+// Aggregate a set of responses' answers into per-dimension favourability
+// averages using the supplied question library. Returns { dim: 0-100 }.
+function computeDimensionScores(responses: Response[], questions: Question[]): Record<string, number> {
+  const qById = new Map(questions.map((q) => [q.id, q]));
+  const byDim = new Map<string, number[]>();
+  for (const r of responses) {
+    const answers = Array.isArray((r as any).answers) ? (r as any).answers : [];
+    for (const a of answers) {
+      const q = qById.get(a.questionId);
+      if (!q || !q.dimension) continue;
+      const s = computeFavorability(q, a);
+      if (s === null) continue;
+      if (!byDim.has(q.dimension)) byDim.set(q.dimension, []);
+      byDim.get(q.dimension)!.push(s);
+    }
+  }
+  const out: Record<string, number> = {};
+  for (const [dim, scores] of byDim) {
+    if (scores.length > 0) out[dim] = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  }
+  return out;
 }
 
 @Injectable()
@@ -44,7 +114,20 @@ export class AnalyticsService {
     @InjectRepository(OrgUnit)  private readonly orgRepo:      Repository<OrgUnit>,
     @InjectRepository(Task)     private readonly taskRepo:     Repository<Task>,
     @InjectRepository(User)     private readonly userRepo:     Repository<User>,
+    @InjectRepository(Question) private readonly questionRepo: Repository<Question>,
   ) {}
+
+  // Internal helper: load a survey's questions so dimension lookups work for ANY survey.
+  private async loadSurveyQuestions(surveyId?: string): Promise<Question[]> {
+    if (!surveyId) {
+      // No survey filter — fall back to loading all questions (legacy analytics aggregates across surveys).
+      return this.questionRepo.find();
+    }
+    return this.questionRepo
+      .createQueryBuilder('q')
+      .where('q."surveyId" = :surveyId', { surveyId })
+      .getMany();
+  }
 
   // ── Low-Performing Units ──────────────────────────────────────────────────
 
@@ -52,7 +135,7 @@ export class AnalyticsService {
     const threshold = parseInt(query.threshold ?? '70', 10);
     const surveyId  = query.surveyId ?? null;
 
-    // Fetch all responses that have an orgUnitId
+    // Responses with an orgUnit (NULL-org responses can't be assigned to a unit).
     const qb = this.responseRepo.createQueryBuilder('r')
       .where('r."orgUnitId" IS NOT NULL');
     if (surveyId) qb.andWhere('r."surveyId" = :surveyId', { surveyId });
@@ -60,15 +143,15 @@ export class AnalyticsService {
 
     if (responses.length === 0) return { threshold, units: [] };
 
-    // Group by orgUnitId
-    const grouped = new Map<string, any[]>();
+    const questions = await this.loadSurveyQuestions(surveyId);
+
+    const grouped = new Map<string, Response[]>();
     for (const r of responses) {
       const uid = r.orgUnitId;
       if (!grouped.has(uid)) grouped.set(uid, []);
       grouped.get(uid)!.push(r);
     }
 
-    // Fetch org unit names + hospital names
     const orgUnitIds  = [...grouped.keys()];
     const hospitalIds = [...new Set(responses.map((r) => r.hospitalId).filter(Boolean))];
     const allOrgIds   = [...new Set([...orgUnitIds, ...hospitalIds])];
@@ -78,30 +161,16 @@ export class AnalyticsService {
     const result = [];
 
     for (const [orgUnitId, unitResponses] of grouped) {
-      const orgUnit  = orgMap.get(orgUnitId);
-      const dimScores: Record<string, number> = {};
-      let   totalFavorable = 0;
-      let   totalScored    = 0;
-
-      for (const [dimension, questionId] of Object.entries(DIMENSIONS)) {
-        const scores = unitResponses
-          .map((r) => favorableScore(r.answers, questionId))
-          .filter((s): s is number => s !== null);
-
-        if (scores.length > 0) {
-          const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-          dimScores[dimension] = avg;
-          totalFavorable += avg;
-          totalScored    += 1;
-        }
-      }
-
-      const overallFavorable = totalScored > 0
-        ? Math.round(totalFavorable / totalScored)
+      const orgUnit   = orgMap.get(orgUnitId);
+      const dimScores = computeDimensionScores(unitResponses, questions);
+      const dimValues = Object.values(dimScores);
+      const overallFavorable = dimValues.length > 0
+        ? Math.round(dimValues.reduce((a, b) => a + b, 0) / dimValues.length)
         : 0;
 
       if (overallFavorable < threshold) {
         const hospitalId = unitResponses[0]?.hospitalId ?? null;
+        const sortedDims = Object.entries(dimScores).sort((a, b) => a[1] - b[1]);
         result.push({
           orgUnitId,
           orgUnitName:       orgUnit?.name ?? orgUnitId,
@@ -111,13 +180,12 @@ export class AnalyticsService {
           responseCount:     unitResponses.length,
           overallFavorable,
           dimensions:        dimScores,
-          lowestDimension:   Object.entries(dimScores).sort((a, b) => a[1] - b[1])[0]?.[0] ?? null,
-          lowestScore:       Object.values(dimScores).sort((a, b) => a - b)[0] ?? null,
+          lowestDimension:   sortedDims[0]?.[0] ?? null,
+          lowestScore:       sortedDims[0]?.[1] ?? null,
         });
       }
     }
 
-    // Sort by overallFavorable ascending (worst first)
     result.sort((a, b) => a.overallFavorable - b.overallFavorable);
 
     return { threshold, units: result };
@@ -128,7 +196,6 @@ export class AnalyticsService {
   async getHeatmap(query: any) {
     const surveyId     = query.surveyId     ?? null;
     const departmentId = query.departmentId ?? null;
-    const dimNames = Object.keys(DIMENSIONS);
 
     const qb = this.responseRepo.createQueryBuilder('r')
       .where('r."orgUnitId" IS NOT NULL');
@@ -136,9 +203,12 @@ export class AnalyticsService {
     if (departmentId) qb.andWhere('r."departmentId" = :departmentId', { departmentId });
     const responses = await qb.getMany();
 
+    const questions = await this.loadSurveyQuestions(surveyId);
+    const dimNames  = [...new Set(questions.map((q) => q.dimension).filter(Boolean))] as string[];
+
     if (responses.length === 0) return { dimensions: dimNames, units: [] };
 
-    const grouped = new Map<string, any[]>();
+    const grouped = new Map<string, Response[]>();
     for (const r of responses) {
       if (!grouped.has(r.orgUnitId)) grouped.set(r.orgUnitId, []);
       grouped.get(r.orgUnitId)!.push(r);
@@ -150,15 +220,9 @@ export class AnalyticsService {
 
     const units = [];
     for (const [orgUnitId, unitResponses] of grouped) {
+      const dimScores = computeDimensionScores(unitResponses, questions);
       const scores: Record<string, number | null> = {};
-      for (const [dimension, questionId] of Object.entries(DIMENSIONS)) {
-        const vals = unitResponses
-          .map((r) => favorableScore(r.answers, questionId))
-          .filter((s): s is number => s !== null);
-        scores[dimension] = vals.length > 0
-          ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
-          : null;
-      }
+      for (const d of dimNames) scores[d] = dimScores[d] ?? null;
       units.push({
         orgUnitId,
         orgUnitName:   orgMap.get(orgUnitId)?.name ?? orgUnitId,
@@ -181,6 +245,7 @@ export class AnalyticsService {
 
   async getTrends(query: any) {
     const { orgUnitId, surveyId, hospitalId, departmentId } = query;
+    // Trends operate on time-series of dimension averages — no orgUnit filter required.
     const qb = this.responseRepo.createQueryBuilder('r').orderBy('r."submittedAt"', 'ASC');
     if (orgUnitId)    qb.andWhere('r."orgUnitId" = :orgUnitId',       { orgUnitId });
     if (hospitalId)   qb.andWhere('r."hospitalId" = :hospitalId',     { hospitalId });
@@ -188,26 +253,20 @@ export class AnalyticsService {
     if (surveyId)     qb.andWhere('r."surveyId" = :surveyId',         { surveyId });
     const responses = await qb.getMany();
 
+    const questions = await this.loadSurveyQuestions(surveyId);
+
     // Group into monthly buckets
-    const buckets = new Map<string, any[]>();
+    const buckets = new Map<string, Response[]>();
     for (const r of responses) {
-      const d     = new Date(r.submittedAt);
-      const key   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const d = new Date(r.submittedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key)!.push(r);
     }
 
     const cycles = [];
     for (const [period, periodResponses] of buckets) {
-      const dimScores: Record<string, number> = {};
-      for (const [dimension, questionId] of Object.entries(DIMENSIONS)) {
-        const vals = periodResponses
-          .map((r) => favorableScore(r.answers, questionId))
-          .filter((s): s is number => s !== null);
-        if (vals.length > 0) {
-          dimScores[dimension] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-        }
-      }
+      const dimScores = computeDimensionScores(periodResponses, questions);
       cycles.push({ period, responseCount: periodResponses.length, dimensions: dimScores });
     }
 
@@ -219,18 +278,12 @@ export class AnalyticsService {
   async getSentiment(query: { surveyId?: string; orgUnitId?: string }) {
     const { surveyId, orgUnitId } = query;
 
-    const openTextQIds = [
-      '34bb1570-0731-4279-a58d-ae602e1e35ef',
-      'bdbd694a-92e6-4114-9399-51125cef9f33',
-      '1e8d86e4-cfdf-413e-b16b-093253c10a79',
-      '1b26f838-5b8b-4d33-8d92-bdd555aae7b4',
-      '0dc416eb-77db-4e8a-8994-5199fdb763b0',
-      '3f4d9a5b-dfaa-4e0d-9895-2bcf2b247946',
-      'a15ca59f-61ec-4422-a7da-d96f9c1bbb08',
-      '0bf66b37-335b-463c-aa54-4e6307d76fd9',
-      'da5b0288-8647-43b5-ba28-1d38179f885a',
-      '2e30c69f-60db-4249-be01-c7d6511dd6c3',
-    ];
+    // Build the open-text question set dynamically:
+    // any OPEN_TEXT question on the relevant survey is fair game.
+    const questions = await this.loadSurveyQuestions(surveyId);
+    const openTextQIds = new Set(
+      questions.filter((q) => q.type === 'OPEN_TEXT').map((q) => q.id),
+    );
 
     const where: any = {};
     if (surveyId)  where.surveyId  = surveyId;
@@ -262,12 +315,23 @@ export class AnalyticsService {
     let positive = 0, negative = 0, neutral = 0;
     const textFragments: string[] = [];
 
-    for (const r of responses) {
+    // Helper: collect every text fragment from a response (open-text answers + Likert follow-up texts)
+    function* fragmentsFor(r: any): IterableIterator<string> {
       for (const a of (r.answers ?? [])) {
-        if (!openTextQIds.includes(a.questionId)) continue;
-        if (typeof a.value !== 'string' || !a.value.trim()) continue;
+        // OPEN_TEXT answers: stored on a.text (legacy) or a.value (newer)
+        if (openTextQIds.has(a.questionId)) {
+          const t = typeof a.text === 'string' ? a.text : (typeof a.value === 'string' ? a.value : null);
+          if (t && t.trim()) yield t.trim();
+        }
+        // Any answer can also carry a Likert follow-up text — surface it for theme detection
+        if (typeof a.followUpText === 'string' && a.followUpText.trim()) {
+          yield a.followUpText.trim();
+        }
+      }
+    }
 
-        const text  = a.value.trim();
+    for (const r of responses) {
+      for (const text of fragmentsFor(r)) {
         const lower = text.toLowerCase();
         textFragments.push(text);
 
@@ -654,11 +718,12 @@ export class AnalyticsService {
   // ── Participation ─────────────────────────────────────────────────────────
 
   async getParticipation(query: any) {
+    // Don't exclude responses without org context — surface them as an "Unassigned"
+    // bucket so the user can see they exist instead of silently dropping them.
     const qb = this.responseRepo.createQueryBuilder('r')
       .select('r."orgUnitId"', 'orgUnitId')
       .addSelect('r."hospitalId"', 'hospitalId')
       .addSelect('COUNT(*)', 'count')
-      .where('r."orgUnitId" IS NOT NULL')
       .groupBy('r."orgUnitId"')
       .addGroupBy('r."hospitalId"');
     if (query.surveyId)     qb.andWhere('r."surveyId" = :surveyId',         { surveyId: query.surveyId });
@@ -677,10 +742,10 @@ export class AnalyticsService {
     const orgMap    = new Map(orgUnits.map((u) => [u.id, u.name]));
 
     return rows.map((r) => ({
-      orgUnitId:    r.orgUnitId,
-      orgUnitName:  orgMap.get(r.orgUnitId) ?? r.orgUnitId,
-      hospitalId:   r.hospitalId,
-      hospitalName: r.hospitalId ? (orgMap.get(r.hospitalId) ?? r.hospitalId) : null,
+      orgUnitId:    r.orgUnitId   ?? null,
+      orgUnitName:  r.orgUnitId   ? (orgMap.get(r.orgUnitId)   ?? r.orgUnitId)   : 'Unassigned',
+      hospitalId:   r.hospitalId  ?? null,
+      hospitalName: r.hospitalId  ? (orgMap.get(r.hospitalId)  ?? r.hospitalId)  : null,
       count:        parseInt(r.count, 10),
     }));
   }
