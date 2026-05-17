@@ -39,10 +39,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => setMobileOpen(false), []);
   const pathname = usePathname();
   const router = useRouter();
-  const { hasRole, isAuthenticated, user, logout } = useAuth();
+  const { hasRole, isAuthenticated, user, logout, _hasHydrated } = useAuth();
 
-  // Central auth guard — covers every admin route wrapped by AppShell
+  // Central auth guard — covers every admin route wrapped by AppShell.
+  // Wait for the persisted session to rehydrate before deciding, otherwise a
+  // hard page load briefly sees the logged-out default state and bounces to
+  // /login even though a valid session exists.
   useEffect(() => {
+    if (!_hasHydrated) return;
     if (!isAuthenticated) {
       router.replace('/login');
       return;
@@ -51,7 +55,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (user?.roles?.some((r) => NURSE_ROLES.includes(r.name))) {
       router.replace('/portal');
     }
-  }, [isAuthenticated, user, router]);
+  }, [_hasHydrated, isAuthenticated, user, router]);
 
   // Cross-tab guard: if another tab (e.g. nurse portal login) clears auth-storage,
   // reset the in-memory store in this tab and redirect to /login immediately.
@@ -65,6 +69,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, [logout, router]);
+
+  // Hold rendering until the persisted session is restored.
+  if (!_hasHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) return null;
 

@@ -23,6 +23,11 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  // True once the persisted session has been rehydrated from localStorage.
+  // Guards must wait for this before treating the user as unauthenticated,
+  // otherwise a hard page load briefly sees the default (logged-out) state.
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   hasRole: (role: string) => boolean;
@@ -34,6 +39,8 @@ export const useAuth = create<AuthState>()(
       user: null,
       accessToken: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       login: async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password });
@@ -60,6 +67,10 @@ export const useAuth = create<AuthState>()(
         return user?.roles?.some((r) => r.name === role) ?? false;
       },
     }),
-    { name: 'auth-storage', partialize: (s) => ({ user: s.user, accessToken: s.accessToken, isAuthenticated: s.isAuthenticated }) },
+    {
+      name: 'auth-storage',
+      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, isAuthenticated: s.isAuthenticated }),
+      onRehydrateStorage: () => (state) => state?.setHasHydrated(true),
+    },
   ),
 );
