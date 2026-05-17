@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { QrCode, Ticket, LayoutDashboard, ChevronLeft } from 'lucide-react';
+import { QrCode, Ticket, LayoutDashboard, MessageSquare, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
   { label: 'Locations', href: '/patient-feedback',           icon: QrCode,          exact: true },
   { label: 'Tickets',   href: '/patient-feedback/tickets',   icon: Ticket },
+  { label: 'Responses', href: '/patient-feedback/responses', icon: MessageSquare },
   { label: 'Dashboard', href: '/patient-feedback/dashboard', icon: LayoutDashboard },
 ];
 

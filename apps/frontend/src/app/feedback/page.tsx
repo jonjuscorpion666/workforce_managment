@@ -43,7 +43,8 @@ function ChoiceButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-5 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+      aria-pressed={selected}
+      className={`px-6 py-3 rounded-xl border-2 text-base font-semibold transition-all ${
         selected
           ? 'bg-blue-600 border-blue-600 text-white shadow'
           : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
@@ -204,26 +205,50 @@ function FeedbackInner() {
     <div className="max-w-md mx-auto px-4 py-8">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <h1 className="text-lg font-bold text-gray-900">{resolved.form.title}</h1>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-1">
           {resolved.display}
           {locationOk === false && (
             <span className="ml-2 text-amber-600 font-medium">(location marked as incorrect)</span>
           )}
         </p>
 
-        <div className="mt-6 space-y-6">
+        {/* Progress */}
+        <div className="mt-4" aria-hidden="true">
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className="h-full bg-blue-600 transition-all"
+              style={{
+                width: `${
+                  requiredYesNo.length
+                    ? (requiredYesNo.filter((q) => answers[q.id] !== undefined).length /
+                        requiredYesNo.length) *
+                      100
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {requiredYesNo.filter((q) => answers[q.id] !== undefined).length} of{' '}
+            {requiredYesNo.length} answered
+          </p>
+        </div>
+
+        <div className="mt-6 space-y-7">
           {choiceQuestions.map((q) => (
-            <div key={q.id}>
-              <p className="text-sm font-medium text-gray-800">{q.text}</p>
-              <div className="flex gap-2 mt-2 flex-wrap">
+            <div key={q.id} role="group" aria-label={q.text}>
+              <p className="text-base font-medium text-gray-800">{q.text}</p>
+              <div className="flex gap-2 mt-3 flex-wrap">
                 {q.type === 'RATING' ? (
                   <div className="flex gap-2">
                     {[1, 2, 3, 4, 5].map((n) => (
                       <button
                         key={n}
                         type="button"
+                        aria-label={`Rate ${n} of 5`}
+                        aria-pressed={answers[q.id] === n}
                         onClick={() => setAnswers((a) => ({ ...a, [q.id]: n }))}
-                        className={`w-11 h-11 rounded-full border-2 text-sm font-semibold transition-all ${
+                        className={`w-12 h-12 rounded-full border-2 text-base font-semibold transition-all ${
                           answers[q.id] === n
                             ? `${RATING_COLORS[n - 1]} text-white scale-110`
                             : 'border-gray-200 text-gray-500 hover:border-gray-400'
@@ -251,7 +276,7 @@ function FeedbackInner() {
           ))}
 
           <div>
-            <p className="text-sm font-medium text-gray-800">
+            <p className="text-base font-medium text-gray-800">
               Anything else you would like to share? (optional)
             </p>
             <textarea

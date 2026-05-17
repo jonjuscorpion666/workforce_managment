@@ -13,6 +13,7 @@ export enum FeedbackSeverity {
   GREEN = 'GREEN',
   YELLOW = 'YELLOW',
   RED = 'RED',
+  CRITICAL = 'CRITICAL',
 }
 
 /**

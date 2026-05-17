@@ -10,7 +10,7 @@ import PfHeader from '@/components/patient-feedback/PfHeader';
 interface Ticket {
   id: string;
   ticketNumber: string;
-  severity: 'YELLOW' | 'RED';
+  severity: 'YELLOW' | 'RED' | 'CRITICAL';
   status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
   department: string;
   locationDisplay: string;
@@ -18,6 +18,7 @@ interface Ticket {
   actionTaken: string | null;
   dueAt: string | null;
   closedAt: string | null;
+  escalatedAt: string | null;
   createdAt: string;
   feedback: {
     rating: number | null;
@@ -28,7 +29,8 @@ interface Ticket {
   } | null;
 }
 
-const SEV = {
+const SEV: Record<string, string> = {
+  CRITICAL: 'bg-red-600 text-white',
   RED: 'bg-red-100 text-red-700',
   YELLOW: 'bg-amber-100 text-amber-700',
 };
@@ -40,19 +42,32 @@ const STATUS = {
 };
 const STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
 
+interface OrgUnit { id: string; name: string; level: string }
+
 export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
+  const [hospitalFilter, setHospitalFilter] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
+    queryKey: ['org-units'],
+    queryFn: () => api.get('/org/units').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const hospitals = orgUnits
+    .filter((u) => u.level === 'HOSPITAL')
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
-    queryKey: ['fb-tickets', statusFilter, severityFilter],
+    queryKey: ['fb-tickets', statusFilter, severityFilter, hospitalFilter],
     queryFn: () =>
       api
         .get('/patient-feedback/tickets', {
           params: {
             ...(statusFilter ? { status: statusFilter } : {}),
             ...(severityFilter ? { severity: severityFilter } : {}),
+            ...(hospitalFilter ? { hospitalId: hospitalFilter } : {}),
           },
         })
         .then((r) => r.data),
@@ -62,14 +77,24 @@ export default function TicketsPage() {
     <div>
       <PfHeader
         title="Tickets"
-        subtitle="Yellow & red inpatient nursing-care cases needing follow-up."
+        subtitle="Yellow, red & critical inpatient nursing-care cases needing follow-up."
       />
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
+        <select
+          value={hospitalFilter}
+          onChange={(e) => setHospitalFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+        >
+          <option value="">All hospitals</option>
+          {hospitals.map((h) => (
+            <option key={h.id} value={h.id}>{h.name}</option>
+          ))}
+        </select>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
@@ -79,9 +104,10 @@ export default function TicketsPage() {
         <select
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
         >
           <option value="">All severities</option>
+          <option value="CRITICAL">Critical</option>
           <option value="RED">Red</option>
           <option value="YELLOW">Yellow</option>
         </select>
@@ -118,9 +144,17 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
     mutationFn: (body: any) => api.patch(`/patient-feedback/tickets/${ticket.id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fb-tickets'] });
+      qc.invalidateQueries({ queryKey: ['fb-ticket-history', ticket.id] });
       toast.success('Ticket updated');
     },
     onError: () => toast.error('Update failed'),
+  });
+
+  const { data: history = [] } = useQuery<any[]>({
+    queryKey: ['fb-ticket-history', ticket.id],
+    queryFn: () =>
+      api.get(`/patient-feedback/tickets/${ticket.id}/history`).then((r) => r.data),
+    enabled: open,
   });
 
   return (
@@ -141,6 +175,11 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
         {overdue && (
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-600 text-white">
             SLA breached
+          </span>
+        )}
+        {ticket.escalatedAt && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+            Escalated
           </span>
         )}
         <span className="ml-auto text-xs text-gray-400">
@@ -226,6 +265,31 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
                 {ticket.closedAt && ` · Closed ${new Date(ticket.closedAt).toLocaleString()}`}
               </p>
             </div>
+          </div>
+
+          <div className="mt-6 border-t border-gray-50 pt-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">History</h3>
+            {history.length === 0 ? (
+              <p className="text-sm text-gray-400">No changes recorded yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {history.map((h: any) => (
+                  <li key={h.id} className="flex gap-3 text-sm">
+                    <span className="text-gray-400 whitespace-nowrap">
+                      {new Date(h.timestamp ?? h.createdAt).toLocaleString()}
+                    </span>
+                    <span className="font-medium text-gray-700">{h.action}</span>
+                    <span className="text-gray-500">
+                      {(h.changeLog ?? [])
+                        .map((c: any) => `${c.field}: ${c.oldValue} → ${c.newValue}`)
+                        .join(', ') ||
+                        h.performedByName ||
+                        ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

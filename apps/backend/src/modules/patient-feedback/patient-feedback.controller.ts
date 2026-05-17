@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, UseGuards,
+  Controller, Get, Post, Patch, Delete, Param, Body, Query, Req, Header, UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
@@ -89,8 +89,8 @@ export class PatientFeedbackController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  listTickets(@Query() query: any) {
-    return this.service.listTickets(query);
+  listTickets(@Query() query: any, @Req() req: any) {
+    return this.service.listTickets(query, req.user);
   }
 
   @Get('tickets/:id')
@@ -101,12 +101,40 @@ export class PatientFeedbackController {
     return this.service.getTicket(id);
   }
 
+  @Get('tickets/:id/history')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  ticketHistory(@Param('id') id: string) {
+    return this.service.getTicketHistory(id);
+  }
+
   @Patch('tickets/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  updateTicket(@Param('id') id: string, @Body() body: any) {
-    return this.service.updateTicket(id, body);
+  updateTicket(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.service.updateTicket(id, body, req.user);
+  }
+
+  // ── Admin: browse all feedback + export ───────────────────────────────────
+
+  @Get('responses')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  listResponses(@Query() query: any, @Req() req: any) {
+    return this.service.listResponses(query, req.user);
+  }
+
+  @Get('responses/export')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="patient-feedback.csv"')
+  exportResponses(@Query() query: any, @Req() req: any) {
+    return this.service.responsesCsv(query, req.user);
   }
 
   // ── Admin: dashboards ─────────────────────────────────────────────────────

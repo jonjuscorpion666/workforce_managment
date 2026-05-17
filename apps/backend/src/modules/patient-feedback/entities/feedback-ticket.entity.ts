@@ -34,6 +34,10 @@ export class FeedbackTicket {
   @Column({ nullable: true })
   locationId: string;
 
+  // Denormalised from the location at creation for fast RBAC ward-scoping.
+  @Column({ nullable: true })
+  orgUnitId: string;
+
   @Column({ type: 'enum', enum: FeedbackSeverity })
   severity: FeedbackSeverity;
 
@@ -55,6 +59,14 @@ export class FeedbackTicket {
   // SLA target derived from severity at creation time.
   @Column({ nullable: true })
   dueAt: Date;
+
+  // First time a human acted on the ticket (status change or action saved).
+  @Column({ nullable: true })
+  firstRespondedAt: Date;
+
+  // Set when an overdue ticket has been auto-escalated (prevents re-escalation).
+  @Column({ nullable: true })
+  escalatedAt: Date;
 
   @Column({ nullable: true })
   closedAt: Date;

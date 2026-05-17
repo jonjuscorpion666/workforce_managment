@@ -42,12 +42,15 @@ export interface ClassificationResult {
 }
 
 /**
- * Green / Yellow / Red triage logic (design §6).
+ * Green / Yellow / Red / Critical triage logic (design §6 & §14).
  *
- *  RED    — urgent issue, contact requested, medication delay, rude behaviour,
- *           ≥3 negative answers, or rating ≤ 2.
- *  YELLOW — 1–2 negative answers or a neutral (3) rating, nothing urgent.
- *  GREEN  — everything positive, nothing urgent, no contact requested.
+ *  CRITICAL — an urgent issue combined with a safety/medication/respect
+ *             concern (or a 1/5 rating with an urgent issue). Safety risk,
+ *             serious medication concern, abuse-adjacent.
+ *  RED      — urgent issue, contact requested, medication delay, rude
+ *             behaviour, ≥3 negative answers, or rating ≤ 2.
+ *  YELLOW   — 1–2 negative answers or a neutral (3) rating, nothing urgent.
+ *  GREEN    — everything positive, nothing urgent, no contact requested.
  */
 export function classifyFeedback(
   answers: Record<string, string | number | undefined>,
@@ -56,6 +59,8 @@ export function classifyFeedback(
   const reasons: string[] = [];
   let negatives = 0;
   let red = false;
+  let urgent = false;
+  let criticalNegative = false;
 
   for (const q of FEEDBACK_QUESTIONS) {
     const a = answers[q.id];
@@ -63,12 +68,18 @@ export function classifyFeedback(
 
     if (q.escalateIf && a === q.escalateIf) {
       red = true;
-      reasons.push(q.id === 'urgent_issue' ? 'Urgent issue reported' : 'Patient requested contact');
+      if (q.id === 'urgent_issue') {
+        urgent = true;
+        reasons.push('Urgent issue reported');
+      } else {
+        reasons.push('Patient requested contact');
+      }
     }
     if (q.negativeIf && a === q.negativeIf) {
       negatives += 1;
       if (q.critical) {
         red = true;
+        criticalNegative = true;
         reasons.push(
           q.id === 'medication_on_time' ? 'Medication not given on time' : 'Respect/politeness concern',
         );
@@ -82,6 +93,13 @@ export function classifyFeedback(
   if (r !== null && r <= 2) {
     red = true;
     reasons.push(`Low overall rating (${r}/5)`);
+  }
+
+  // Critical: an urgent issue together with a safety/medication/respect
+  // concern, or the worst possible rating alongside an urgent issue.
+  if (urgent && (criticalNegative || r === 1)) {
+    reasons.push('Escalated to CRITICAL — urgent + safety/medication/respect concern');
+    return { severity: FeedbackSeverity.CRITICAL, reasons };
   }
 
   if (red || negatives >= 3) {
@@ -99,4 +117,5 @@ export const SLA_HOURS: Record<FeedbackSeverity, number> = {
   [FeedbackSeverity.GREEN]: 0,
   [FeedbackSeverity.YELLOW]: 48,
   [FeedbackSeverity.RED]: 8,
+  [FeedbackSeverity.CRITICAL]: 2,
 };

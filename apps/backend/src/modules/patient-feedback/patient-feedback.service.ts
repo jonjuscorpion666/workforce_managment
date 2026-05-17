@@ -11,9 +11,22 @@ import {
 import { FeedbackTicket, FeedbackTicketStatus } from './entities/feedback-ticket.entity';
 import { User } from '../auth/entities/user.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
+import { EscalationsService } from '../escalations/escalations.service';
+import { AuditService } from '../audit/audit.service';
 import {
   FEEDBACK_QUESTIONS, FEEDBACK_FORM_META, classifyFeedback, SLA_HOURS,
 } from './patient-feedback.constants';
+
+const ELEVATED_ROLES = ['SUPER_ADMIN', 'SVP', 'HR_ANALYST'];
+const AUDIT_ENTITY = 'feedback_ticket';
+
+interface RequestUser { id: string; email?: string; roles?: string[] }
+
+interface TicketScope {
+  all: boolean;
+  hospitalId?: string | null;
+  orgUnitId?: string | null;
+}
 
 // Unambiguous alphabet (no 0/O, 1/I) for human-printed tokens.
 const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -26,7 +39,42 @@ export class PatientFeedbackService {
     @InjectRepository(FeedbackTicket)   private readonly ticketRepo:   Repository<FeedbackTicket>,
     @InjectRepository(User)             private readonly userRepo:     Repository<User>,
     @InjectRepository(OrgUnit)          private readonly orgRepo:      Repository<OrgUnit>,
+    private readonly escalations: EscalationsService,
+    private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Resolve what tickets/responses a requesting user may see (design §9/§11):
+   *  - SUPER_ADMIN / SVP / HR_ANALYST → everything
+   *  - CNO                            → their hospital
+   *  - VP / DIRECTOR / MANAGER        → their own ward (org unit), else hospital
+   */
+  private async resolveScope(reqUser?: RequestUser): Promise<TicketScope> {
+    if (!reqUser?.id) return { all: true };
+    const roles = reqUser.roles ?? [];
+    if (roles.some((r) => ELEVATED_ROLES.includes(r))) return { all: true };
+
+    const user = await this.userRepo.findOne({
+      where: { id: reqUser.id },
+      relations: ['orgUnit', 'orgUnit.parent', 'orgUnit.parent.parent'],
+    });
+    if (!user?.orgUnit) return { all: true }; // no org context → don't over-restrict
+
+    // Walk up to the hospital ancestor.
+    let node: any = user.orgUnit;
+    let hospitalId: string | null = null;
+    while (node) {
+      if (node.level === 'HOSPITAL') { hospitalId = node.id; break; }
+      node = node.parent ?? null;
+    }
+
+    if (roles.includes('CNO')) return { all: false, hospitalId };
+    // Ward-level leaders are scoped to their own unit.
+    if (user.orgUnit.level === 'UNIT') {
+      return { all: false, orgUnitId: user.orgUnit.id };
+    }
+    return { all: false, hospitalId };
+  }
 
   /**
    * Resolve the nursing supervisor for a location: the ward (UNIT) manager or
@@ -149,11 +197,12 @@ export class PatientFeedbackService {
     const dueAt = new Date(Date.now() + SLA_HOURS[feedback.severity] * 3600_000);
     const assignedToId = await this.resolveSupervisor(loc);
 
-    return this.ticketRepo.save(
+    const ticket = await this.ticketRepo.save(
       this.ticketRepo.create({
         ticketNumber,
         feedbackId: feedback.id,
         locationId: loc.id,
+        orgUnitId: loc.orgUnitId ?? null,
         severity: feedback.severity,
         status: FeedbackTicketStatus.OPEN,
         department: loc.department,
@@ -163,6 +212,31 @@ export class PatientFeedbackService {
         dueAt,
       }),
     );
+
+    this.audit.log(
+      AUDIT_ENTITY, ticket.id, 'CREATE', 'system', null, ticket,
+      `${ticket.ticketNumber} (${ticket.severity})`, 'System', 'SYSTEM',
+    );
+
+    // RED / CRITICAL get an immediate escalation so a supervisor is alerted
+    // even before the SLA clock runs out (design §6/§7/§14).
+    if (
+      (feedback.severity === FeedbackSeverity.RED ||
+        feedback.severity === FeedbackSeverity.CRITICAL) &&
+      assignedToId
+    ) {
+      await this.escalations.trigger({
+        entityType: AUDIT_ENTITY,
+        entityId: ticket.id,
+        reason: `PATIENT_FEEDBACK_${feedback.severity}`,
+        level: feedback.severity === FeedbackSeverity.CRITICAL ? 2 : 1,
+        escalatedToId: assignedToId,
+      });
+      ticket.escalatedAt = new Date();
+      await this.ticketRepo.save(ticket);
+    }
+
+    return ticket;
   }
 
   // ── Location master / QR ───────────────────────────────────────────────────
@@ -281,14 +355,27 @@ export class PatientFeedbackService {
 
   // ── Tickets ────────────────────────────────────────────────────────────────
 
-  async listTickets(query: any = {}) {
+  async listTickets(query: any = {}, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
     const qb = this.ticketRepo.createQueryBuilder('t').orderBy('t.createdAt', 'DESC');
     if (query.status)     qb.andWhere('t.status = :status', { status: query.status });
     if (query.severity)   qb.andWhere('t.severity = :sev', { sev: query.severity });
     if (query.hospitalId) qb.andWhere('t.hospitalId = :h', { h: query.hospitalId });
     if (query.assignedToId) qb.andWhere('t.assignedToId = :a', { a: query.assignedToId });
+
+    if (!scope.all) {
+      if (scope.orgUnitId) qb.andWhere('t.orgUnitId = :sou', { sou: scope.orgUnitId });
+      else if (scope.hospitalId) qb.andWhere('t.hospitalId = :sh', { sh: scope.hospitalId });
+      else qb.andWhere('1 = 0'); // scoped user with no resolvable org → see nothing
+    }
+
     const tickets = await qb.getMany();
     return this.enrichTickets(tickets);
+  }
+
+  async getTicketHistory(id: string) {
+    const rows = await this.audit.getByEntity(id);
+    return rows.filter((r: any) => r.entityType === AUDIT_ENTITY);
   }
 
   async getTicket(id: string) {
@@ -298,12 +385,18 @@ export class PatientFeedbackService {
     return enriched;
   }
 
-  async updateTicket(id: string, body: any) {
+  async updateTicket(id: string, body: any, reqUser?: RequestUser) {
     const t = await this.ticketRepo.findOne({ where: { id } });
     if (!t) throw new NotFoundException('Ticket not found');
+    const before = { ...t };
+
     if (body.status) t.status = body.status;
     if (body.assignedToId !== undefined) t.assignedToId = body.assignedToId || null;
     if (body.actionTaken !== undefined) t.actionTaken = body.actionTaken;
+
+    // First human touch — used for "average response time" analytics.
+    if (!t.firstRespondedAt && reqUser?.id) t.firstRespondedAt = new Date();
+
     if (
       (body.status === FeedbackTicketStatus.RESOLVED ||
         body.status === FeedbackTicketStatus.CLOSED) &&
@@ -314,7 +407,14 @@ export class PatientFeedbackService {
     if (body.status && body.status !== FeedbackTicketStatus.CLOSED && body.status !== FeedbackTicketStatus.RESOLVED) {
       t.closedAt = null;
     }
-    return this.ticketRepo.save(t);
+
+    const saved = await this.ticketRepo.save(t);
+    this.audit.log(
+      AUDIT_ENTITY, saved.id, 'UPDATE', reqUser?.id ?? 'system', before, saved,
+      `${saved.ticketNumber} (${saved.severity})`,
+      reqUser?.email ?? 'System', (reqUser?.roles ?? [])[0] ?? 'SYSTEM',
+    );
+    return saved;
   }
 
   private async enrichTickets(tickets: FeedbackTicket[]) {
@@ -371,27 +471,50 @@ export class PatientFeedbackService {
       GREEN: feedbacks.filter((f) => f.severity === FeedbackSeverity.GREEN).length,
       YELLOW: feedbacks.filter((f) => f.severity === FeedbackSeverity.YELLOW).length,
       RED: feedbacks.filter((f) => f.severity === FeedbackSeverity.RED).length,
+      CRITICAL: feedbacks.filter((f) => f.severity === FeedbackSeverity.CRITICAL).length,
     };
     const positive = bySeverity.GREEN;
-    const negative = bySeverity.YELLOW + bySeverity.RED;
+    const negative = bySeverity.YELLOW + bySeverity.RED + bySeverity.CRITICAL;
 
     const openTickets = tickets.filter(
       (t) => t.status === FeedbackTicketStatus.OPEN || t.status === FeedbackTicketStatus.IN_PROGRESS,
     );
     const closed = tickets.filter((t) => t.closedAt);
-    const avgClosureHours = closed.length
-      ? Math.round(
-          closed.reduce(
-            (s, t) => s + (new Date(t.closedAt!).getTime() - new Date(t.createdAt).getTime()) / 3600_000,
-            0,
-          ) / closed.length,
-        )
-      : null;
+    const avg = (xs: number[]) =>
+      xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
+    const avgClosureHours = avg(
+      closed.map((t) => (new Date(t.closedAt!).getTime() - new Date(t.createdAt).getTime()) / 3600_000),
+    );
+    const avgResponseHours = avg(
+      tickets
+        .filter((t) => t.firstRespondedAt)
+        .map((t) => (new Date(t.firstRespondedAt!).getTime() - new Date(t.createdAt).getTime()) / 3600_000),
+    );
+
     const now = Date.now();
     const breached = openTickets.filter((t) => t.dueAt && new Date(t.dueAt).getTime() < now).length;
+    const pendingOver24h = openTickets.filter(
+      (t) => now - new Date(t.createdAt).getTime() > 24 * 3600_000,
+    ).length;
+
+    // Most common negative issue (top "No"/flag answer across negative feedback)
+    const issueCount: Record<string, number> = {};
+    for (const f of feedbacks) {
+      if (f.severity === FeedbackSeverity.GREEN) continue;
+      for (const a of f.answers ?? []) {
+        const q = FEEDBACK_QUESTIONS.find((x) => x.id === a.questionId);
+        if (!q) continue;
+        const isNeg =
+          (q.negativeIf && a.answer === q.negativeIf) ||
+          (q.escalateIf && a.answer === q.escalateIf);
+        if (isNeg) issueCount[q.text] = (issueCount[q.text] ?? 0) + 1;
+      }
+    }
+    const mostCommonIssue =
+      Object.entries(issueCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
     // Per-ward rollup
-    const locMap = new Map(locations.map((l) => [l.id, l]));
+    const locMap = new Map(locations.map((l) => [l.id, l] as [string, typeof l]));
     const wardAgg: Record<string, { total: number; negative: number }> = {};
     for (const f of feedbacks) {
       const ward = (f.locationId && locMap.get(f.locationId)?.ward) || 'Unknown';
@@ -408,20 +531,150 @@ export class PatientFeedbackService {
       }))
       .sort((a, b) => b.negative - a.negative);
 
+    // 8-week trend (oldest → newest)
+    const WEEK = 7 * 24 * 3600_000;
+    const trend: { week: string; total: number; negative: number }[] = [];
+    for (let i = 7; i >= 0; i--) {
+      const end = now - i * WEEK;
+      const start = end - WEEK;
+      const inWeek = feedbacks.filter((f) => {
+        const ts = new Date(f.submittedAt).getTime();
+        return ts >= start && ts < end;
+      });
+      trend.push({
+        week: new Date(start).toISOString().slice(5, 10),
+        total: inWeek.length,
+        negative: inWeek.filter((f) => f.severity !== FeedbackSeverity.GREEN).length,
+      });
+    }
+
     return {
       total,
       bySeverity,
       positivePct: total ? Math.round((positive / total) * 100) : 0,
       negativePct: total ? Math.round((negative / total) * 100) : 0,
+      openCritical: openTickets.filter((t) => t.severity === FeedbackSeverity.CRITICAL).length,
       openRed: openTickets.filter((t) => t.severity === FeedbackSeverity.RED).length,
       openYellow: openTickets.filter((t) => t.severity === FeedbackSeverity.YELLOW).length,
       openTotal: openTickets.length,
       slaBreached: breached,
+      pendingOver24h,
       avgClosureHours,
+      avgResponseHours,
+      mostCommonIssue,
       wardWithMostComplaints: wards[0]?.ward ?? null,
       bestWard:
         [...wards].sort((a, b) => b.positivePct - a.positivePct)[0]?.ward ?? null,
       wards,
+      trend,
     };
+  }
+
+  // ── Browse all feedback + CSV export ───────────────────────────────────────
+
+  async listResponses(query: any = {}, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    const qb = this.feedbackRepo.createQueryBuilder('f').orderBy('f.submittedAt', 'DESC');
+    if (query.severity)   qb.andWhere('f.severity = :sev', { sev: query.severity });
+    if (query.hospitalId) qb.andWhere('f.hospitalId = :h', { h: query.hospitalId });
+    if (query.channel)    qb.andWhere('f.channel = :c', { c: query.channel });
+
+    if (!scope.all) {
+      if (scope.hospitalId) qb.andWhere('f.hospitalId = :sh', { sh: scope.hospitalId });
+      else if (!scope.orgUnitId) qb.andWhere('1 = 0');
+    }
+
+    let feedbacks = await qb.limit(Number(query.limit ?? 500)).getMany();
+
+    const locs = await this.locationRepo.find();
+    const locMap = new Map(locs.map((l) => [l.id, l] as [string, typeof l]));
+
+    // Unit-scoped users are filtered by their ward's locations.
+    if (!scope.all && scope.orgUnitId) {
+      const allowed = new Set(
+        locs.filter((l) => l.orgUnitId === scope.orgUnitId).map((l) => l.id),
+      );
+      feedbacks = feedbacks.filter((f) => f.locationId && allowed.has(f.locationId));
+    }
+
+    return feedbacks.map((f) => {
+      const loc = f.locationId ? locMap.get(f.locationId) : undefined;
+      return {
+        id: f.id,
+        submittedAt: f.submittedAt,
+        severity: f.severity,
+        channel: f.channel,
+        rating: f.rating ?? null,
+        comment: f.comment ?? null,
+        locationMismatch: f.locationMismatch,
+        ward: loc?.ward ?? null,
+        room: loc?.room ?? null,
+        bed: loc?.bed ?? null,
+        locationDisplay: loc
+          ? loc.locationType === FeedbackLocationType.BED
+            ? `Ward ${loc.ward} | Room ${loc.room ?? '-'} | Bed ${loc.bed ?? '-'}`
+            : `Ward ${loc.ward} | ${loc.department}`
+          : 'Unknown',
+        answers: f.answers,
+      };
+    });
+  }
+
+  async responsesCsv(query: any = {}, reqUser?: RequestUser): Promise<string> {
+    const rows = await this.listResponses({ ...query, limit: 5000 }, reqUser);
+    const cols = ['submittedAt', 'severity', 'channel', 'rating', 'locationDisplay', 'locationMismatch', 'comment'];
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = cols.join(',');
+    const lines = rows.map((r: any) =>
+      cols.map((c) => esc(c === 'submittedAt' ? new Date(r[c]).toISOString() : r[c])).join(','),
+    );
+    return [header, ...lines].join('\n');
+  }
+
+  // ── Overdue auto-escalation (called by the scheduler) ──────────────────────
+
+  async escalateOverdue(): Promise<number> {
+    const now = new Date();
+    const overdue = await this.ticketRepo
+      .createQueryBuilder('t')
+      .where('t.status IN (:...open)', {
+        open: [FeedbackTicketStatus.OPEN, FeedbackTicketStatus.IN_PROGRESS],
+      })
+      .andWhere('t.dueAt < :now', { now })
+      .andWhere('t.escalatedAt IS NULL')
+      .getMany();
+
+    let escalated = 0;
+    for (const t of overdue) {
+      const to = t.assignedToId || (await this.cnoForHospital(t.hospitalId));
+      if (!to) continue;
+      await this.escalations.trigger({
+        entityType: AUDIT_ENTITY,
+        entityId: t.id,
+        reason: 'PATIENT_FEEDBACK_SLA_BREACH',
+        level: t.severity === FeedbackSeverity.CRITICAL ? 3 : 2,
+        escalatedToId: to,
+      });
+      t.escalatedAt = now;
+      await this.ticketRepo.save(t);
+      this.audit.log(
+        AUDIT_ENTITY, t.id, 'ESCALATE', 'system', null, t,
+        `${t.ticketNumber} (${t.severity})`, 'System', 'SYSTEM',
+      );
+      escalated++;
+    }
+    return escalated;
+  }
+
+  private async cnoForHospital(hospitalId?: string | null): Promise<string | null> {
+    if (!hospitalId) return null;
+    const cno = await this.userRepo
+      .createQueryBuilder('u')
+      .leftJoin('u.roles', 'r')
+      .leftJoin('u.orgUnit', 'ou')
+      .where('ou.id = :h', { h: hospitalId })
+      .andWhere('r.name = :cno', { cno: 'CNO' })
+      .getOne();
+    return cno?.id ?? null;
   }
 }

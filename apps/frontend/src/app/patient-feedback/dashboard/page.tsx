@@ -5,32 +5,40 @@ import { useQuery } from '@tanstack/react-query';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  LineChart, Line,
 } from 'recharts';
 import api from '@/lib/api';
 import PfHeader from '@/components/patient-feedback/PfHeader';
 
 interface Dashboard {
   total: number;
-  bySeverity: { GREEN: number; YELLOW: number; RED: number };
+  bySeverity: { GREEN: number; YELLOW: number; RED: number; CRITICAL: number };
   positivePct: number;
   negativePct: number;
+  openCritical: number;
   openRed: number;
   openYellow: number;
   openTotal: number;
   slaBreached: number;
+  pendingOver24h: number;
   avgClosureHours: number | null;
+  avgResponseHours: number | null;
+  mostCommonIssue: string | null;
   wardWithMostComplaints: string | null;
   bestWard: string | null;
   wards: { ward: string; total: number; negative: number; positivePct: number }[];
+  trend: { week: string; total: number; negative: number }[];
 }
 
-const SEV_COLORS = { GREEN: '#16a34a', YELLOW: '#f59e0b', RED: '#dc2626' };
+const SEV_COLORS = { GREEN: '#16a34a', YELLOW: '#f59e0b', RED: '#dc2626', CRITICAL: '#7f1d1d' };
 
-function Stat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+function Stat({
+  label, value, accent, small,
+}: { label: string; value: string | number; accent?: string; small?: boolean }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${accent ?? 'text-gray-900'}`}>{value}</p>
+      <p className={`${small ? 'text-base leading-snug' : 'text-2xl'} font-bold mt-1 ${accent ?? 'text-gray-900'}`}>{value}</p>
     </div>
   );
 }
@@ -67,7 +75,8 @@ export default function FeedbackDashboard() {
     { name: 'Green', value: data.bySeverity.GREEN, key: 'GREEN' as const },
     { name: 'Yellow', value: data.bySeverity.YELLOW, key: 'YELLOW' as const },
     { name: 'Red', value: data.bySeverity.RED, key: 'RED' as const },
-  ];
+    { name: 'Critical', value: data.bySeverity.CRITICAL, key: 'CRITICAL' as const },
+  ].filter((s) => s.value > 0);
 
   return (
     <div>
@@ -92,13 +101,36 @@ export default function FeedbackDashboard() {
         <Stat label="Total feedback" value={data.total} />
         <Stat label="Positive" value={`${data.positivePct}%`} accent="text-green-600" />
         <Stat label="Negative" value={`${data.negativePct}%`} accent="text-amber-600" />
+        <Stat
+          label="Open critical"
+          value={data.openCritical}
+          accent={data.openCritical ? 'text-red-700' : undefined}
+        />
         <Stat label="Open red alerts" value={data.openRed} accent="text-red-600" />
         <Stat label="Open yellow" value={data.openYellow} accent="text-amber-600" />
-        <Stat label="Open total" value={data.openTotal} />
-        <Stat label="SLA breached" value={data.slaBreached} accent={data.slaBreached ? 'text-red-600' : undefined} />
+        <Stat
+          label="SLA breached"
+          value={data.slaBreached}
+          accent={data.slaBreached ? 'text-red-600' : undefined}
+        />
+        <Stat
+          label="Pending > 24h"
+          value={data.pendingOver24h}
+          accent={data.pendingOver24h ? 'text-amber-600' : undefined}
+        />
+        <Stat
+          label="Avg response"
+          value={data.avgResponseHours != null ? `${data.avgResponseHours}h` : '—'}
+        />
         <Stat
           label="Avg closure"
           value={data.avgClosureHours != null ? `${data.avgClosureHours}h` : '—'}
+        />
+        <Stat label="Open total" value={data.openTotal} />
+        <Stat
+          label="Most common issue"
+          value={data.mostCommonIssue ?? '—'}
+          small
         />
       </div>
 
@@ -140,6 +172,25 @@ export default function FeedbackDashboard() {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mt-4">
+        <h2 className="font-semibold text-gray-800 mb-3">Trend — last 8 weeks</h2>
+        {data.total === 0 ? (
+          <p className="text-gray-400 text-sm py-12 text-center">No feedback yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={data.trend} margin={{ bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="total" name="Total" stroke="#3b82f6" strokeWidth={2} />
+              <Line type="monotone" dataKey="negative" name="Negative" stroke="#dc2626" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 mt-4">
