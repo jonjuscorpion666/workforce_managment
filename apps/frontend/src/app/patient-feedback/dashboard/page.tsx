@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -34,10 +35,28 @@ function Stat({ label, value, accent }: { label: string; value: string | number;
   );
 }
 
+interface OrgUnit { id: string; name: string; level: string }
+
 export default function FeedbackDashboard() {
+  const [hospitalId, setHospitalId] = useState('');
+
+  const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
+    queryKey: ['org-units'],
+    queryFn: () => api.get('/org/units').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const hospitals = orgUnits
+    .filter((u) => u.level === 'HOSPITAL')
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   const { data, isLoading } = useQuery<Dashboard>({
-    queryKey: ['fb-dashboard'],
-    queryFn: () => api.get('/patient-feedback/dashboard').then((r) => r.data),
+    queryKey: ['fb-dashboard', hospitalId],
+    queryFn: () =>
+      api
+        .get('/patient-feedback/dashboard', {
+          params: hospitalId ? { hospitalId } : {},
+        })
+        .then((r) => r.data),
   });
 
   if (isLoading || !data) {
@@ -57,12 +76,24 @@ export default function FeedbackDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Patient Feedback — Dashboard</h1>
           <p className="text-sm text-gray-500">Inpatient nursing-care feedback trends.</p>
         </div>
-        <Link
-          href="/patient-feedback/tickets"
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-        >
-          View tickets
-        </Link>
+        <div className="flex items-center gap-2">
+          <select
+            value={hospitalId}
+            onChange={(e) => setHospitalId(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">All hospitals</option>
+            {hospitals.map((h) => (
+              <option key={h.id} value={h.id}>{h.name}</option>
+            ))}
+          </select>
+          <Link
+            href="/patient-feedback/tickets"
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+          >
+            View tickets
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">

@@ -16,6 +16,8 @@ interface Location {
   bed?: string;
   locationType: 'BED' | 'WARD';
   department: string;
+  hospitalId?: string | null;
+  orgUnitId?: string | null;
   status: 'ACTIVE' | 'INACTIVE';
 }
 
@@ -49,7 +51,8 @@ function useOrg() {
     while (n && n.level !== 'HOSPITAL') n = n.parentId ? byId.get(n.parentId) ?? null : null;
     return n?.id ?? null;
   };
-  return { hospitals, units, hospitalOf };
+  const nameOf = (id?: string | null) => (id ? byId.get(id)?.name ?? null : null);
+  return { hospitals, units, hospitalOf, nameOf, byId };
 }
 
 function OrgPicker({
@@ -101,6 +104,9 @@ export default function LocationsPage() {
   const [showBulk, setShowBulk] = useState(false);
   const [qrFor, setQrFor] = useState<Location | null>(null);
   const [wardFilter, setWardFilter] = useState('');
+  const [hospitalFilter, setHospitalFilter] = useState('');
+
+  const { hospitals, nameOf } = useOrg();
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ['fb-locations'],
@@ -108,7 +114,11 @@ export default function LocationsPage() {
   });
 
   const wards = Array.from(new Set(locations.map((l) => l.ward))).sort();
-  const filtered = wardFilter ? locations.filter((l) => l.ward === wardFilter) : locations;
+  const filtered = locations.filter(
+    (l) =>
+      (!wardFilter || l.ward === wardFilter) &&
+      (!hospitalFilter || l.hospitalId === hospitalFilter),
+  );
 
   const del = useMutation({
     mutationFn: (id: string) => api.delete(`/patient-feedback/locations/${id}`),
@@ -162,7 +172,17 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
+        <select
+          value={hospitalFilter}
+          onChange={(e) => setHospitalFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">All hospitals</option>
+          {hospitals.map((h) => (
+            <option key={h.id} value={h.id}>{h.name}</option>
+          ))}
+        </select>
         <select
           value={wardFilter}
           onChange={(e) => setWardFilter(e.target.value)}
@@ -179,7 +199,8 @@ export default function LocationsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
-              <th className="px-4 py-3">Ward</th>
+              <th className="px-4 py-3">Hospital</th>
+              <th className="px-4 py-3">Ward / Unit</th>
               <th className="px-4 py-3">Room</th>
               <th className="px-4 py-3">Bed</th>
               <th className="px-4 py-3">Type</th>
@@ -190,14 +211,15 @@ export default function LocationsPage() {
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             )}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No locations yet.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No locations yet.</td></tr>
             )}
             {filtered.map((l) => (
               <tr key={l.id} className="border-t border-gray-50">
-                <td className="px-4 py-3 font-medium">{l.ward}</td>
+                <td className="px-4 py-3">{nameOf(l.hospitalId) ?? <span className="text-gray-400">—</span>}</td>
+                <td className="px-4 py-3 font-medium">{nameOf(l.orgUnitId) ?? `Ward ${l.ward}`}</td>
                 <td className="px-4 py-3">{l.room ?? '—'}</td>
                 <td className="px-4 py-3">{l.bed ?? '—'}</td>
                 <td className="px-4 py-3">{l.locationType}</td>
