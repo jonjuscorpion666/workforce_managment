@@ -77,10 +77,14 @@ export class PatientFeedbackService {
   }
 
   /**
-   * Resolve the nursing supervisor for a location: the ward (UNIT) manager or
-   * director, falling back to the hospital's CNO. Returns a user id or null.
+   * Resolve the owner for a location: the hospital's CNO is always assigned.
+   * Falls back to the ward (UNIT) manager/director only when the hospital has
+   * no CNO on record, so a ticket is never left unassigned.
    */
   private async resolveSupervisor(loc: FeedbackLocation): Promise<string | null> {
+    const cno = await this.cnoForHospital(loc.hospitalId);
+    if (cno) return cno;
+
     if (loc.orgUnitId) {
       const mgr = await this.userRepo
         .createQueryBuilder('u')
@@ -91,16 +95,6 @@ export class PatientFeedbackService {
         .orderBy('u.firstName', 'ASC')
         .getOne();
       if (mgr) return mgr.id;
-    }
-    if (loc.hospitalId) {
-      const cno = await this.userRepo
-        .createQueryBuilder('u')
-        .leftJoin('u.roles', 'r')
-        .leftJoin('u.orgUnit', 'ou')
-        .where('ou.id = :h', { h: loc.hospitalId })
-        .andWhere('r.name = :cno', { cno: 'CNO' })
-        .getOne();
-      if (cno) return cno.id;
     }
     return null;
   }
