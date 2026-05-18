@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QRCodeSVG } from 'qrcode.react';
-import { Plus, Printer, QrCode, X } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { Plus, Printer, QrCode, X, Download, Copy } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
@@ -250,23 +250,58 @@ export default function LocationsPage() {
 }
 
 function QrModal({ location, onClose }: { location: Location; onClose: () => void }) {
+  const toast = useToast();
+  const wrapRef = useRef<HTMLDivElement>(null);
   const url = feedbackUrl(location.token);
   const label =
     location.locationType === 'BED'
       ? `Ward ${location.ward} | Room ${location.room} | Bed ${location.bed}`
       : `Ward ${location.ward} | ${location.department}`;
+
+  function downloadPng() {
+    const canvas = wrapRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `feedback-qr-${location.token}.png`;
+    a.click();
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy');
+    }
+  }
+
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center">
         <p className="text-sm font-semibold text-gray-800">Patient Feedback — Nursing Care</p>
         <p className="text-xs text-gray-500 mb-4">{label}</p>
-        <div className="flex justify-center">
-          <QRCodeSVG value={url} size={200} includeMargin />
+        <div ref={wrapRef} className="flex justify-center">
+          <QRCodeCanvas value={url} size={200} includeMargin />
         </div>
         <p className="text-xs text-gray-400 mt-3 break-all">{url}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            onClick={downloadPng}
+            className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-2 text-sm font-medium"
+          >
+            <Download className="w-4 h-4" /> PNG
+          </button>
+          <button
+            onClick={copyLink}
+            className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-2 text-sm font-medium"
+          >
+            <Copy className="w-4 h-4" /> Copy link
+          </button>
+        </div>
         <button
           onClick={onClose}
-          className="mt-5 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+          className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
         >
           Close
         </button>

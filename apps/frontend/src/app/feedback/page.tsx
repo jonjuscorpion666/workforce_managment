@@ -67,6 +67,7 @@ function FeedbackInner() {
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [result, setResult] = useState<{ severity: string; ticketNumber: string | null } | null>(null);
 
   useEffect(() => {
@@ -97,7 +98,6 @@ function FeedbackInner() {
     () => questions.filter((q) => q.type === 'YES_NO' || q.type === 'YES_NO_NA'),
     [questions],
   );
-  const allRequiredAnswered = requiredYesNo.every((q) => answers[q.id] !== undefined);
 
   async function submit() {
     if (!resolved) return;
@@ -117,6 +117,19 @@ function FeedbackInner() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function trySubmit() {
+    const firstMissing = requiredYesNo.find((q) => answers[q.id] === undefined);
+    if (firstMissing) {
+      setHighlightId(firstMissing.id);
+      setError('Please answer the highlighted question before submitting.');
+      const el = document.getElementById(`q-${firstMissing.id}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setHighlightId(null);
+    submit();
   }
 
   // ── States ────────────────────────────────────────────────────────────────
@@ -177,21 +190,21 @@ function FeedbackInner() {
           </div>
           <p className="text-sm text-gray-500">You are submitting feedback for:</p>
           <p className="text-lg font-semibold text-gray-900 mt-1">{resolved.display}</p>
-          <p className="text-sm text-gray-600 mt-5">Is this location correct?</p>
-          <div className="flex gap-3 mt-3">
+          <p className="text-base text-gray-700 mt-5 font-medium">Is this location correct?</p>
+          <div className="mt-3 space-y-2">
             <button
               type="button"
               onClick={() => setLocationOk(true)}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-2.5 font-semibold"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-3.5 text-base font-semibold shadow-sm"
             >
-              Yes
+              Yes, this is correct
             </button>
             <button
               type="button"
               onClick={() => setLocationOk(false)}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-2.5 font-semibold"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-2.5 text-sm font-medium"
             >
-              No
+              No — I’m at a different location
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-5">{resolved.form.description}</p>
@@ -235,8 +248,20 @@ function FeedbackInner() {
         </div>
 
         <div className="mt-6 space-y-7">
-          {choiceQuestions.map((q) => (
-            <div key={q.id} role="group" aria-label={q.text}>
+          {choiceQuestions.map((q) => {
+            const missing = highlightId === q.id && answers[q.id] === undefined;
+            return (
+            <div
+              key={q.id}
+              id={`q-${q.id}`}
+              role="group"
+              aria-label={q.text}
+              className={
+                missing
+                  ? 'rounded-xl ring-2 ring-red-400 bg-red-50/60 p-3 -m-3 scroll-mt-24'
+                  : 'scroll-mt-24'
+              }
+            >
               <p className="text-base font-medium text-gray-800">{q.text}</p>
               <div className="flex gap-2 mt-3 flex-wrap">
                 {q.type === 'RATING' ? (
@@ -273,7 +298,8 @@ function FeedbackInner() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           <div>
             <p className="text-base font-medium text-gray-800">
@@ -289,21 +315,24 @@ function FeedbackInner() {
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
+        {error && (
+          <div
+            role="alert"
+            className="mt-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <button
           type="button"
-          disabled={submitting || !allRequiredAnswered}
-          onClick={submit}
-          className="mt-6 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-semibold"
+          disabled={submitting}
+          onClick={trySubmit}
+          className="mt-6 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl px-4 py-3.5 text-base font-semibold shadow-sm"
         >
           {submitting ? 'Submitting…' : 'Submit feedback'}
         </button>
-        {!allRequiredAnswered && (
-          <p className="text-xs text-gray-400 text-center mt-2">
-            Please answer the Yes/No questions to submit.
-          </p>
-        )}
       </div>
     </div>
   );

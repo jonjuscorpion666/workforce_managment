@@ -7,8 +7,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
   LineChart, Line,
 } from 'recharts';
+import { AlertOctagon, Clock, MessageSquare, TrendingUp } from 'lucide-react';
 import api from '@/lib/api';
 import PfHeader from '@/components/patient-feedback/PfHeader';
+import { SEVERITY } from '@/components/patient-feedback/severity';
 
 interface Dashboard {
   total: number;
@@ -30,16 +32,39 @@ interface Dashboard {
   trend: { week: string; total: number; negative: number }[];
 }
 
-const SEV_COLORS = { GREEN: '#16a34a', YELLOW: '#f59e0b', RED: '#dc2626', CRITICAL: '#7f1d1d' };
+const SEV_COLORS = {
+  GREEN: SEVERITY.GREEN.hex,
+  YELLOW: SEVERITY.YELLOW.hex,
+  RED: SEVERITY.RED.hex,
+  CRITICAL: SEVERITY.CRITICAL.hex,
+};
 
 function Stat({
-  label, value, accent, small,
-}: { label: string; value: string | number; accent?: string; small?: boolean }) {
+  label, value, accent, small, urgent, icon: Icon,
+}: {
+  label: string; value: string | number; accent?: string; small?: boolean;
+  urgent?: boolean; icon?: React.ComponentType<{ className?: string }>;
+}) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-      <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+    <div
+      className={`rounded-2xl border shadow-sm p-5 ${
+        urgent ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'
+      }`}
+    >
+      <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+        {Icon && <Icon className="w-3.5 h-3.5" />}
+        {label}
+      </p>
       <p className={`${small ? 'text-base leading-snug' : 'text-2xl'} font-bold mt-1 ${accent ?? 'text-gray-900'}`}>{value}</p>
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mt-6 mb-2">
+      {children}
+    </p>
   );
 }
 
@@ -97,13 +122,21 @@ export default function FeedbackDashboard() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <SectionLabel>Volume</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Total feedback" value={data.total} />
         <Stat label="Positive" value={`${data.positivePct}%`} accent="text-green-600" />
         <Stat label="Negative" value={`${data.negativePct}%`} accent="text-amber-600" />
+        <Stat label="Open total" value={data.openTotal} />
+      </div>
+
+      <SectionLabel>Action needed</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat
           label="Open critical"
           value={data.openCritical}
+          icon={AlertOctagon}
+          urgent={data.openCritical > 0}
           accent={data.openCritical ? 'text-red-700' : undefined}
         />
         <Stat label="Open red alerts" value={data.openRed} accent="text-red-600" />
@@ -111,30 +144,39 @@ export default function FeedbackDashboard() {
         <Stat
           label="SLA breached"
           value={data.slaBreached}
+          icon={Clock}
+          urgent={data.slaBreached > 0}
           accent={data.slaBreached ? 'text-red-600' : undefined}
         />
         <Stat
           label="Pending > 24h"
           value={data.pendingOver24h}
+          icon={Clock}
           accent={data.pendingOver24h ? 'text-amber-600' : undefined}
         />
         <Stat
-          label="Avg response"
-          value={data.avgResponseHours != null ? `${data.avgResponseHours}h` : '—'}
-        />
-        <Stat
-          label="Avg closure"
-          value={data.avgClosureHours != null ? `${data.avgClosureHours}h` : '—'}
-        />
-        <Stat label="Open total" value={data.openTotal} />
-        <Stat
           label="Most common issue"
           value={data.mostCommonIssue ?? '—'}
+          icon={MessageSquare}
           small
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <SectionLabel>Performance</SectionLabel>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat
+          label="Avg response"
+          value={data.avgResponseHours != null ? `${data.avgResponseHours}h` : '—'}
+          icon={TrendingUp}
+        />
+        <Stat
+          label="Avg closure"
+          value={data.avgClosureHours != null ? `${data.avgClosureHours}h` : '—'}
+          icon={TrendingUp}
+        />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4 mt-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="font-semibold text-gray-800 mb-3">Severity mix</h2>
           {data.total === 0 ? (

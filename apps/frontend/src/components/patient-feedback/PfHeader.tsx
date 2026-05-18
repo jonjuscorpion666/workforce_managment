@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { QrCode, Ticket, LayoutDashboard, MessageSquare, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
 
 const TABS = [
   { label: 'Locations', href: '/patient-feedback',           icon: QrCode,          exact: true },
@@ -28,6 +30,20 @@ export default function PfHeader({
 }) {
   const pathname = usePathname();
   const onHub = pathname === '/patient-feedback';
+
+  // Lightweight, cached open-ticket count for the Tickets tab badge.
+  const { data: openCount = 0 } = useQuery({
+    queryKey: ['fb-open-count'],
+    queryFn: () =>
+      api
+        .get('/patient-feedback/tickets')
+        .then((r) =>
+          (r.data as any[]).filter(
+            (t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS',
+          ).length,
+        ),
+    staleTime: 60_000,
+  });
 
   return (
     <div className="mb-6">
@@ -70,6 +86,16 @@ export default function PfHeader({
             >
               <Icon className="w-4 h-4" />
               {label}
+              {href === '/patient-feedback/tickets' && openCount > 0 && (
+                <span
+                  className={cn(
+                    'ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[11px] font-bold',
+                    active ? 'bg-blue-600 text-white' : 'bg-red-600 text-white',
+                  )}
+                >
+                  {openCount}
+                </span>
+              )}
             </Link>
           );
         })}

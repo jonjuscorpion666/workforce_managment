@@ -6,6 +6,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
 import PfHeader from '@/components/patient-feedback/PfHeader';
+import {
+  SEVERITY, SeverityBadge, StatusBadge, type Severity,
+} from '@/components/patient-feedback/severity';
 
 interface Ticket {
   id: string;
@@ -29,17 +32,18 @@ interface Ticket {
   } | null;
 }
 
-const SEV: Record<string, string> = {
-  CRITICAL: 'bg-red-600 text-white',
-  RED: 'bg-red-100 text-red-700',
-  YELLOW: 'bg-amber-100 text-amber-700',
-};
-const STATUS = {
-  OPEN: 'bg-blue-100 text-blue-700',
-  IN_PROGRESS: 'bg-indigo-100 text-indigo-700',
-  RESOLVED: 'bg-green-100 text-green-700',
-  CLOSED: 'bg-gray-100 text-gray-600',
-};
+const isOpen = (t: Ticket) => t.status === 'OPEN' || t.status === 'IN_PROGRESS';
+const isOverdue = (t: Ticket) =>
+  !!t.dueAt && !t.closedAt && new Date(t.dueAt).getTime() < Date.now();
+
+// Triage order: worst severity first, then SLA-breached, then oldest first.
+function triageSort(a: Ticket, b: Ticket) {
+  const sev = (SEVERITY[b.severity as Severity]?.rank ?? 0) - (SEVERITY[a.severity as Severity]?.rank ?? 0);
+  if (sev) return sev;
+  const od = Number(isOverdue(b)) - Number(isOverdue(a));
+  if (od) return od;
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+}
 const STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
 
 interface OrgUnit { id: string; name: string; level: string }
@@ -113,6 +117,29 @@ export default function TicketsPage() {
         </select>
       </div>
 
+      {(() => {
+        const open = tickets.filter(isOpen);
+        const chips = [
+          { label: 'Critical', n: open.filter((t) => t.severity === 'CRITICAL').length, cls: SEVERITY.CRITICAL.badge },
+          { label: 'Red',      n: open.filter((t) => t.severity === 'RED').length,      cls: SEVERITY.RED.badge },
+          { label: 'Yellow',   n: open.filter((t) => t.severity === 'YELLOW').length,   cls: SEVERITY.YELLOW.badge },
+          { label: 'Open',     n: open.length,                                          cls: 'bg-gray-100 text-gray-700' },
+          { label: 'SLA breached', n: open.filter(isOverdue).length,                    cls: 'bg-red-600 text-white' },
+        ];
+        return (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {chips.map((c) => (
+              <span
+                key={c.label}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${c.cls}`}
+              >
+                {c.n} <span className="font-medium opacity-80">{c.label}</span>
+              </span>
+            ))}
+          </div>
+        );
+      })()}
+
       <div className="space-y-2">
         {isLoading && <p className="text-gray-400 py-8 text-center">Loading…</p>}
         {!isLoading && tickets.length === 0 && (
@@ -120,7 +147,7 @@ export default function TicketsPage() {
             No tickets — all feedback has been positive.
           </p>
         )}
-        {tickets.map((t) => (
+        {[...tickets].sort(triageSort).map((t) => (
           <TicketRow
             key={t.id}
             ticket={t}
@@ -137,8 +164,8 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
   const qc = useQueryClient();
   const toast = useToast();
   const [action, setAction] = useState(ticket.actionTaken ?? '');
-  const overdue =
-    ticket.dueAt && !ticket.closedAt && new Date(ticket.dueAt).getTime() < Date.now();
+  const overdue = isOverdue(ticket);
+  const sevMeta = SEVERITY[ticket.severity as Severity] ?? SEVERITY.YELLOW;
 
   const update = useMutation({
     mutationFn: (body: any) => api.patch(`/patient-feedback/tickets/${ticket.id}`, body),
@@ -158,22 +185,18 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+    <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${sevMeta.bar} shadow-sm`}>
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+        className="w-full flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left"
       >
-        {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+        {open ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
         <span className="font-mono text-xs text-gray-500">{ticket.ticketNumber}</span>
-        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SEV[ticket.severity]}`}>
-          {ticket.severity}
-        </span>
+        <SeverityBadge severity={ticket.severity as Severity} />
         <span className="text-sm font-medium text-gray-800">{ticket.locationDisplay}</span>
-        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS[ticket.status]}`}>
-          {ticket.status}
-        </span>
+        <StatusBadge status={ticket.status} />
         {overdue && (
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-600 text-white">
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-600 text-white">
             SLA breached
           </span>
         )}
@@ -182,7 +205,7 @@ function TicketRow({ ticket, open, onToggle }: { ticket: Ticket; open: boolean; 
             Escalated
           </span>
         )}
-        <span className="ml-auto text-xs text-gray-400">
+        <span className="ml-auto text-xs text-gray-400 whitespace-nowrap">
           {new Date(ticket.createdAt).toLocaleString()}
         </span>
       </button>
