@@ -18,6 +18,7 @@ import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 import { AIDisclaimer } from '@/components/ui/AIDisclaimer';
 import { FieldHint } from '@/components/ui/FieldHint';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1395,8 +1396,9 @@ export default function ProgramDetailPage() {
                               {aiRootCausesMutation.isPending ? 'Thinking…' : 'AI suggest'}
                             </button>
                           </div>
-                          <textarea rows={3}
-                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                          <AutoGrowTextarea
+                            minRows={4}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 leading-relaxed"
                             placeholder="e.g. Night shift nurses report inadequate handover time…"
                             value={rcFindings}
                             onChange={(e) => setRcFindings(e.target.value)}
