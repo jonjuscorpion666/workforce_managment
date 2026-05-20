@@ -9,13 +9,12 @@ COPY apps/backend/package*.json ./apps/backend/
 
 # Install full deps (need devDeps for `nest build`)
 RUN npm ci --workspace=apps/backend --include-workspace-root \
-      --prefer-offline --no-audit --no-fund
+      --prefer-offline --no-audit --no-fund \
+ && npm cache clean --force
 
 COPY apps/backend ./apps/backend
 
-RUN npm run build --workspace=apps/backend \
- && npm prune --omit=dev --workspace=apps/backend --include-workspace-root \
- && npm cache clean --force
+RUN npm run build --workspace=apps/backend
 
 # ── Stage 2: production image ─────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -24,11 +23,15 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Reuse the pruned install + compiled output from the builder — avoids a second
-# `npm ci` on the build daemon (halves peak disk usage during the build).
-COPY --from=builder /app/package.json /app/package-lock.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/backend/package.json ./apps/backend/package.json
+# Production-only install (no devDeps end up in the final image)
+COPY package*.json ./
+COPY apps/backend/package*.json ./apps/backend/
+
+RUN npm ci --workspace=apps/backend --include-workspace-root --omit=dev \
+      --prefer-offline --no-audit --no-fund \
+ && npm cache clean --force
+
+# Compiled output from the builder
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 
 # Start script (handles optional seed + app start)
