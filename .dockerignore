@@ -1,9 +1,42 @@
+# Dependencies & build output (regenerated inside the image)
 **/node_modules
-**/.next
 **/dist
-**/.git
-**/.env
-**/.env.local
+**/.next
 **/coverage
+**/*.tsbuildinfo
+
+# VCS & local env
+**/.git
+**/.gitignore
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs & OS junk
 **/*.log
-**/README.md
+**/.DS_Store
+
+# Unrelated workspaces (backend image doesn't need them)
+apps/frontend
+packages
+
+# Tooling & CI
+.github
+.claude
+.vscode
+nginx
+docker-compose.yml
+deploy.sh
+scripts
+
+# Tests & fixtures (not needed in the runtime image)
+**/test
+**/__tests__
+**/e2e
+**/*.spec.ts
+**/*.test.ts
+
+# Docs & misc
+**/*.md
+generate-help-pdf.py
+TEST_REPORT.md
