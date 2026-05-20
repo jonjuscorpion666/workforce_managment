@@ -12,8 +12,8 @@ export enum FeedbackTicketStatus {
 }
 
 /**
- * Follow-up ticket auto-created for YELLOW / RED feedback. GREEN feedback never
- * produces a ticket. Mirrors the issue/escalation workflow used elsewhere.
+ * Follow-up ticket auto-created for YELLOW / RED / CRITICAL feedback. GREEN
+ * feedback never produces a ticket.
  */
 @Entity('feedback_tickets')
 export class FeedbackTicket {
@@ -34,19 +34,13 @@ export class FeedbackTicket {
   @Column({ nullable: true })
   locationId: string;
 
-  // Denormalised from the location at creation for fast RBAC ward-scoping.
-  @Column({ nullable: true })
-  orgUnitId: string;
-
   @Column({ type: 'enum', enum: FeedbackSeverity })
   severity: FeedbackSeverity;
 
   @Column({ type: 'enum', enum: FeedbackTicketStatus, default: FeedbackTicketStatus.OPEN })
   status: FeedbackTicketStatus;
 
-  @Column({ default: 'Inpatient Nursing' })
-  department: string;
-
+  // Hospital scope (denormalised from the location at creation time) for RBAC.
   @Column({ nullable: true })
   hospitalId: string;
 

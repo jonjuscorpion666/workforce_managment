@@ -11,13 +11,11 @@ import api from '@/lib/api';
 interface Location {
   id: string;
   token: string;
-  ward: string;
-  room?: string;
-  bed?: string;
-  locationType: 'BED' | 'WARD';
-  department: string;
+  hospitalId: string;
+  room: string;
   status: string;
 }
+interface OrgUnit { id: string; name: string; level: string }
 
 function feedbackUrl(token: string) {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -26,13 +24,21 @@ function feedbackUrl(token: string) {
 
 function PrintInner() {
   const params = useSearchParams();
-  const ward = params.get('ward') || '';
+  const hospitalId = params.get('hospitalId') || '';
+
+  const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
+    queryKey: ['org-units'],
+    queryFn: () => api.get('/org/units').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const hospitalName = (id: string) =>
+    orgUnits.find((u) => u.id === id && u.level === 'HOSPITAL')?.name ?? 'Hospital';
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
-    queryKey: ['fb-print', ward],
+    queryKey: ['fb-print', hospitalId],
     queryFn: () =>
       api
-        .get('/patient-feedback/locations', { params: ward ? { ward } : {} })
+        .get('/patient-feedback/locations', { params: hospitalId ? { hospitalId } : {} })
         .then((r) => r.data.filter((l: Location) => l.status === 'ACTIVE')),
   });
 
@@ -60,7 +66,7 @@ function PrintInner() {
         </Link>
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold">
-            QR labels{ward ? ` — Ward ${ward}` : ''} ({locations.length})
+            QR labels{hospitalId ? ` — ${hospitalName(hospitalId)}` : ''} ({locations.length})
           </h1>
           <button
             onClick={() => window.print()}
@@ -79,9 +85,7 @@ function PrintInner() {
           >
             <p className="text-sm font-bold text-gray-900">Patient Feedback — Nursing Care</p>
             <p className="text-xs text-gray-600 mb-3">
-              {l.locationType === 'BED'
-                ? `Ward ${l.ward} | Room ${l.room} | Bed ${l.bed}`
-                : `Ward ${l.ward} | ${l.department}`}
+              {hospitalName(l.hospitalId)} | Room {l.room}
             </p>
             <div className="flex justify-center">
               <QRCodeSVG value={feedbackUrl(l.token)} size={150} includeMargin />
@@ -91,7 +95,7 @@ function PrintInner() {
         ))}
       </div>
       {!isLoading && locations.length === 0 && (
-        <p className="text-gray-400 text-center py-12">No active locations to print.</p>
+        <p className="text-gray-400 text-center py-12">No active rooms to print.</p>
       )}
     </div>
   );

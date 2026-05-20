@@ -8,10 +8,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
-// Nursing supervisors + quality/management can administer locations & tickets.
-const FEEDBACK_MANAGERS = [
-  'SUPER_ADMIN', 'SVP', 'CNO', 'VP', 'DIRECTOR', 'MANAGER', 'HR_ANALYST',
-] as const;
+// Per the access rule: only SVP, CNO and SUPER_ADMIN may use the module.
+// SVP/SUPER_ADMIN see all hospitals; CNO sees only their own (enforced in the
+// service via resolveScope).
+const FEEDBACK_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNO'] as const;
 
 @ApiTags('Patient Feedback')
 @Controller('patient-feedback')

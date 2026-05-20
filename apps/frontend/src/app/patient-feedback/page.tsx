@@ -12,14 +12,15 @@ import PfHeader from '@/components/patient-feedback/PfHeader';
 interface Location {
   id: string;
   token: string;
-  ward: string;
-  room?: string;
-  bed?: string;
-  locationType: 'BED' | 'WARD';
-  department: string;
-  hospitalId?: string | null;
-  orgUnitId?: string | null;
+  hospitalId: string;
+  room: string;
   status: 'ACTIVE' | 'INACTIVE';
+}
+
+interface OrgUnit {
+  id: string;
+  name: string;
+  level: string;
 }
 
 function feedbackUrl(token: string) {
@@ -27,75 +28,19 @@ function feedbackUrl(token: string) {
   return `${origin}/feedback?t=${token}`;
 }
 
-interface OrgUnit {
-  id: string;
-  name: string;
-  code?: string;
-  level: string;
-  parentId?: string;
-}
-
-// Shares the same org tree as Surveys / Issues (via /org/units).
-function useOrg() {
+// Hospitals come from the shared org tree (same data as Surveys / Issues).
+function useHospitals() {
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
     queryKey: ['org-units'],
     queryFn: () => api.get('/org/units').then((r) => r.data),
     staleTime: 5 * 60_000,
   });
-  const byId = new Map(orgUnits.map((u) => [u.id, u] as [string, OrgUnit]));
   const hospitals = orgUnits
     .filter((u) => u.level === 'HOSPITAL')
     .sort((a, b) => a.name.localeCompare(b.name));
-  const units = orgUnits.filter((u) => u.level === 'UNIT');
-  const hospitalOf = (u?: OrgUnit | null): string | null => {
-    let n: OrgUnit | null = u ?? null;
-    while (n && n.level !== 'HOSPITAL') n = n.parentId ? byId.get(n.parentId) ?? null : null;
-    return n?.id ?? null;
-  };
-  const nameOf = (id?: string | null) => (id ? byId.get(id)?.name ?? null : null);
-  return { hospitals, units, hospitalOf, nameOf, byId };
-}
-
-function OrgPicker({
-  hospitalId, orgUnitId, onChange,
-}: {
-  hospitalId: string;
-  orgUnitId: string;
-  onChange: (v: { hospitalId: string; orgUnitId: string }) => void;
-}) {
-  const { hospitals, units, hospitalOf } = useOrg();
-  const wards = hospitalId ? units.filter((u) => hospitalOf(u) === hospitalId) : units;
-  return (
-    <>
-      <Field label="Hospital">
-        <select
-          className="input"
-          value={hospitalId}
-          onChange={(e) => onChange({ hospitalId: e.target.value, orgUnitId: '' })}
-        >
-          <option value="">— Select hospital —</option>
-          {hospitals.map((h) => (
-            <option key={h.id} value={h.id}>{h.name}</option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Ward (unit)">
-        <select
-          className="input"
-          value={orgUnitId}
-          disabled={!hospitalId}
-          onChange={(e) => onChange({ hospitalId, orgUnitId: e.target.value })}
-        >
-          <option value="">{hospitalId ? '— Select ward —' : 'Select a hospital first'}</option>
-          {wards.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}{u.code ? ` (${u.code})` : ''}
-            </option>
-          ))}
-        </select>
-      </Field>
-    </>
-  );
+  const nameOf = (id?: string | null) =>
+    id ? hospitals.find((h) => h.id === id)?.name ?? null : null;
+  return { hospitals, nameOf };
 }
 
 export default function LocationsPage() {
@@ -104,22 +49,18 @@ export default function LocationsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [qrFor, setQrFor] = useState<Location | null>(null);
-  const [wardFilter, setWardFilter] = useState('');
   const [hospitalFilter, setHospitalFilter] = useState('');
 
-  const { hospitals, nameOf } = useOrg();
+  const { hospitals, nameOf } = useHospitals();
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ['fb-locations'],
     queryFn: () => api.get('/patient-feedback/locations').then((r) => r.data),
   });
 
-  const wards = Array.from(new Set(locations.map((l) => l.ward))).sort();
-  const filtered = locations.filter(
-    (l) =>
-      (!wardFilter || l.ward === wardFilter) &&
-      (!hospitalFilter || l.hospitalId === hospitalFilter),
-  );
+  const filtered = hospitalFilter
+    ? locations.filter((l) => l.hospitalId === hospitalFilter)
+    : locations;
 
   const del = useMutation({
     mutationFn: (id: string) => api.delete(`/patient-feedback/locations/${id}`),
@@ -133,11 +74,11 @@ export default function LocationsPage() {
     <div>
       <PfHeader
         title="Locations"
-        subtitle="Bed & ward QR codes for inpatient nursing-care feedback."
+        subtitle="One QR per room — scan to share feedback about nursing care."
         actions={
           <>
             <Link
-              href={`/patient-feedback/print${wardFilter ? `?ward=${encodeURIComponent(wardFilter)}` : ''}`}
+              href={`/patient-feedback/print${hospitalFilter ? `?hospitalId=${encodeURIComponent(hospitalFilter)}` : ''}`}
               target="_blank"
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
             >
@@ -153,7 +94,7 @@ export default function LocationsPage() {
               onClick={() => setShowAdd(true)}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
             >
-              <Plus className="w-4 h-4" /> Add location
+              <Plus className="w-4 h-4" /> Add room
             </button>
           </>
         }
@@ -163,21 +104,11 @@ export default function LocationsPage() {
         <select
           value={hospitalFilter}
           onChange={(e) => setHospitalFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
         >
           <option value="">All hospitals</option>
           {hospitals.map((h) => (
             <option key={h.id} value={h.id}>{h.name}</option>
-          ))}
-        </select>
-        <select
-          value={wardFilter}
-          onChange={(e) => setWardFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-        >
-          <option value="">All wards</option>
-          {wards.map((w) => (
-            <option key={w} value={w}>Ward {w}</option>
           ))}
         </select>
       </div>
@@ -187,10 +118,7 @@ export default function LocationsPage() {
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
               <th className="px-4 py-3">Hospital</th>
-              <th className="px-4 py-3">Ward / Unit</th>
               <th className="px-4 py-3">Room</th>
-              <th className="px-4 py-3">Bed</th>
-              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Token</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Actions</th>
@@ -198,18 +126,17 @@ export default function LocationsPage() {
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             )}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No locations yet.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No rooms yet.</td></tr>
             )}
             {filtered.map((l) => (
               <tr key={l.id} className="border-t border-gray-50">
-                <td className="px-4 py-3">{nameOf(l.hospitalId) ?? <span className="text-gray-400">—</span>}</td>
-                <td className="px-4 py-3 font-medium">{nameOf(l.orgUnitId) ?? `Ward ${l.ward}`}</td>
-                <td className="px-4 py-3">{l.room ?? '—'}</td>
-                <td className="px-4 py-3">{l.bed ?? '—'}</td>
-                <td className="px-4 py-3">{l.locationType}</td>
+                <td className="px-4 py-3">
+                  {nameOf(l.hospitalId) ?? <span className="text-gray-400">—</span>}
+                </td>
+                <td className="px-4 py-3 font-medium">Room {l.room}</td>
                 <td className="px-4 py-3 font-mono text-xs">{l.token}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -242,21 +169,20 @@ export default function LocationsPage() {
         </table>
       </div>
 
-      {qrFor && <QrModal location={qrFor} onClose={() => setQrFor(null)} />}
+      {qrFor && <QrModal location={qrFor} hospitalName={nameOf(qrFor.hospitalId) ?? 'Hospital'} onClose={() => setQrFor(null)} />}
       {showAdd && <AddModal onClose={() => setShowAdd(false)} />}
       {showBulk && <BulkModal onClose={() => setShowBulk(false)} />}
     </div>
   );
 }
 
-function QrModal({ location, onClose }: { location: Location; onClose: () => void }) {
+function QrModal({
+  location, hospitalName, onClose,
+}: { location: Location; hospitalName: string; onClose: () => void }) {
   const toast = useToast();
   const wrapRef = useRef<HTMLDivElement>(null);
   const url = feedbackUrl(location.token);
-  const label =
-    location.locationType === 'BED'
-      ? `Ward ${location.ward} | Room ${location.room} | Bed ${location.bed}`
-      : `Ward ${location.ward} | ${location.department}`;
+  const label = `${hospitalName} | Room ${location.room}`;
 
   function downloadPng() {
     const canvas = wrapRef.current?.querySelector('canvas');
@@ -313,53 +239,42 @@ function QrModal({ location, onClose }: { location: Location; onClose: () => voi
 function AddModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [form, setForm] = useState({
-    hospitalId: '', orgUnitId: '', room: '', bed: '', locationType: 'BED',
-    department: 'Inpatient Nursing',
-  });
+  const { hospitals } = useHospitals();
+  const [form, setForm] = useState({ hospitalId: '', room: '' });
   const create = useMutation({
     mutationFn: () => api.post('/patient-feedback/locations', form).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fb-locations'] });
-      toast.success('Location created');
+      toast.success('Room created');
       onClose();
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to create'),
   });
-  const isBed = form.locationType === 'BED';
-  const invalid = !form.orgUnitId || (isBed && (!form.room || !form.bed));
+  const invalid = !form.hospitalId || !form.room.trim();
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-        <Header title="Add location" onClose={onClose} />
+        <Header title="Add room" onClose={onClose} />
         <div className="space-y-3">
-          <OrgPicker
-            hospitalId={form.hospitalId}
-            orgUnitId={form.orgUnitId}
-            onChange={(v) => setForm({ ...form, ...v })}
-          />
-          <Field label="Type">
+          <Field label="Hospital">
             <select
               className="input"
-              value={form.locationType}
-              onChange={(e) => setForm({ ...form, locationType: e.target.value })}
+              value={form.hospitalId}
+              onChange={(e) => setForm({ ...form, hospitalId: e.target.value })}
             >
-              <option value="BED">Bed</option>
-              <option value="WARD">Ward / common area</option>
+              <option value="">— Select hospital —</option>
+              {hospitals.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
             </select>
           </Field>
-          {isBed && (
-            <>
-              <Field label="Room">
-                <input className="input" value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} />
-              </Field>
-              <Field label="Bed">
-                <input className="input" value={form.bed} onChange={(e) => setForm({ ...form, bed: e.target.value })} />
-              </Field>
-            </>
-          )}
-          <Field label="Department">
-            <input className="input" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+          <Field label="Room">
+            <input
+              className="input"
+              placeholder="e.g. 312, ICU-12"
+              value={form.room}
+              onChange={(e) => setForm({ ...form, room: e.target.value })}
+            />
           </Field>
         </div>
         <button
@@ -377,23 +292,20 @@ function AddModal({ onClose }: { onClose: () => void }) {
 function BulkModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [form, setForm] = useState({
-    hospitalId: '', orgUnitId: '', roomsCsv: '', bedsPerRoom: '2', department: 'Inpatient Nursing',
-  });
+  const { hospitals } = useHospitals();
+  const [form, setForm] = useState({ hospitalId: '', roomsCsv: '' });
   const create = useMutation({
     mutationFn: () =>
       api
         .post('/patient-feedback/locations/bulk', {
-          hospitalId: form.hospitalId || undefined,
-          orgUnitId: form.orgUnitId,
+          hospitalId: form.hospitalId,
           rooms: form.roomsCsv.split(',').map((s) => s.trim()).filter(Boolean),
-          bedsPerRoom: Number(form.bedsPerRoom),
-          department: form.department,
         })
         .then((r) => r.data),
     onSuccess: (d: any) => {
       qc.invalidateQueries({ queryKey: ['fb-locations'] });
-      toast.success(`${d.created} bed QR codes generated`);
+      const skippedNote = d.skipped?.length ? ` (skipped duplicates: ${d.skipped.join(', ')})` : '';
+      toast.success(`${d.created} room QR code${d.created === 1 ? '' : 's'} generated${skippedNote}`);
       onClose();
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed'),
@@ -401,33 +313,34 @@ function BulkModal({ onClose }: { onClose: () => void }) {
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-        <Header title="Bulk generate beds" onClose={onClose} />
+        <Header title="Bulk generate rooms" onClose={onClose} />
         <div className="space-y-3">
-          <OrgPicker
-            hospitalId={form.hospitalId}
-            orgUnitId={form.orgUnitId}
-            onChange={(v) => setForm({ ...form, ...v })}
-          />
-          <Field label="Rooms (comma separated)">
+          <Field label="Hospital">
+            <select
+              className="input"
+              value={form.hospitalId}
+              onChange={(e) => setForm({ ...form, hospitalId: e.target.value })}
+            >
+              <option value="">— Select hospital —</option>
+              {hospitals.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Rooms (comma-separated)">
             <input
               className="input"
-              placeholder="312, 313, 314"
+              placeholder="312, 313, 314, ICU-12"
               value={form.roomsCsv}
               onChange={(e) => setForm({ ...form, roomsCsv: e.target.value })}
             />
           </Field>
-          <Field label="Beds per room">
-            <input
-              className="input"
-              type="number"
-              min={1}
-              value={form.bedsPerRoom}
-              onChange={(e) => setForm({ ...form, bedsPerRoom: e.target.value })}
-            />
-          </Field>
+          <p className="text-xs text-gray-400">
+            Existing rooms in the selected hospital are skipped automatically.
+          </p>
         </div>
         <button
-          disabled={create.isPending || !form.orgUnitId || !form.roomsCsv}
+          disabled={create.isPending || !form.hospitalId || !form.roomsCsv.trim()}
           onClick={() => create.mutate()}
           className="mt-5 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-medium"
         >

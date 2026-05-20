@@ -1,34 +1,46 @@
 import { DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import {
-  FeedbackLocation, FeedbackLocationType, FeedbackLocationStatus,
+  FeedbackLocation, FeedbackLocationStatus,
 } from '../../modules/patient-feedback/entities/feedback-location.entity';
-import { OrgUnit, OrgLevel } from '../../modules/org/entities/org-unit.entity';
+import { OrgUnit } from '../../modules/org/entities/org-unit.entity';
 
 const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-function token(prefix: string): string {
+function token(): string {
   const bytes = crypto.randomBytes(6);
   let body = '';
   for (let i = 0; i < 6; i++) body += TOKEN_ALPHABET[bytes[i] % TOKEN_ALPHABET.length];
-  return `${prefix}${body}`;
+  return `R${body}`;
 }
 
 /**
- * Pilot ward (3A) under Franciscan Health Indianapolis (FH-INDY). Creates the
- * department + UNIT org units in the shared org tree so locations are fully
- * org-linked — feedback tickets then auto-resolve to the ward manager, falling
- * back to the FH-INDY CNO (cnp@hospital.com). Idempotent.
+ * Pilot rooms (312/313/314) under Franciscan Health Indianapolis (FH-INDY).
+ * Idempotent — also runs a one-shot cleanup that removes orphan rows left
+ * over from the old (ward/bed/department) shape:
+ *   - rows whose `hospitalId` is null (no longer valid),
+ *   - rows whose `room` is null (the old ward-area QR),
+ *   - duplicate (hospitalId, room) rows (oldest kept).
  */
 export async function seedPatientFeedback(dataSource: DataSource) {
   const repo = dataSource.getRepository(FeedbackLocation);
   const orgRepo = dataSource.getRepository(OrgUnit);
 
-  const existing = await repo.findOne({ where: { ward: '3A' } });
-  if (existing) {
-    console.log('   → Skipped (Ward 3A feedback locations exist)');
-    return;
-  }
+  // ── one-shot cleanup after model trim ────────────────────────────────────
+  await dataSource.query(`
+    DELETE FROM feedback_locations
+     WHERE "hospitalId" IS NULL
+        OR room IS NULL
+        OR TRIM(room) = ''
+  `);
+  await dataSource.query(`
+    DELETE FROM feedback_locations a
+     USING feedback_locations b
+     WHERE a.id <> b.id
+       AND a."hospitalId" = b."hospitalId"
+       AND a.room = b.room
+       AND a."createdAt" > b."createdAt"
+  `);
 
   const indyHospital = await orgRepo.findOne({ where: { code: 'FH-INDY' } });
   if (!indyHospital) {
@@ -36,65 +48,23 @@ export async function seedPatientFeedback(dataSource: DataSource) {
     return;
   }
 
-  // Department: Inpatient Nursing → Unit: Ward 3A
-  let inpDept = await orgRepo.findOne({ where: { code: 'FH-INDY-INP-DEPT' } });
-  if (!inpDept) {
-    inpDept = await orgRepo.save(orgRepo.create({
-      name: 'Inpatient Nursing',
-      code: 'FH-INDY-INP-DEPT',
-      level: OrgLevel.DEPARTMENT,
-      location: 'Indianapolis, IN',
-      timezone: 'America/Indiana/Indianapolis',
-      parent: indyHospital,
-      parentId: indyHospital.id,
-      isActive: true,
-    }));
-    console.log('   ✓ Created department: Inpatient Nursing');
-  }
-
-  let ward3a = await orgRepo.findOne({ where: { code: 'FH-INDY-3A' } });
-  if (!ward3a) {
-    ward3a = await orgRepo.save(orgRepo.create({
-      name: 'Ward 3A',
-      code: 'FH-INDY-3A',
-      level: OrgLevel.UNIT,
-      location: 'Indianapolis, IN',
-      timezone: 'America/Indiana/Indianapolis',
-      parent: inpDept,
-      parentId: inpDept.id,
-      isActive: true,
-    }));
-    console.log('   ✓ Created unit: Ward 3A');
-  }
-
-  const rows: Partial<FeedbackLocation>[] = [];
+  let created = 0;
   for (const room of ['312', '313', '314']) {
-    for (const bed of ['1', '2']) {
-      rows.push({
-        token: token('B'),
-        ward: '3A',
-        room,
-        bed,
-        locationType: FeedbackLocationType.BED,
-        department: 'Inpatient Nursing',
+    const exists = await repo.findOne({ where: { hospitalId: indyHospital.id, room } });
+    if (exists) continue;
+    await repo.save(
+      repo.create({
+        token: token(),
         hospitalId: indyHospital.id,
-        orgUnitId: ward3a.id,
+        room,
         status: FeedbackLocationStatus.ACTIVE,
-      });
-    }
+      }),
+    );
+    created++;
   }
-  rows.push({
-    token: token('W'),
-    ward: '3A',
-    room: null,
-    bed: null,
-    locationType: FeedbackLocationType.WARD,
-    department: 'Nursing Station / Ward Common Area',
-    hospitalId: indyHospital.id,
-    orgUnitId: ward3a.id,
-    status: FeedbackLocationStatus.ACTIVE,
-  });
-
-  await repo.save(rows.map((r) => repo.create(r)));
-  console.log(`   ✓ Seeded ${rows.length} Ward 3A feedback locations (FH-INDY)`);
+  console.log(
+    created > 0
+      ? `   ✓ Seeded ${created} room QR(s) under FH-INDY`
+      : '   → All FH-INDY pilot rooms already present',
+  );
 }

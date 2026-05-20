@@ -3,20 +3,15 @@ import {
   CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
 
-export enum FeedbackLocationType {
-  BED = 'BED',
-  WARD = 'WARD',
-}
-
 export enum FeedbackLocationStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
 }
 
 /**
- * Location Master — one row per QR code. The random `token` is what the QR
- * encodes (https://host/feedback?t=<token>); ward/room/bed are never exposed
- * in the link itself, only resolved server-side.
+ * Location Master — one row per room QR. The random `token` is what the QR
+ * encodes (`https://host/feedback?t=<token>`); the hospital + room label are
+ * resolved server-side and never embedded in the link.
  */
 @Entity('feedback_locations')
 export class FeedbackLocation {
@@ -27,28 +22,13 @@ export class FeedbackLocation {
   @Column()
   token: string;
 
+  // HOSPITAL-level OrgUnit id (same shared org tree as Surveys/Issues).
   @Column()
-  ward: string;
-
-  @Column({ nullable: true })
-  room: string;
-
-  @Column({ nullable: true })
-  bed: string;
-
-  @Column({ type: 'enum', enum: FeedbackLocationType, default: FeedbackLocationType.BED })
-  locationType: FeedbackLocationType;
-
-  @Column({ default: 'Inpatient Nursing' })
-  department: string;
-
-  // Links into the shared org hierarchy (same OrgUnit tree as Surveys/Issues).
-  // hospitalId → HOSPITAL-level OrgUnit; orgUnitId → the ward (UNIT-level).
-  @Column({ nullable: true })
   hospitalId: string;
 
-  @Column({ nullable: true })
-  orgUnitId: string;
+  // Free-text room label as the hospital actually signs it (e.g. "312", "ICU-12").
+  @Column()
+  room: string;
 
   @Column({ type: 'enum', enum: FeedbackLocationStatus, default: FeedbackLocationStatus.ACTIVE })
   status: FeedbackLocationStatus;

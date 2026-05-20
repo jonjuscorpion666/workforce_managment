@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as crypto from 'crypto';
 import {
-  FeedbackLocation, FeedbackLocationStatus, FeedbackLocationType,
+  FeedbackLocation, FeedbackLocationStatus,
 } from './entities/feedback-location.entity';
 import {
   PatientFeedback, FeedbackChannel, FeedbackSeverity,
@@ -17,19 +17,19 @@ import {
   FEEDBACK_QUESTIONS, FEEDBACK_FORM_META, classifyFeedback, SLA_HOURS,
 } from './patient-feedback.constants';
 
-const ELEVATED_ROLES = ['SUPER_ADMIN', 'SVP', 'HR_ANALYST'];
+// Unambiguous alphabet (no 0/O, 1/I) for human-printed tokens.
+const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+const ALL_HOSPITAL_ROLES = ['SUPER_ADMIN', 'SVP'];
 const AUDIT_ENTITY = 'feedback_ticket';
 
 interface RequestUser { id: string; email?: string; roles?: string[] }
 
 interface TicketScope {
-  all: boolean;
+  all: boolean;       // true → no scoping
   hospitalId?: string | null;
-  orgUnitId?: string | null;
+  none?: boolean;     // true → caller can see nothing
 }
-
-// Unambiguous alphabet (no 0/O, 1/I) for human-printed tokens.
-const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 @Injectable()
 export class PatientFeedbackService {
@@ -44,59 +44,38 @@ export class PatientFeedbackService {
   ) {}
 
   /**
-   * Resolve what tickets/responses a requesting user may see (design §9/§11):
-   *  - SUPER_ADMIN / SVP / HR_ANALYST → everything
-   *  - CNO                            → their hospital
-   *  - VP / DIRECTOR / MANAGER        → their own ward (org unit), else hospital
+   * RBAC scope (per the product rule):
+   *  - SUPER_ADMIN / SVP → everything
+   *  - CNO              → only their hospital
+   *  - everything else  → nothing (defence in depth; the route guard also blocks)
    */
   private async resolveScope(reqUser?: RequestUser): Promise<TicketScope> {
-    if (!reqUser?.id) return { all: true };
-    const roles = reqUser.roles ?? [];
-    if (roles.some((r) => ELEVATED_ROLES.includes(r))) return { all: true };
+    const roles = reqUser?.roles ?? [];
+    if (roles.some((r) => ALL_HOSPITAL_ROLES.includes(r))) return { all: true };
+    if (!roles.includes('CNO') || !reqUser?.id) return { all: false, none: true };
 
     const user = await this.userRepo.findOne({
       where: { id: reqUser.id },
       relations: ['orgUnit', 'orgUnit.parent', 'orgUnit.parent.parent'],
     });
-    if (!user?.orgUnit) return { all: true }; // no org context → don't over-restrict
+    if (!user?.orgUnit) return { all: false, none: true };
 
-    // Walk up to the hospital ancestor.
     let node: any = user.orgUnit;
-    let hospitalId: string | null = null;
-    while (node) {
-      if (node.level === 'HOSPITAL') { hospitalId = node.id; break; }
-      node = node.parent ?? null;
-    }
-
-    if (roles.includes('CNO')) return { all: false, hospitalId };
-    // Ward-level leaders are scoped to their own unit.
-    if (user.orgUnit.level === 'UNIT') {
-      return { all: false, orgUnitId: user.orgUnit.id };
-    }
-    return { all: false, hospitalId };
+    while (node && node.level !== 'HOSPITAL') node = node.parent ?? null;
+    return node?.id ? { all: false, hospitalId: node.id } : { all: false, none: true };
   }
 
-  /**
-   * Resolve the owner for a location: the hospital's CNO is always assigned.
-   * Falls back to the ward (UNIT) manager/director only when the hospital has
-   * no CNO on record, so a ticket is never left unassigned.
-   */
-  private async resolveSupervisor(loc: FeedbackLocation): Promise<string | null> {
-    const cno = await this.cnoForHospital(loc.hospitalId);
-    if (cno) return cno;
-
-    if (loc.orgUnitId) {
-      const mgr = await this.userRepo
-        .createQueryBuilder('u')
-        .leftJoin('u.roles', 'r')
-        .leftJoin('u.orgUnit', 'ou')
-        .where('ou.id = :ou', { ou: loc.orgUnitId })
-        .andWhere('r.name IN (:...roles)', { roles: ['MANAGER', 'DIRECTOR'] })
-        .orderBy('u.firstName', 'ASC')
-        .getOne();
-      if (mgr) return mgr.id;
-    }
-    return null;
+  /** The hospital's CNO is the owner of every auto-created ticket. */
+  private async cnoForHospital(hospitalId?: string | null): Promise<string | null> {
+    if (!hospitalId) return null;
+    const cno = await this.userRepo
+      .createQueryBuilder('u')
+      .leftJoin('u.roles', 'r')
+      .leftJoin('u.orgUnit', 'ou')
+      .where('ou.id = :h', { h: hospitalId })
+      .andWhere('r.name = :cno', { cno: 'CNO' })
+      .getOne();
+    return cno?.id ?? null;
   }
 
   // ── Public form ────────────────────────────────────────────────────────────
@@ -111,17 +90,14 @@ export class PatientFeedbackService {
     if (!loc || loc.status !== FeedbackLocationStatus.ACTIVE) {
       throw new NotFoundException('This feedback code is not active. Please ask staff for help.');
     }
+    const hospital = await this.orgRepo.findOne({ where: { id: loc.hospitalId } });
+    const hospitalName = hospital?.name ?? 'Hospital';
     return {
       token: loc.token,
-      locationType: loc.locationType,
-      ward: loc.ward,
+      hospitalId: loc.hospitalId,
+      hospitalName,
       room: loc.room,
-      bed: loc.bed,
-      department: loc.department,
-      display:
-        loc.locationType === FeedbackLocationType.BED
-          ? `Ward ${loc.ward} | Room ${loc.room ?? '-'} | Bed ${loc.bed ?? '-'}`
-          : `Ward ${loc.ward} | ${loc.department}`,
+      display: `${hospitalName} | Room ${loc.room}`,
       form: this.getFormDefinition(),
     };
   }
@@ -141,7 +117,6 @@ export class PatientFeedbackService {
 
     const numericRating =
       rating === undefined || rating === null || rating === '' ? null : Number(rating);
-
     const { severity, reasons } = classifyFeedback(answers, numericRating);
 
     const ip = req?.ip || req?.headers?.['x-forwarded-for'] || 'unknown';
@@ -155,16 +130,13 @@ export class PatientFeedbackService {
       this.feedbackRepo.create({
         token,
         locationId: loc.id,
-        channel:
-          loc.locationType === FeedbackLocationType.WARD
-            ? FeedbackChannel.QR_WARD
-            : FeedbackChannel.QR_BED,
+        channel: FeedbackChannel.QR_BED, // single channel now; the QR_WARD enum value is retained but unused
         rating: numericRating ?? undefined,
         answers: answerRows,
         comment: comment || null,
         severity,
         locationMismatch: !!locationMismatch,
-        hospitalId: loc.hospitalId ?? null,
+        hospitalId: loc.hospitalId,
         ipHash,
       }),
     );
@@ -189,18 +161,16 @@ export class PatientFeedbackService {
     const count = await this.ticketRepo.count();
     const ticketNumber = `FB-${String(count + 1).padStart(6, '0')}`;
     const dueAt = new Date(Date.now() + SLA_HOURS[feedback.severity] * 3600_000);
-    const assignedToId = await this.resolveSupervisor(loc);
+    const assignedToId = await this.cnoForHospital(loc.hospitalId);
 
     const ticket = await this.ticketRepo.save(
       this.ticketRepo.create({
         ticketNumber,
         feedbackId: feedback.id,
         locationId: loc.id,
-        orgUnitId: loc.orgUnitId ?? null,
         severity: feedback.severity,
         status: FeedbackTicketStatus.OPEN,
-        department: loc.department,
-        hospitalId: loc.hospitalId ?? null,
+        hospitalId: loc.hospitalId,
         assignedToId: assignedToId ?? null,
         actionTaken: reasons.length ? `Auto-flagged: ${reasons.join('; ')}` : null,
         dueAt,
@@ -212,8 +182,6 @@ export class PatientFeedbackService {
       `${ticket.ticketNumber} (${ticket.severity})`, 'System', 'SYSTEM',
     );
 
-    // RED / CRITICAL get an immediate escalation so a supervisor is alerted
-    // even before the SLA clock runs out (design §6/§7/§14).
     if (
       (feedback.severity === FeedbackSeverity.RED ||
         feedback.severity === FeedbackSeverity.CRITICAL) &&
@@ -235,12 +203,12 @@ export class PatientFeedbackService {
 
   // ── Location master / QR ───────────────────────────────────────────────────
 
-  private async genUniqueToken(prefix: string): Promise<string> {
+  private async genUniqueToken(): Promise<string> {
     for (let attempt = 0; attempt < 10; attempt++) {
       let body = '';
       const bytes = crypto.randomBytes(6);
       for (let i = 0; i < 6; i++) body += TOKEN_ALPHABET[bytes[i] % TOKEN_ALPHABET.length];
-      const token = `${prefix}${body}`;
+      const token = `R${body}`;
       const exists = await this.locationRepo.findOne({ where: { token } });
       if (!exists) return token;
     }
@@ -248,100 +216,68 @@ export class PatientFeedbackService {
   }
 
   listLocations(query: any = {}) {
-    const qb = this.locationRepo.createQueryBuilder('l').orderBy('l.ward', 'ASC')
-      .addOrderBy('l.room', 'ASC').addOrderBy('l.bed', 'ASC');
-    if (query.ward)         qb.andWhere('l.ward = :ward', { ward: query.ward });
-    if (query.status)       qb.andWhere('l.status = :status', { status: query.status });
-    if (query.locationType) qb.andWhere('l.locationType = :lt', { lt: query.locationType });
-    if (query.hospitalId)   qb.andWhere('l.hospitalId = :h', { h: query.hospitalId });
+    const qb = this.locationRepo
+      .createQueryBuilder('l')
+      .orderBy('l.hospitalId', 'ASC')
+      .addOrderBy('l.room', 'ASC');
+    if (query.hospitalId) qb.andWhere('l.hospitalId = :h', { h: query.hospitalId });
+    if (query.status)     qb.andWhere('l.status = :status', { status: query.status });
     return qb.getMany();
   }
 
   async createLocation(body: any) {
-    const locationType: FeedbackLocationType =
-      body.locationType === FeedbackLocationType.WARD
-        ? FeedbackLocationType.WARD
-        : FeedbackLocationType.BED;
-    if (locationType === FeedbackLocationType.BED && (!body.room || !body.bed)) {
-      throw new BadRequestException('room and bed are required for a bed location');
+    const hospitalId = String(body?.hospitalId ?? '').trim();
+    const room = String(body?.room ?? '').trim();
+    if (!hospitalId) throw new BadRequestException('hospitalId is required');
+    if (!room) throw new BadRequestException('room is required');
+
+    // Block duplicate room within the same hospital (keeps "one QR per room").
+    const dupe = await this.locationRepo.findOne({ where: { hospitalId, room } });
+    if (dupe) {
+      throw new BadRequestException(`A QR already exists for room "${room}" in this hospital`);
     }
 
-    // Ward (UNIT) and hospital come from the shared org tree. The ward label is
-    // derived from the selected UNIT's name unless one is explicitly provided.
-    let ward: string | null = body.ward ?? null;
-    let hospitalId: string | null = body.hospitalId ?? null;
-    if (body.orgUnitId) {
-      const unit = await this.orgRepo.findOne({
-        where: { id: body.orgUnitId },
-        relations: ['parent', 'parent.parent'],
-      });
-      if (!unit) throw new BadRequestException('Selected ward (org unit) not found');
-      if (!ward) ward = unit.name;
-      if (!hospitalId) {
-        let node: any = unit;
-        while (node && node.level !== 'HOSPITAL') node = node.parent ?? null;
-        hospitalId = node?.id ?? null;
-      }
-    }
-    if (!ward) throw new BadRequestException('A ward (org unit) or ward name is required');
-
-    const token = await this.genUniqueToken(
-      locationType === FeedbackLocationType.WARD ? 'W' : 'B',
-    );
+    const token = await this.genUniqueToken();
     return this.locationRepo.save(
       this.locationRepo.create({
         token,
-        ward,
-        room: locationType === FeedbackLocationType.BED ? body.room : null,
-        bed: locationType === FeedbackLocationType.BED ? body.bed : null,
-        locationType,
-        department: body.department || 'Inpatient Nursing',
         hospitalId,
-        orgUnitId: body.orgUnitId ?? null,
+        room,
         status: FeedbackLocationStatus.ACTIVE,
       }),
     );
   }
 
-  /** Bulk-create beds for a ward/room range. */
+  /** Bulk-create rooms from a list of room labels (CSV on the client). */
   async bulkCreateLocations(body: any) {
-    const { ward, orgUnitId, rooms, bedsPerRoom, department, hospitalId } = body ?? {};
-    if ((!ward && !orgUnitId) || !Array.isArray(rooms) || !bedsPerRoom) {
-      throw new BadRequestException('a ward (org unit) or ward name, rooms[] and bedsPerRoom are required');
+    const { hospitalId, rooms } = body ?? {};
+    if (!hospitalId || !Array.isArray(rooms) || rooms.length === 0) {
+      throw new BadRequestException('hospitalId and rooms[] are required');
     }
     const created: FeedbackLocation[] = [];
-    for (const room of rooms) {
-      for (let b = 1; b <= Number(bedsPerRoom); b++) {
-        created.push(
-          await this.createLocation({
-            ward, orgUnitId, room: String(room), bed: String(b),
-            locationType: FeedbackLocationType.BED, department, hospitalId,
-          }),
-        );
-      }
+    const skipped: string[] = [];
+    for (const raw of rooms) {
+      const room = String(raw).trim();
+      if (!room) continue;
+      const dupe = await this.locationRepo.findOne({ where: { hospitalId, room } });
+      if (dupe) { skipped.push(room); continue; }
+      created.push(await this.createLocation({ hospitalId, room }));
     }
-    return { created: created.length, locations: created };
+    return { created: created.length, skipped, locations: created };
   }
 
   async updateLocation(id: string, body: any) {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
-    Object.assign(loc, {
-      ward: body.ward ?? loc.ward,
-      room: body.room ?? loc.room,
-      bed: body.bed ?? loc.bed,
-      department: body.department ?? loc.department,
-      hospitalId: body.hospitalId ?? loc.hospitalId,
-      orgUnitId: body.orgUnitId ?? loc.orgUnitId,
-      status: body.status ?? loc.status,
-    });
+    if (body.hospitalId !== undefined) loc.hospitalId = body.hospitalId;
+    if (body.room !== undefined) loc.room = String(body.room).trim();
+    if (body.status !== undefined) loc.status = body.status;
     return this.locationRepo.save(loc);
   }
 
   async deleteLocation(id: string) {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
-    // Soft-disable rather than hard-delete so historical feedback keeps context.
     loc.status = FeedbackLocationStatus.INACTIVE;
     await this.locationRepo.save(loc);
     return { ok: true };
@@ -351,25 +287,18 @@ export class PatientFeedbackService {
 
   async listTickets(query: any = {}, reqUser?: RequestUser) {
     const scope = await this.resolveScope(reqUser);
+    if (scope.none) return [];
+
     const qb = this.ticketRepo.createQueryBuilder('t').orderBy('t.createdAt', 'DESC');
-    if (query.status)     qb.andWhere('t.status = :status', { status: query.status });
-    if (query.severity)   qb.andWhere('t.severity = :sev', { sev: query.severity });
-    if (query.hospitalId) qb.andWhere('t.hospitalId = :h', { h: query.hospitalId });
+    if (query.status)       qb.andWhere('t.status = :status', { status: query.status });
+    if (query.severity)     qb.andWhere('t.severity = :sev', { sev: query.severity });
+    if (query.hospitalId)   qb.andWhere('t.hospitalId = :h', { h: query.hospitalId });
     if (query.assignedToId) qb.andWhere('t.assignedToId = :a', { a: query.assignedToId });
 
-    if (!scope.all) {
-      if (scope.orgUnitId) qb.andWhere('t.orgUnitId = :sou', { sou: scope.orgUnitId });
-      else if (scope.hospitalId) qb.andWhere('t.hospitalId = :sh', { sh: scope.hospitalId });
-      else qb.andWhere('1 = 0'); // scoped user with no resolvable org → see nothing
-    }
+    if (!scope.all && scope.hospitalId) qb.andWhere('t.hospitalId = :sh', { sh: scope.hospitalId });
 
     const tickets = await qb.getMany();
     return this.enrichTickets(tickets);
-  }
-
-  async getTicketHistory(id: string) {
-    const rows = await this.audit.getByEntity(id);
-    return rows.filter((r: any) => r.entityType === AUDIT_ENTITY);
   }
 
   async getTicket(id: string) {
@@ -377,6 +306,11 @@ export class PatientFeedbackService {
     if (!t) throw new NotFoundException('Ticket not found');
     const [enriched] = await this.enrichTickets([t]);
     return enriched;
+  }
+
+  async getTicketHistory(id: string) {
+    const rows = await this.audit.getByEntity(id);
+    return rows.filter((r: any) => r.entityType === AUDIT_ENTITY);
   }
 
   async updateTicket(id: string, body: any, reqUser?: RequestUser) {
@@ -388,7 +322,6 @@ export class PatientFeedbackService {
     if (body.assignedToId !== undefined) t.assignedToId = body.assignedToId || null;
     if (body.actionTaken !== undefined) t.actionTaken = body.actionTaken;
 
-    // First human touch — used for "average response time" analytics.
     if (!t.firstRespondedAt && reqUser?.id) t.firstRespondedAt = new Date();
 
     if (
@@ -415,28 +348,31 @@ export class PatientFeedbackService {
     if (!tickets.length) return [];
     const fbIds = tickets.map((t) => t.feedbackId);
     const locIds = tickets.map((t) => t.locationId).filter(Boolean) as string[];
+    const hospIds = tickets.map((t) => t.hospitalId).filter(Boolean) as string[];
     const userIds = tickets.map((t) => t.assignedToId).filter(Boolean) as string[];
 
-    const [feedbacks, locations, users] = await Promise.all([
+    const [feedbacks, locations, hospitals, users] = await Promise.all([
       fbIds.length ? this.feedbackRepo.find({ where: { id: In(fbIds) } }) : [],
       locIds.length ? this.locationRepo.find({ where: { id: In(locIds) } }) : [],
+      hospIds.length ? this.orgRepo.find({ where: { id: In(hospIds) } }) : [],
       userIds.length
         ? this.userRepo.find({ where: { id: In(userIds) }, select: ['id', 'firstName', 'lastName', 'jobTitle'] as any })
         : [],
     ]);
     const fbMap = new Map(feedbacks.map((f) => [f.id, f] as [string, typeof f]));
     const locMap = new Map(locations.map((l) => [l.id, l] as [string, typeof l]));
+    const hospMap = new Map(hospitals.map((h) => [h.id, h] as [string, typeof h]));
     const userMap = new Map(users.map((u) => [u.id, u] as [string, typeof u]));
 
     return tickets.map((t) => {
       const fb = fbMap.get(t.feedbackId);
       const loc = t.locationId ? locMap.get(t.locationId) : undefined;
+      const hosp = t.hospitalId ? hospMap.get(t.hospitalId) : undefined;
       const u = t.assignedToId ? userMap.get(t.assignedToId) : undefined;
+      const hospName = hosp?.name ?? 'Hospital';
       return {
         ...t,
-        locationDisplay: loc
-          ? `Ward ${loc.ward} | Room ${loc.room ?? '-'} | Bed ${loc.bed ?? '-'}`
-          : 'Unknown location',
+        locationDisplay: loc ? `${hospName} | Room ${loc.room}` : 'Unknown location',
         feedback: fb
           ? { rating: fb.rating, answers: fb.answers, comment: fb.comment, submittedAt: fb.submittedAt, locationMismatch: fb.locationMismatch }
           : null,
@@ -454,11 +390,12 @@ export class PatientFeedbackService {
       fbQb.andWhere('f.hospitalId = :h', { h: query.hospitalId });
       tkQb.andWhere('t.hospitalId = :h', { h: query.hospitalId });
     }
-    const [feedbacks, tickets, locations] = await Promise.all([
-      fbQb.getMany(),
-      tkQb.getMany(),
-      this.locationRepo.find(),
-    ]);
+    const [feedbacks, tickets] = await Promise.all([fbQb.getMany(), tkQb.getMany()]);
+    const hospIds = Array.from(new Set(feedbacks.map((f) => f.hospitalId).filter(Boolean))) as string[];
+    const hospitals = hospIds.length
+      ? await this.orgRepo.find({ where: { id: In(hospIds) } })
+      : [];
+    const hospMap = new Map(hospitals.map((h) => [h.id, h] as [string, typeof h]));
 
     const total = feedbacks.length;
     const bySeverity = {
@@ -491,7 +428,7 @@ export class PatientFeedbackService {
       (t) => now - new Date(t.createdAt).getTime() > 24 * 3600_000,
     ).length;
 
-    // Most common negative issue (top "No"/flag answer across negative feedback)
+    // Most common negative issue
     const issueCount: Record<string, number> = {};
     for (const f of feedbacks) {
       if (f.severity === FeedbackSeverity.GREEN) continue;
@@ -507,18 +444,18 @@ export class PatientFeedbackService {
     const mostCommonIssue =
       Object.entries(issueCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
-    // Per-ward rollup
-    const locMap = new Map(locations.map((l) => [l.id, l] as [string, typeof l]));
-    const wardAgg: Record<string, { total: number; negative: number }> = {};
+    // Per-hospital rollup
+    const hospAgg: Record<string, { total: number; negative: number }> = {};
     for (const f of feedbacks) {
-      const ward = (f.locationId && locMap.get(f.locationId)?.ward) || 'Unknown';
-      wardAgg[ward] ??= { total: 0, negative: 0 };
-      wardAgg[ward].total += 1;
-      if (f.severity !== FeedbackSeverity.GREEN) wardAgg[ward].negative += 1;
+      const hid = f.hospitalId || 'unknown';
+      hospAgg[hid] ??= { total: 0, negative: 0 };
+      hospAgg[hid].total += 1;
+      if (f.severity !== FeedbackSeverity.GREEN) hospAgg[hid].negative += 1;
     }
-    const wards = Object.entries(wardAgg)
-      .map(([ward, v]) => ({
-        ward,
+    const hospitalsAgg = Object.entries(hospAgg)
+      .map(([hid, v]) => ({
+        hospitalId: hid,
+        name: hospMap.get(hid)?.name ?? 'Unknown',
         total: v.total,
         negative: v.negative,
         positivePct: v.total ? Math.round(((v.total - v.negative) / v.total) * 100) : 0,
@@ -556,10 +493,10 @@ export class PatientFeedbackService {
       avgClosureHours,
       avgResponseHours,
       mostCommonIssue,
-      wardWithMostComplaints: wards[0]?.ward ?? null,
-      bestWard:
-        [...wards].sort((a, b) => b.positivePct - a.positivePct)[0]?.ward ?? null,
-      wards,
+      hospitalWithMostComplaints: hospitalsAgg[0]?.name ?? null,
+      bestHospital:
+        [...hospitalsAgg].sort((a, b) => b.positivePct - a.positivePct)[0]?.name ?? null,
+      hospitals: hospitalsAgg,
       trend,
     };
   }
@@ -568,31 +505,28 @@ export class PatientFeedbackService {
 
   async listResponses(query: any = {}, reqUser?: RequestUser) {
     const scope = await this.resolveScope(reqUser);
+    if (scope.none) return [];
+
     const qb = this.feedbackRepo.createQueryBuilder('f').orderBy('f.submittedAt', 'DESC');
     if (query.severity)   qb.andWhere('f.severity = :sev', { sev: query.severity });
     if (query.hospitalId) qb.andWhere('f.hospitalId = :h', { h: query.hospitalId });
     if (query.channel)    qb.andWhere('f.channel = :c', { c: query.channel });
+    if (!scope.all && scope.hospitalId) qb.andWhere('f.hospitalId = :sh', { sh: scope.hospitalId });
 
-    if (!scope.all) {
-      if (scope.hospitalId) qb.andWhere('f.hospitalId = :sh', { sh: scope.hospitalId });
-      else if (!scope.orgUnitId) qb.andWhere('1 = 0');
-    }
-
-    let feedbacks = await qb.limit(Number(query.limit ?? 500)).getMany();
-
-    const locs = await this.locationRepo.find();
+    const feedbacks = await qb.limit(Number(query.limit ?? 500)).getMany();
+    const locIds = feedbacks.map((f) => f.locationId).filter(Boolean) as string[];
+    const hospIds = Array.from(new Set(feedbacks.map((f) => f.hospitalId).filter(Boolean))) as string[];
+    const [locs, hospitals] = await Promise.all([
+      locIds.length ? this.locationRepo.find({ where: { id: In(locIds) } }) : [],
+      hospIds.length ? this.orgRepo.find({ where: { id: In(hospIds) } }) : [],
+    ]);
     const locMap = new Map(locs.map((l) => [l.id, l] as [string, typeof l]));
-
-    // Unit-scoped users are filtered by their ward's locations.
-    if (!scope.all && scope.orgUnitId) {
-      const allowed = new Set(
-        locs.filter((l) => l.orgUnitId === scope.orgUnitId).map((l) => l.id),
-      );
-      feedbacks = feedbacks.filter((f) => f.locationId && allowed.has(f.locationId));
-    }
+    const hospMap = new Map(hospitals.map((h) => [h.id, h] as [string, typeof h]));
 
     return feedbacks.map((f) => {
       const loc = f.locationId ? locMap.get(f.locationId) : undefined;
+      const hosp = f.hospitalId ? hospMap.get(f.hospitalId) : undefined;
+      const hospName = hosp?.name ?? 'Hospital';
       return {
         id: f.id,
         submittedAt: f.submittedAt,
@@ -601,14 +535,9 @@ export class PatientFeedbackService {
         rating: f.rating ?? null,
         comment: f.comment ?? null,
         locationMismatch: f.locationMismatch,
-        ward: loc?.ward ?? null,
+        hospital: hospName,
         room: loc?.room ?? null,
-        bed: loc?.bed ?? null,
-        locationDisplay: loc
-          ? loc.locationType === FeedbackLocationType.BED
-            ? `Ward ${loc.ward} | Room ${loc.room ?? '-'} | Bed ${loc.bed ?? '-'}`
-            : `Ward ${loc.ward} | ${loc.department}`
-          : 'Unknown',
+        locationDisplay: loc ? `${hospName} | Room ${loc.room}` : 'Unknown',
         answers: f.answers,
       };
     });
@@ -658,17 +587,5 @@ export class PatientFeedbackService {
       escalated++;
     }
     return escalated;
-  }
-
-  private async cnoForHospital(hospitalId?: string | null): Promise<string | null> {
-    if (!hospitalId) return null;
-    const cno = await this.userRepo
-      .createQueryBuilder('u')
-      .leftJoin('u.roles', 'r')
-      .leftJoin('u.orgUnit', 'ou')
-      .where('ou.id = :h', { h: hospitalId })
-      .andWhere('r.name = :cno', { cno: 'CNO' })
-      .getOne();
-    return cno?.id ?? null;
   }
 }

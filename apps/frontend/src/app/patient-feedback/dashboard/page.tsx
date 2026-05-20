@@ -26,9 +26,9 @@ interface Dashboard {
   avgClosureHours: number | null;
   avgResponseHours: number | null;
   mostCommonIssue: string | null;
-  wardWithMostComplaints: string | null;
-  bestWard: string | null;
-  wards: { ward: string; total: number; negative: number; positivePct: number }[];
+  hospitalWithMostComplaints: string | null;
+  bestHospital: string | null;
+  hospitals: { hospitalId: string; name: string; total: number; negative: number; positivePct: number }[];
   trend: { week: string; total: number; negative: number }[];
 }
 
@@ -197,14 +197,14 @@ export default function FeedbackDashboard() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-semibold text-gray-800 mb-3">Feedback by ward</h2>
-          {data.wards.length === 0 ? (
+          <h2 className="font-semibold text-gray-800 mb-3">Feedback by hospital</h2>
+          {data.hospitals.length === 0 ? (
             <p className="text-gray-400 text-sm py-12 text-center">No feedback yet.</p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={data.wards} margin={{ bottom: 20 }}>
+              <BarChart data={data.hospitals} margin={{ bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="ward" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-15} textAnchor="end" height={50} />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
@@ -237,11 +237,11 @@ export default function FeedbackDashboard() {
 
       <div className="grid sm:grid-cols-2 gap-3 mt-4">
         <Stat
-          label="Ward with most complaints"
-          value={data.wardWithMostComplaints ?? '—'}
+          label="Hospital with most complaints"
+          value={data.hospitalWithMostComplaints ?? '—'}
           accent="text-red-600"
         />
-        <Stat label="Best-rated ward" value={data.bestWard ?? '—'} accent="text-green-600" />
+        <Stat label="Best-rated hospital" value={data.bestHospital ?? '—'} accent="text-green-600" />
       </div>
     </div>
   );

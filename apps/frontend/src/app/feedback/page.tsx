@@ -19,12 +19,10 @@ interface QuestionDef {
 }
 interface Resolved {
   token: string;
-  locationType: 'BED' | 'WARD';
-  ward: string;
-  room?: string;
-  bed?: string;
-  department: string;
-  display: string;
+  hospitalId: string;
+  hospitalName: string;
+  room: string;
+  display: string; // "<Hospital> | Room <room>"
   form: { title: string; description: string; questions: QuestionDef[] };
 }
 
