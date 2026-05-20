@@ -31,6 +31,60 @@ interface TicketScope {
   none?: boolean;     // true → caller can see nothing
 }
 
+// ── Period bucketing helpers ─────────────────────────────────────────────────
+type Period = 'daily' | 'monthly' | 'quarterly';
+const PERIOD_LOOKBACK: Record<Period, number> = { daily: 14, monthly: 12, quarterly: 8 };
+
+function pad2(n: number) { return n < 10 ? `0${n}` : `${n}`; }
+
+function labelForPeriod(period: Period, d: Date): string {
+  if (period === 'daily') return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  if (period === 'monthly') return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  return `${d.getFullYear()}-Q${q}`;
+}
+
+/** Returns `PERIOD_LOOKBACK[period]` buckets ordered oldest → newest. */
+function buildBuckets(period: Period): { label: string }[] {
+  const out: { label: string }[] = [];
+  const now = new Date();
+  const count = PERIOD_LOOKBACK[period];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now);
+    if (period === 'daily') d.setDate(d.getDate() - i);
+    else if (period === 'monthly') d.setMonth(d.getMonth() - i);
+    else d.setMonth(d.getMonth() - i * 3);
+    out.push({ label: labelForPeriod(period, d) });
+  }
+  return out;
+}
+
+/** Returned to callers who have no access — keeps the response shape stable. */
+const EMPTY_DASHBOARD = {
+  total: 0,
+  bySeverity: { GREEN: 0, YELLOW: 0, RED: 0, CRITICAL: 0 },
+  positivePct: 0,
+  negativePct: 0,
+  openCritical: 0,
+  openRed: 0,
+  openYellow: 0,
+  openTotal: 0,
+  slaBreached: 0,
+  pendingOver24h: 0,
+  avgClosureHours: null as number | null,
+  avgResponseHours: null as number | null,
+  mostCommonIssue: null as string | null,
+  hospitalWithMostComplaints: null as string | null,
+  bestHospital: null as string | null,
+  hospitals: [] as { hospitalId: string; name: string; total: number; negative: number; positivePct: number }[],
+  period: 'monthly' as Period,
+  trend: [] as { period: string; total: number; positive: number; negative: number }[],
+  perHospital: [] as {
+    hospitalId: string; name: string;
+    series: { period: string; total: number; positive: number; negative: number }[];
+  }[],
+};
+
 @Injectable()
 export class PatientFeedbackService {
   constructor(
@@ -383,12 +437,20 @@ export class PatientFeedbackService {
 
   // ── Dashboards ─────────────────────────────────────────────────────────────
 
-  async dashboard(query: any = {}) {
+  async dashboard(query: any = {}, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (scope.none) return EMPTY_DASHBOARD;
+
+    // CNO scope locks the hospital; SVP/SUPER_ADMIN can drill via the filter.
+    const effectiveHospitalId = scope.hospitalId ?? query.hospitalId ?? null;
+    const period: 'daily' | 'monthly' | 'quarterly' =
+      query.period === 'daily' || query.period === 'quarterly' ? query.period : 'monthly';
+
     const fbQb = this.feedbackRepo.createQueryBuilder('f');
     const tkQb = this.ticketRepo.createQueryBuilder('t');
-    if (query.hospitalId) {
-      fbQb.andWhere('f.hospitalId = :h', { h: query.hospitalId });
-      tkQb.andWhere('t.hospitalId = :h', { h: query.hospitalId });
+    if (effectiveHospitalId) {
+      fbQb.andWhere('f.hospitalId = :h', { h: effectiveHospitalId });
+      tkQb.andWhere('t.hospitalId = :h', { h: effectiveHospitalId });
     }
     const [feedbacks, tickets] = await Promise.all([fbQb.getMany(), tkQb.getMany()]);
     const hospIds = Array.from(new Set(feedbacks.map((f) => f.hospitalId).filter(Boolean))) as string[];
@@ -462,21 +524,45 @@ export class PatientFeedbackService {
       }))
       .sort((a, b) => b.negative - a.negative);
 
-    // 8-week trend (oldest → newest)
-    const WEEK = 7 * 24 * 3600_000;
-    const trend: { week: string; total: number; negative: number }[] = [];
-    for (let i = 7; i >= 0; i--) {
-      const end = now - i * WEEK;
-      const start = end - WEEK;
-      const inWeek = feedbacks.filter((f) => {
-        const ts = new Date(f.submittedAt).getTime();
-        return ts >= start && ts < end;
-      });
-      trend.push({
-        week: new Date(start).toISOString().slice(5, 10),
-        total: inWeek.length,
-        negative: inWeek.filter((f) => f.severity !== FeedbackSeverity.GREEN).length,
-      });
+    // ── Period buckets (daily / monthly / quarterly) ────────────────────────
+    const buckets = buildBuckets(period);
+    const bucketIndex = new Map(buckets.map((b, i) => [b.label, i] as [string, number]));
+
+    function bucketLabelFor(d: Date | string): string | null {
+      return labelForPeriod(period, new Date(d));
+    }
+
+    // Overall series (already scoped to one hospital if a CNO or hospital filter)
+    const trend = buckets.map((b) => ({ period: b.label, total: 0, positive: 0, negative: 0 }));
+    for (const f of feedbacks) {
+      const lbl = bucketLabelFor(f.submittedAt);
+      if (!lbl) continue;
+      const i = bucketIndex.get(lbl);
+      if (i === undefined) continue;
+      trend[i].total += 1;
+      if (f.severity === FeedbackSeverity.GREEN) trend[i].positive += 1;
+      else trend[i].negative += 1;
+    }
+
+    // Per-hospital series — only for SVP/SUPER_ADMIN; CNO already sees one hospital.
+    let perHospital: { hospitalId: string; name: string; series: { period: string; total: number; positive: number; negative: number }[] }[] = [];
+    if (scope.all) {
+      const empty = () => buckets.map((b) => ({ period: b.label, total: 0, positive: 0, negative: 0 }));
+      const byHosp: Record<string, { name: string; series: ReturnType<typeof empty> }> = {};
+      for (const f of feedbacks) {
+        const hid = f.hospitalId || 'unknown';
+        byHosp[hid] ??= { name: hospMap.get(hid)?.name ?? 'Unknown', series: empty() };
+        const lbl = bucketLabelFor(f.submittedAt);
+        if (!lbl) continue;
+        const i = bucketIndex.get(lbl);
+        if (i === undefined) continue;
+        byHosp[hid].series[i].total += 1;
+        if (f.severity === FeedbackSeverity.GREEN) byHosp[hid].series[i].positive += 1;
+        else byHosp[hid].series[i].negative += 1;
+      }
+      perHospital = Object.entries(byHosp)
+        .map(([hid, v]) => ({ hospitalId: hid, name: v.name, series: v.series }))
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
 
     return {
@@ -497,7 +583,9 @@ export class PatientFeedbackService {
       bestHospital:
         [...hospitalsAgg].sort((a, b) => b.positivePct - a.positivePct)[0]?.name ?? null,
       hospitals: hospitalsAgg,
+      period,
       trend,
+      perHospital,
     };
   }
 

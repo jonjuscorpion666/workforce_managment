@@ -143,7 +143,7 @@ export class PatientFeedbackController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  dashboard(@Query() query: any) {
-    return this.service.dashboard(query);
+  dashboard(@Query() query: any, @Req() req: any) {
+    return this.service.dashboard(query, req.user);
   }
 }
