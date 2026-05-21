@@ -63,6 +63,11 @@ export class PatientFeedback {
   @Column({ nullable: true })
   ipHash: string;
 
+  // Set when the free-text / pseudo-identifiers (comment, ipHash) have been
+  // cleared by the retention job. Structured answers are kept for aggregates.
+  @Column({ nullable: true })
+  deidentifiedAt: Date;
+
   @CreateDateColumn()
   submittedAt: Date;
 }

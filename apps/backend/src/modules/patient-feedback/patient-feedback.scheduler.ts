@@ -14,4 +14,11 @@ export class PatientFeedbackScheduler {
     const n = await this.service.escalateOverdue();
     if (n > 0) this.logger.warn(`Auto-escalated ${n} overdue feedback ticket(s)`);
   }
+
+  /** Retention: de-identify feedback older than the retention window. */
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async deidentifyOldFeedback() {
+    const n = await this.service.deidentifyOldFeedback();
+    if (n > 0) this.logger.log(`De-identified ${n} feedback record(s) past retention window`);
+  }
 }

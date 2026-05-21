@@ -23,6 +23,12 @@ const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ALL_HOSPITAL_ROLES = ['SUPER_ADMIN', 'SVP'];
 const AUDIT_ENTITY = 'feedback_ticket';
 
+// Identifiable feedback content (free-text comment + IP hash) is cleared this
+// many days after submission. Structured answers/severity/rating are retained
+// so dashboards/aggregates are unaffected. Surfaced to patients in the privacy
+// notice on the public form.
+const RETENTION_DAYS = 7;
+
 interface RequestUser { id: string; email?: string; roles?: string[] }
 
 interface TicketScope {
@@ -675,5 +681,23 @@ export class PatientFeedbackService {
       escalated++;
     }
     return escalated;
+  }
+
+  /**
+   * Retention: clear identifiable content (free-text comment + IP hash) from
+   * feedback older than RETENTION_DAYS, while keeping structured answers,
+   * severity and rating so aggregates/trends stay intact. Idempotent — only
+   * touches rows not yet de-identified.
+   */
+  async deidentifyOldFeedback(): Promise<number> {
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400000);
+    const res = await this.feedbackRepo
+      .createQueryBuilder()
+      .update(PatientFeedback)
+      .set({ comment: null as any, ipHash: null as any, deidentifiedAt: () => 'NOW()' })
+      .where('submittedAt < :cutoff', { cutoff })
+      .andWhere('deidentifiedAt IS NULL')
+      .execute();
+    return res.affected ?? 0;
   }
 }

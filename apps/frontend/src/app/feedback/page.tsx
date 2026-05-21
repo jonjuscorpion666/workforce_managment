@@ -61,6 +61,7 @@ function FeedbackInner() {
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState<Resolved | null>(null);
 
+  const [consented, setConsented] = useState(false);
   const [locationOk, setLocationOk] = useState<boolean | null>(null);
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [comment, setComment] = useState('');
@@ -174,6 +175,62 @@ function FeedbackInner() {
   }
 
   if (!resolved) return null;
+
+  // ── Privacy & data-retention notice (gate before the survey) ──────────────
+  if (!consented) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-8">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Heart className="w-4 h-4 text-white" fill="currentColor" />
+            </div>
+            <span className="font-bold text-gray-900">Privacy &amp; Data Notice</span>
+          </div>
+
+          <div className="space-y-3 text-sm text-gray-600 leading-relaxed">
+            <p>
+              This short survey asks about the quality of nursing care at your bedside. Your
+              participation is <strong>completely voluntary</strong> and your answers are{' '}
+              <strong>anonymous</strong>.
+            </p>
+            <p>
+              We do <strong>not</strong> ask for your name, contact details, or any medical
+              information. Please don&apos;t include personal or identifying details in the comment
+              box. The location shown comes only from the QR code you scanned.
+            </p>
+            <p>
+              Your responses are used solely to monitor and improve nursing care. This survey is{' '}
+              <strong>not part of your medical record</strong> and choosing not to respond will{' '}
+              <strong>never affect your care or treatment</strong>.
+            </p>
+            <p>
+              Any identifiable information you might enter (for example, in the comment box) will be{' '}
+              <strong>deleted or de-identified within 7 days</strong>, unless retention is required
+              by law or hospital policy. Aggregated, non-identifiable results may be kept to track
+              care quality over time.
+            </p>
+            <p className="text-gray-500">
+              Questions or concerns? Please contact the hospital&apos;s Patient Relations office.
+            </p>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-6">
+            By clicking &ldquo;Start Survey,&rdquo; you acknowledge that you have read this notice
+            and understand how your survey responses will be used and retained.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setConsented(true)}
+            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-3.5 text-base font-semibold shadow-sm"
+          >
+            Start Survey
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Opening location-confirm screen ───────────────────────────────────────
   if (locationOk === null) {
@@ -323,11 +380,17 @@ function FeedbackInner() {
           </div>
         )}
 
+        <p className="mt-6 text-xs text-gray-500 leading-relaxed">
+          By submitting this survey, you acknowledge that you have read the privacy and data
+          retention notice and understand that identifiable survey data will be deleted or
+          de-identified within 7 days, unless retention is required by law or hospital policy.
+        </p>
+
         <button
           type="button"
           disabled={submitting}
           onClick={trySubmit}
-          className="mt-6 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl px-4 py-3.5 text-base font-semibold shadow-sm"
+          className="mt-3 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl px-4 py-3.5 text-base font-semibold shadow-sm"
         >
           {submitting ? 'Submitting…' : 'Submit feedback'}
         </button>
