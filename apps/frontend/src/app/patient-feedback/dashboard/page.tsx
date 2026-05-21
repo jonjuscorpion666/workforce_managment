@@ -24,6 +24,7 @@ interface Dashboard {
   total: number;
   bySeverity: { GREEN: number; YELLOW: number; RED: number; CRITICAL: number };
   positivePct: number;
+  neutralPct: number;
   negativePct: number;
   openCritical: number;
   openRed: number;
@@ -36,13 +37,13 @@ interface Dashboard {
   mostCommonIssue: string | null;
   hospitalWithMostComplaints: string | null;
   bestHospital: string | null;
-  hospitals: { hospitalId: string; name: string; total: number; negative: number; positivePct: number }[];
+  hospitals: { hospitalId: string; name: string; total: number; positive: number; neutral: number; negative: number; positivePct: number }[];
   period: Period;
-  trend: { period: string; total: number; positive: number; negative: number }[];
+  trend: { period: string; total: number; positive: number; neutral: number; negative: number }[];
   perHospital: {
     hospitalId: string;
     name: string;
-    series: { period: string; total: number; positive: number; negative: number }[];
+    series: { period: string; total: number; positive: number; neutral: number; negative: number }[];
   }[];
 }
 
@@ -162,10 +163,11 @@ export default function FeedbackDashboard() {
       />
 
       <SectionLabel>Volume</SectionLabel>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Stat label="Total feedback" value={data.total} />
         <Stat label="Positive" value={`${data.positivePct}%`} accent="text-green-600" />
-        <Stat label="Negative" value={`${data.negativePct}%`} accent="text-amber-600" />
+        <Stat label="Neutral" value={`${data.neutralPct}%`} accent="text-amber-500" />
+        <Stat label="Negative" value={`${data.negativePct}%`} accent="text-red-600" />
         <Stat label="Open total" value={data.openTotal} />
       </div>
 
@@ -270,6 +272,7 @@ export default function FeedbackDashboard() {
               <Tooltip />
               <Legend />
               <Bar dataKey="positive" name="Positive" stackId="x" fill={SEVERITY.GREEN.hex} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="neutral" name="Neutral" stackId="x" fill={SEVERITY.YELLOW.hex} radius={[0, 0, 0, 0]} />
               <Bar dataKey="negative" name="Negative" stackId="x" fill={SEVERITY.RED.hex} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -305,7 +308,7 @@ function PerHospitalMatrix({
   const rows = [...perHospital]
     .map((h) => {
       const map = new Map(h.series.map((s) => [s.period, s] as [string, typeof s]));
-      const cells = buckets.map((b) => map.get(b) ?? { period: b, total: 0, positive: 0, negative: 0 });
+      const cells = buckets.map((b) => map.get(b) ?? { period: b, total: 0, positive: 0, neutral: 0, negative: 0 });
       const recentNeg = cells.reduce((s, c) => s + c.negative, 0);
       return { ...h, cells, recentNeg };
     })
@@ -315,7 +318,7 @@ function PerHospitalMatrix({
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mt-4 table-scroll">
       <div className="p-5 pb-2">
         <h2 className="font-semibold text-gray-800">Per-hospital — last {buckets.length} periods</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Each cell shows positive / negative.</p>
+        <p className="text-xs text-gray-400 mt-0.5">Each cell shows positive / neutral / negative.</p>
       </div>
       <table className="w-full text-sm whitespace-nowrap">
         <thead className="bg-gray-50 text-gray-500 text-left">
@@ -334,7 +337,7 @@ function PerHospitalMatrix({
                 const tint = c.negative > 0 && c.negative >= c.positive ? 'bg-red-50 text-red-700' : c.total > 0 ? 'text-gray-700' : 'text-gray-300';
                 return (
                   <td key={c.period} className={`px-3 py-2.5 text-center text-xs font-medium ${tint}`}>
-                    {c.total === 0 ? '—' : `${c.positive} / ${c.negative}`}
+                    {c.total === 0 ? '—' : `${c.positive} / ${c.neutral} / ${c.negative}`}
                   </td>
                 );
               })}

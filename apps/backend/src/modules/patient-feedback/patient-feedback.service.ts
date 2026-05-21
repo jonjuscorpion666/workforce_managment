@@ -75,6 +75,7 @@ const EMPTY_DASHBOARD = {
   total: 0,
   bySeverity: { GREEN: 0, YELLOW: 0, RED: 0, CRITICAL: 0 },
   positivePct: 0,
+  neutralPct: 0,
   negativePct: 0,
   openCritical: 0,
   openRed: 0,
@@ -87,12 +88,12 @@ const EMPTY_DASHBOARD = {
   mostCommonIssue: null as string | null,
   hospitalWithMostComplaints: null as string | null,
   bestHospital: null as string | null,
-  hospitals: [] as { hospitalId: string; name: string; total: number; negative: number; positivePct: number }[],
+  hospitals: [] as { hospitalId: string; name: string; total: number; positive: number; neutral: number; negative: number; positivePct: number }[],
   period: 'monthly' as Period,
-  trend: [] as { period: string; total: number; positive: number; negative: number }[],
+  trend: [] as { period: string; total: number; positive: number; neutral: number; negative: number }[],
   perHospital: [] as {
     hospitalId: string; name: string;
-    series: { period: string; total: number; positive: number; negative: number }[];
+    series: { period: string; total: number; positive: number; neutral: number; negative: number }[];
   }[],
 };
 
@@ -549,8 +550,11 @@ export class PatientFeedbackService {
       RED: feedbacks.filter((f) => f.severity === FeedbackSeverity.RED).length,
       CRITICAL: feedbacks.filter((f) => f.severity === FeedbackSeverity.CRITICAL).length,
     };
+    // Three-way split: Positive = all 🙂 (GREEN), Neutral = 😐 (YELLOW),
+    // Negative = 🙁 (RED + CRITICAL). Neutral is no longer lumped into negative.
     const positive = bySeverity.GREEN;
-    const negative = bySeverity.YELLOW + bySeverity.RED + bySeverity.CRITICAL;
+    const neutral = bySeverity.YELLOW;
+    const negative = bySeverity.RED + bySeverity.CRITICAL;
 
     const openTickets = tickets.filter(
       (t) => t.status === FeedbackTicketStatus.OPEN || t.status === FeedbackTicketStatus.IN_PROGRESS,
@@ -591,20 +595,24 @@ export class PatientFeedbackService {
       Object.entries(issueCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
     // Per-hospital rollup
-    const hospAgg: Record<string, { total: number; negative: number }> = {};
+    const sevBucket = (s: FeedbackSeverity): 'positive' | 'neutral' | 'negative' =>
+      s === FeedbackSeverity.GREEN ? 'positive' : s === FeedbackSeverity.YELLOW ? 'neutral' : 'negative';
+    const hospAgg: Record<string, { total: number; positive: number; neutral: number; negative: number }> = {};
     for (const f of feedbacks) {
       const hid = f.hospitalId || 'unknown';
-      hospAgg[hid] ??= { total: 0, negative: 0 };
+      hospAgg[hid] ??= { total: 0, positive: 0, neutral: 0, negative: 0 };
       hospAgg[hid].total += 1;
-      if (f.severity !== FeedbackSeverity.GREEN) hospAgg[hid].negative += 1;
+      hospAgg[hid][sevBucket(f.severity)] += 1;
     }
     const hospitalsAgg = Object.entries(hospAgg)
       .map(([hid, v]) => ({
         hospitalId: hid,
         name: hospMap.get(hid)?.name ?? 'Unknown',
         total: v.total,
+        positive: v.positive,
+        neutral: v.neutral,
         negative: v.negative,
-        positivePct: v.total ? Math.round(((v.total - v.negative) / v.total) * 100) : 0,
+        positivePct: v.total ? Math.round((v.positive / v.total) * 100) : 0,
       }))
       .sort((a, b) => b.negative - a.negative);
 
@@ -617,21 +625,20 @@ export class PatientFeedbackService {
     }
 
     // Overall series (already scoped to one hospital if a CNO or hospital filter)
-    const trend = buckets.map((b) => ({ period: b.label, total: 0, positive: 0, negative: 0 }));
+    const trend = buckets.map((b) => ({ period: b.label, total: 0, positive: 0, neutral: 0, negative: 0 }));
     for (const f of feedbacks) {
       const lbl = bucketLabelFor(f.submittedAt);
       if (!lbl) continue;
       const i = bucketIndex.get(lbl);
       if (i === undefined) continue;
       trend[i].total += 1;
-      if (f.severity === FeedbackSeverity.GREEN) trend[i].positive += 1;
-      else trend[i].negative += 1;
+      trend[i][sevBucket(f.severity)] += 1;
     }
 
     // Per-hospital series — only for SVP/SUPER_ADMIN; CNO already sees one hospital.
-    let perHospital: { hospitalId: string; name: string; series: { period: string; total: number; positive: number; negative: number }[] }[] = [];
+    let perHospital: { hospitalId: string; name: string; series: { period: string; total: number; positive: number; neutral: number; negative: number }[] }[] = [];
     if (scope.all) {
-      const empty = () => buckets.map((b) => ({ period: b.label, total: 0, positive: 0, negative: 0 }));
+      const empty = () => buckets.map((b) => ({ period: b.label, total: 0, positive: 0, neutral: 0, negative: 0 }));
       const byHosp: Record<string, { name: string; series: ReturnType<typeof empty> }> = {};
       for (const f of feedbacks) {
         const hid = f.hospitalId || 'unknown';
@@ -641,8 +648,7 @@ export class PatientFeedbackService {
         const i = bucketIndex.get(lbl);
         if (i === undefined) continue;
         byHosp[hid].series[i].total += 1;
-        if (f.severity === FeedbackSeverity.GREEN) byHosp[hid].series[i].positive += 1;
-        else byHosp[hid].series[i].negative += 1;
+        byHosp[hid].series[i][sevBucket(f.severity)] += 1;
       }
       perHospital = Object.entries(byHosp)
         .map(([hid, v]) => ({ hospitalId: hid, name: v.name, series: v.series }))
@@ -653,6 +659,7 @@ export class PatientFeedbackService {
       total,
       bySeverity,
       positivePct: total ? Math.round((positive / total) * 100) : 0,
+      neutralPct: total ? Math.round((neutral / total) * 100) : 0,
       negativePct: total ? Math.round((negative / total) * 100) : 0,
       openCritical: openTickets.filter((t) => t.severity === FeedbackSeverity.CRITICAL).length,
       openRed: openTickets.filter((t) => t.severity === FeedbackSeverity.RED).length,
