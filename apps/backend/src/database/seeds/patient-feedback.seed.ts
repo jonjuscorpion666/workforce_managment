@@ -4,7 +4,9 @@ import {
   FeedbackLocation, FeedbackLocationStatus,
 } from '../../modules/patient-feedback/entities/feedback-location.entity';
 import { FeedbackUnit, FeedbackUnitStatus } from '../../modules/patient-feedback/entities/feedback-unit.entity';
+import { FeedbackUnitMember } from '../../modules/patient-feedback/entities/feedback-unit-member.entity';
 import { OrgUnit } from '../../modules/org/entities/org-unit.entity';
+import { User } from '../../modules/auth/entities/user.entity';
 
 const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -62,7 +64,25 @@ export async function seedPatientFeedback(dataSource: DataSource) {
     return unit;
   }
   const westUnit = await ensureUnit('3 West');
-  await ensureUnit('ICU');
+  const icuUnit = await ensureUnit('ICU');
+
+  // ── Sample unit memberships ──────────────────────────────────────────────
+  // Director oversees 3 West + ICU; Manager covers 3 West. Demonstrates a
+  // Director with multiple units and a Manager scoped to one.
+  const memberRepo = dataSource.getRepository(FeedbackUnitMember);
+  const userRepo = dataSource.getRepository(User);
+  async function assignMember(email: string, unit: FeedbackUnit) {
+    const user = await userRepo.findOne({ where: { email } });
+    if (!user) return;
+    const exists = await memberRepo.findOne({ where: { unitId: unit.id, userId: user.id } });
+    if (!exists) {
+      await memberRepo.save(memberRepo.create({ unitId: unit.id, userId: user.id }));
+      console.log(`   ✓ Assigned ${email} → ${unit.name}`);
+    }
+  }
+  await assignMember('director@hospital.com', westUnit);
+  await assignMember('director@hospital.com', icuUnit);
+  await assignMember('manager@hospital.com', westUnit);
 
   // Pilot rooms live under "3 West". Existing pilot rooms are backfilled to it.
   let created = 0;

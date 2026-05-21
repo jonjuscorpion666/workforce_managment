@@ -33,6 +33,7 @@ import { ProgramCycle } from '../../modules/program-flow/entities/program-cycle.
 import { CycleStageStatus } from '../../modules/program-flow/entities/cycle-stage-status.entity';
 import { FeedbackLocation } from '../../modules/patient-feedback/entities/feedback-location.entity';
 import { FeedbackUnit } from '../../modules/patient-feedback/entities/feedback-unit.entity';
+import { FeedbackUnitMember } from '../../modules/patient-feedback/entities/feedback-unit-member.entity';
 import { PatientFeedback } from '../../modules/patient-feedback/entities/patient-feedback.entity';
 import { FeedbackTicket } from '../../modules/patient-feedback/entities/feedback-ticket.entity';
 
@@ -66,7 +67,7 @@ const AppDataSource = new DataSource({
     Program,
     ProgramCycle,
     CycleStageStatus,
-    FeedbackLocation, FeedbackUnit, PatientFeedback, FeedbackTicket,
+    FeedbackLocation, FeedbackUnit, FeedbackUnitMember, PatientFeedback, FeedbackTicket,
   ],
 });
 

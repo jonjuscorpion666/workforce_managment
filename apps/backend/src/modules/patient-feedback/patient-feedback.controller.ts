@@ -8,10 +8,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
-// Per the access rule: only SVP, CNO and SUPER_ADMIN may use the module.
-// SVP/SUPER_ADMIN see all hospitals; CNO sees only their own (enforced in the
-// service via resolveScope).
-const FEEDBACK_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNO'] as const;
+// Roles that may use the module. SVP/SUPER_ADMIN see all hospitals; CNO sees
+// their hospital; DIRECTOR/MANAGER see only their assigned units. All scoping
+// is enforced in the service via resolveScope.
+const FEEDBACK_MANAGERS = ['SUPER_ADMIN', 'SVP', 'CNO', 'DIRECTOR', 'MANAGER'] as const;
 
 @ApiTags('Patient Feedback')
 @Controller('patient-feedback')
@@ -126,6 +126,41 @@ export class PatientFeedbackController {
     return this.service.deleteUnit(id, req.user);
   }
 
+  // ── Admin: unit members (Directors / Managers) ─────────────────────────────
+
+  @Get('assignable-staff')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  @ApiOperation({ summary: 'Directors/Managers who can be assigned to a unit' })
+  assignableStaff(@Req() req: any) {
+    return this.service.listAssignableStaff(req.user);
+  }
+
+  @Get('units/:id/members')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  listUnitMembers(@Param('id') id: string, @Req() req: any) {
+    return this.service.listUnitMembers(id, req.user);
+  }
+
+  @Post('units/:id/members')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  addUnitMember(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.service.addUnitMember(id, body?.userId, req.user);
+  }
+
+  @Delete('units/:id/members/:userId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  removeUnitMember(@Param('id') id: string, @Param('userId') userId: string, @Req() req: any) {
+    return this.service.removeUnitMember(id, userId, req.user);
+  }
+
   // ── Admin: tickets ────────────────────────────────────────────────────────
 
   @Get('tickets')
@@ -140,8 +175,8 @@ export class PatientFeedbackController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  getTicket(@Param('id') id: string) {
-    return this.service.getTicket(id);
+  getTicket(@Param('id') id: string, @Req() req: any) {
+    return this.service.getTicket(id, req.user);
   }
 
   @Get('tickets/:id/history')

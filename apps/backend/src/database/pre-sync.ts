@@ -142,6 +142,24 @@ async function migrateActionPlansToTasks(client: Client) {
   console.log('pre-sync: action-plan → task migration complete (legacy tables dropped)');
 }
 
+// Backfill the denormalised unitId onto existing feedback + tickets from their
+// location, so Director/Manager unit scoping covers historical rows.
+async function backfillFeedbackUnitIds(client: Client) {
+  for (const table of ['patient_feedback', 'feedback_tickets']) {
+    if (!(await columnExists(client, table, 'unitId'))) continue;
+    if (!(await columnExists(client, table, 'locationId'))) continue;
+    const res = await client.query(`
+      UPDATE "${table}" t
+         SET "unitId" = l."unitId"
+        FROM "feedback_locations" l
+       WHERE t."locationId"::text = l.id::text
+         AND t."unitId" IS NULL
+         AND l."unitId" IS NOT NULL
+    `);
+    if (res.rowCount) console.log(`pre-sync: ${table} — backfilled unitId on ${res.rowCount} row(s)`);
+  }
+}
+
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -153,6 +171,7 @@ async function main() {
   try {
     await runNotNullBackfills(client);
     await migrateActionPlansToTasks(client);
+    await backfillFeedbackUnitIds(client);
   } finally {
     await client.end();
   }

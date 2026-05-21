@@ -51,16 +51,31 @@ function useHospitals() {
   return { hospitals, nameOf };
 }
 
-// What the current user may see. CNO → locked to one hospital.
-interface Scope { all: boolean; hospitalId: string | null; hospitalName: string | null }
+// What the current user may see.
+//  - SVP/SUPER_ADMIN → all hospitals (can pick hospital, add hospital, manage units)
+//  - CNO             → one hospital (locked hospital; can manage units)
+//  - DIRECTOR/MANAGER → specific units only (no hospital, no unit management)
+interface Scope {
+  all: boolean;
+  hospitalId: string | null;
+  hospitalName: string | null;
+  unitIds: string[];
+  canManageUnits: boolean;
+}
 function useScope() {
   const { data } = useQuery<Scope>({
     queryKey: ['fb-scope'],
     queryFn: () => api.get('/patient-feedback/scope').then((r) => r.data),
     staleTime: 5 * 60_000,
   });
-  const lockedHospitalId = data && !data.all ? data.hospitalId : null;
-  return { scope: data, lockedHospitalId };
+  return {
+    scope: data,
+    canPickHospital: !!data?.all,                 // only org-wide managers pick a hospital
+    canAddHospital: !!data?.all,
+    canManageUnits: !!data?.canManageUnits,
+    lockedHospitalId: data && !data.all ? data.hospitalId : null, // CNO's hospital (for Manage units)
+    restricted: !!data && !data.all,              // hide the top hospital filter
+  };
 }
 
 // Feedback units (the level between hospital and room).
@@ -72,9 +87,11 @@ function useUnits() {
   });
   const activeUnitsFor = (hospitalId?: string | null) =>
     hospitalId ? units.filter((u) => u.hospitalId === hospitalId && u.status === 'ACTIVE') : [];
+  // All active units the caller can see (already hospital/unit-scoped by the API).
+  const activeUnits = units.filter((u) => u.status === 'ACTIVE');
   const unitNameOf = (id?: string | null) =>
     id ? units.find((u) => u.id === id)?.name ?? null : null;
-  return { units, activeUnitsFor, unitNameOf };
+  return { units, activeUnits, activeUnitsFor, unitNameOf };
 }
 
 export default function LocationsPage() {
@@ -89,7 +106,7 @@ export default function LocationsPage() {
 
   const { hospitals, nameOf } = useHospitals();
   const { unitNameOf } = useUnits();
-  const { lockedHospitalId } = useScope();
+  const { canPickHospital, canAddHospital, canManageUnits, lockedHospitalId, restricted } = useScope();
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ['fb-locations'],
@@ -123,7 +140,7 @@ export default function LocationsPage() {
               <Printer className="w-4 h-4" /> Print labels
             </Link>
             {/* Only org-wide managers (SVP/SUPER_ADMIN) can add hospitals. */}
-            {!lockedHospitalId && (
+            {canAddHospital && (
               <button
                 onClick={() => setShowHospital(true)}
                 className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
@@ -131,12 +148,15 @@ export default function LocationsPage() {
                 <Plus className="w-4 h-4" /> Add hospital
               </button>
             )}
-            <button
-              onClick={() => setShowUnits(true)}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
-            >
-              <Building2 className="w-4 h-4" /> Manage units
-            </button>
+            {/* SVP/SUPER_ADMIN/CNO can create units and assign Directors/Managers. */}
+            {canManageUnits && (
+              <button
+                onClick={() => setShowUnits(true)}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+              >
+                <Building2 className="w-4 h-4" /> Manage units
+              </button>
+            )}
             <button
               onClick={() => setShowBulk(true)}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
@@ -153,8 +173,8 @@ export default function LocationsPage() {
         }
       />
 
-      {/* Hospital filter — hidden for a CNO, whose data is already scoped to one hospital. */}
-      {!lockedHospitalId && (
+      {/* Hospital filter — only org-wide managers; others are already scoped. */}
+      {canPickHospital && (
         <div className="mb-4 flex flex-wrap gap-2">
           <select
             value={hospitalFilter}
@@ -237,8 +257,8 @@ export default function LocationsPage() {
           onClose={() => setQrFor(null)}
         />
       )}
-      {showAdd && <AddModal lockedHospitalId={lockedHospitalId} onClose={() => setShowAdd(false)} />}
-      {showBulk && <BulkModal lockedHospitalId={lockedHospitalId} onClose={() => setShowBulk(false)} />}
+      {showAdd && <AddModal canPickHospital={canPickHospital} onClose={() => setShowAdd(false)} />}
+      {showBulk && <BulkModal canPickHospital={canPickHospital} onClose={() => setShowBulk(false)} />}
       {showUnits && <UnitsModal lockedHospitalId={lockedHospitalId} onClose={() => setShowUnits(false)} />}
       {showHospital && <AddHospitalModal onClose={() => setShowHospital(false)} />}
     </div>
@@ -307,15 +327,16 @@ function QrModal({
   );
 }
 
-function AddModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHospitalId?: string | null }) {
+function AddModal({ onClose, canPickHospital }: { onClose: () => void; canPickHospital?: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { hospitals } = useHospitals();
-  const { activeUnitsFor } = useUnits();
-  const [form, setForm] = useState({ hospitalId: lockedHospitalId ?? '', unitId: '', room: '' });
-  const units = activeUnitsFor(form.hospitalId);
+  const { activeUnits, activeUnitsFor } = useUnits();
+  const [form, setForm] = useState({ hospitalId: '', unitId: '', room: '' });
+  // Admin picks a hospital to narrow the unit list; everyone else sees their scoped units.
+  const units = canPickHospital ? activeUnitsFor(form.hospitalId) : activeUnits;
   const create = useMutation({
-    mutationFn: () => api.post('/patient-feedback/locations', form).then((r) => r.data),
+    mutationFn: () => api.post('/patient-feedback/locations', { unitId: form.unitId, room: form.room }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fb-locations'] });
       toast.success('Room created');
@@ -323,13 +344,13 @@ function AddModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHo
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to create'),
   });
-  const invalid = !form.hospitalId || !form.unitId || !form.room.trim();
+  const invalid = !form.unitId || !form.room.trim();
   return (
     <Overlay onClose={onClose}>
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Add room" onClose={onClose} />
         <div className="space-y-3">
-          {!lockedHospitalId && (
+          {canPickHospital && (
             <Field label="Hospital">
               <select
                 className="input"
@@ -347,11 +368,13 @@ function AddModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHo
             <select
               className="input disabled:bg-gray-50 disabled:text-gray-400"
               value={form.unitId}
-              disabled={!form.hospitalId}
+              disabled={canPickHospital && !form.hospitalId}
               onChange={(e) => setForm({ ...form, unitId: e.target.value })}
             >
               <option value="">
-                {!form.hospitalId ? '— Select hospital first —' : units.length ? '— Select unit —' : 'No units — add one in “Manage units”'}
+                {canPickHospital && !form.hospitalId
+                  ? '— Select hospital first —'
+                  : units.length ? '— Select unit —' : 'No units available'}
               </option>
               {units.map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
@@ -379,18 +402,17 @@ function AddModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHo
   );
 }
 
-function BulkModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHospitalId?: string | null }) {
+function BulkModal({ onClose, canPickHospital }: { onClose: () => void; canPickHospital?: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { hospitals } = useHospitals();
-  const { activeUnitsFor } = useUnits();
-  const [form, setForm] = useState({ hospitalId: lockedHospitalId ?? '', unitId: '', roomsCsv: '' });
-  const units = activeUnitsFor(form.hospitalId);
+  const { activeUnits, activeUnitsFor } = useUnits();
+  const [form, setForm] = useState({ hospitalId: '', unitId: '', roomsCsv: '' });
+  const units = canPickHospital ? activeUnitsFor(form.hospitalId) : activeUnits;
   const create = useMutation({
     mutationFn: () =>
       api
         .post('/patient-feedback/locations/bulk', {
-          hospitalId: form.hospitalId,
           unitId: form.unitId,
           rooms: form.roomsCsv.split(',').map((s) => s.trim()).filter(Boolean),
         })
@@ -408,7 +430,7 @@ function BulkModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedH
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Bulk generate rooms" onClose={onClose} />
         <div className="space-y-3">
-          {!lockedHospitalId && (
+          {canPickHospital && (
             <Field label="Hospital">
               <select
                 className="input"
@@ -426,11 +448,13 @@ function BulkModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedH
             <select
               className="input disabled:bg-gray-50 disabled:text-gray-400"
               value={form.unitId}
-              disabled={!form.hospitalId}
+              disabled={canPickHospital && !form.hospitalId}
               onChange={(e) => setForm({ ...form, unitId: e.target.value })}
             >
               <option value="">
-                {!form.hospitalId ? '— Select hospital first —' : units.length ? '— Select unit —' : 'No units — add one in “Manage units”'}
+                {canPickHospital && !form.hospitalId
+                  ? '— Select hospital first —'
+                  : units.length ? '— Select unit —' : 'No units available'}
               </option>
               {units.map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
@@ -450,7 +474,7 @@ function BulkModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedH
           </p>
         </div>
         <button
-          disabled={create.isPending || !form.hospitalId || !form.unitId || !form.roomsCsv.trim()}
+          disabled={create.isPending || !form.unitId || !form.roomsCsv.trim()}
           onClick={() => create.mutate()}
           className="mt-5 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-medium"
         >
@@ -458,6 +482,87 @@ function BulkModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedH
         </button>
       </div>
     </Overlay>
+  );
+}
+
+interface StaffMember { id: string; name: string; jobTitle: string | null; roles: string[] }
+interface UnitMember { id: string; userId: string; name: string; jobTitle: string | null }
+
+function useAssignableStaff() {
+  const { data = [] } = useQuery<StaffMember[]>({
+    queryKey: ['fb-assignable-staff'],
+    queryFn: () => api.get('/patient-feedback/assignable-staff').then((r) => r.data),
+    staleTime: 60_000,
+  });
+  return data;
+}
+
+// One unit row in Manage Units — handles its own member list + assignment.
+function UnitRow({ unit, onRemoveUnit, removing }: { unit: FeedbackUnit; onRemoveUnit: () => void; removing: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const staff = useAssignableStaff();
+  const [pick, setPick] = useState('');
+  const { data: members = [] } = useQuery<UnitMember[]>({
+    queryKey: ['fb-unit-members', unit.id],
+    queryFn: () => api.get(`/patient-feedback/units/${unit.id}/members`).then((r) => r.data),
+  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['fb-unit-members', unit.id] });
+  const add = useMutation({
+    mutationFn: (userId: string) => api.post(`/patient-feedback/units/${unit.id}/members`, { userId }),
+    onSuccess: () => { invalidate(); setPick(''); toast.success('Assigned'); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to assign'),
+  });
+  const removeMember = useMutation({
+    mutationFn: (userId: string) => api.delete(`/patient-feedback/units/${unit.id}/members/${userId}`),
+    onSuccess: () => { invalidate(); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to remove'),
+  });
+  const memberIds = new Set(members.map((m) => m.userId));
+  const available = staff.filter((s) => !memberIds.has(s.id));
+
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-gray-800">{unit.name}</span>
+        <button
+          onClick={onRemoveUnit}
+          disabled={removing}
+          title="Remove unit"
+          className="text-gray-400 hover:text-red-600 disabled:opacity-40"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {members.length === 0 && (
+          <span className="text-xs text-gray-400">No Directors/Managers assigned</span>
+        )}
+        {members.map((m) => (
+          <span key={m.userId} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 rounded-full pl-2 pr-1 py-0.5 text-xs">
+            {m.name}
+            <button onClick={() => removeMember.mutate(m.userId)} title="Remove" className="hover:text-red-600">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <select className="input text-xs flex-1" value={pick} onChange={(e) => setPick(e.target.value)}>
+          <option value="">{available.length ? '— Assign Director/Manager —' : 'No more staff to assign'}</option>
+          {available.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}{s.jobTitle ? ` — ${s.jobTitle}` : ''}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => pick && add.mutate(pick)}
+          disabled={!pick || add.isPending}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-3 text-xs font-medium"
+        >
+          Assign
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -494,8 +599,11 @@ function UnitsModal({ onClose, lockedHospitalId }: { onClose: () => void; locked
 
   return (
     <Overlay onClose={onClose}>
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+      <div className="bg-white rounded-2xl p-6 max-w-lg w-full">
         <Header title="Manage units" onClose={onClose} />
+        <p className="text-xs text-gray-400 -mt-2 mb-3">
+          Create units and assign the Directors/Managers who can see each unit&apos;s feedback.
+        </p>
         <div className="space-y-3">
           {!lockedHospitalId && (
             <Field label="Hospital">
@@ -514,22 +622,17 @@ function UnitsModal({ onClose, lockedHospitalId }: { onClose: () => void; locked
 
           {hospitalId && (
             <>
-              <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 max-h-56 overflow-y-auto">
+              <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 max-h-80 overflow-y-auto">
                 {hospUnits.length === 0 && (
                   <p className="px-3 py-3 text-sm text-gray-400">No units yet for this hospital.</p>
                 )}
                 {hospUnits.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between px-3 py-2">
-                    <span className="text-sm text-gray-800">{u.name}</span>
-                    <button
-                      onClick={() => remove.mutate(u.id)}
-                      disabled={remove.isPending}
-                      title="Remove unit"
-                      className="text-gray-400 hover:text-red-600 disabled:opacity-40"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <UnitRow
+                    key={u.id}
+                    unit={u}
+                    onRemoveUnit={() => remove.mutate(u.id)}
+                    removing={remove.isPending}
+                  />
                 ))}
               </div>
 

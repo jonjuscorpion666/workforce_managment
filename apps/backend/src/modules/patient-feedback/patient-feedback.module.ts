@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FeedbackLocation } from './entities/feedback-location.entity';
 import { FeedbackUnit } from './entities/feedback-unit.entity';
+import { FeedbackUnitMember } from './entities/feedback-unit-member.entity';
 import { PatientFeedback } from './entities/patient-feedback.entity';
 import { FeedbackTicket } from './entities/feedback-ticket.entity';
 import { User } from '../auth/entities/user.entity';
@@ -14,7 +15,7 @@ import { PatientFeedbackScheduler } from './patient-feedback.scheduler';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([FeedbackLocation, FeedbackUnit, PatientFeedback, FeedbackTicket, User, OrgUnit]),
+    TypeOrmModule.forFeature([FeedbackLocation, FeedbackUnit, FeedbackUnitMember, PatientFeedback, FeedbackTicket, User, OrgUnit]),
     EscalationsModule,
     AuditModule,
   ],

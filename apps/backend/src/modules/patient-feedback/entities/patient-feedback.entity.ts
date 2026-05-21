@@ -36,6 +36,12 @@ export class PatientFeedback {
   @Column({ nullable: true })
   locationId: string;
 
+  // Denormalised from the location at submit time so feedback can be scoped to
+  // a unit (Director/Manager access) without joining through the location.
+  @Index()
+  @Column({ nullable: true })
+  unitId: string;
+
   @Column({ type: 'enum', enum: FeedbackChannel, default: FeedbackChannel.QR_BED })
   channel: FeedbackChannel;
 

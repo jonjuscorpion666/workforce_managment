@@ -25,7 +25,7 @@ const allNavItems = [
   { label: 'Escalations',   href: '/escalations',   icon: ArrowUpCircle },
   { label: 'Announcements', href: '/announcements', icon: Megaphone },
   { label: 'Speak Up',      href: '/speak-up',      icon: MessageCircle },
-  { label: 'Patient Feedback', href: '/patient-feedback', icon: QrCode, roles: ['SUPER_ADMIN', 'SVP', 'CNO'] },
+  { label: 'Patient Feedback', href: '/patient-feedback', icon: QrCode, roles: ['SUPER_ADMIN', 'SVP', 'CNO', 'DIRECTOR', 'MANAGER'] },
   { label: 'Audit Log',     href: '/audit',         icon: ShieldCheck,    roles: ['SVP', 'SUPER_ADMIN'] },
   { label: 'Admin',         href: '/admin',         icon: Settings,       roles: ['SVP', 'SUPER_ADMIN', 'CNO', 'DIRECTOR', 'MANAGER'] },
   { label: 'Personas',      href: '/persona-map',   icon: Users2,         roles: ['SVP', 'SUPER_ADMIN'] },

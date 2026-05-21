@@ -6,6 +6,7 @@ import {
   FeedbackLocation, FeedbackLocationStatus,
 } from './entities/feedback-location.entity';
 import { FeedbackUnit, FeedbackUnitStatus } from './entities/feedback-unit.entity';
+import { FeedbackUnitMember } from './entities/feedback-unit-member.entity';
 import {
   PatientFeedback, FeedbackChannel, FeedbackSeverity,
 } from './entities/patient-feedback.entity';
@@ -37,9 +38,10 @@ function retentionDays(): number {
 interface RequestUser { id: string; email?: string; roles?: string[] }
 
 interface TicketScope {
-  all: boolean;       // true → no scoping
-  hospitalId?: string | null;
-  none?: boolean;     // true → caller can see nothing
+  all: boolean;            // true → no scoping (SVP / SUPER_ADMIN)
+  hospitalId?: string | null;  // CNO → their whole hospital
+  unitIds?: string[] | null;   // Director / Manager → specific units
+  none?: boolean;          // true → caller can see nothing
 }
 
 // ── Period bucketing helpers ─────────────────────────────────────────────────
@@ -102,6 +104,7 @@ export class PatientFeedbackService {
   constructor(
     @InjectRepository(FeedbackLocation) private readonly locationRepo: Repository<FeedbackLocation>,
     @InjectRepository(FeedbackUnit)     private readonly unitRepo:     Repository<FeedbackUnit>,
+    @InjectRepository(FeedbackUnitMember) private readonly memberRepo: Repository<FeedbackUnitMember>,
     @InjectRepository(PatientFeedback)  private readonly feedbackRepo: Repository<PatientFeedback>,
     @InjectRepository(FeedbackTicket)   private readonly ticketRepo:   Repository<FeedbackTicket>,
     @InjectRepository(User)             private readonly userRepo:     Repository<User>,
@@ -112,33 +115,48 @@ export class PatientFeedbackService {
 
   /**
    * RBAC scope (per the product rule):
-   *  - SUPER_ADMIN / SVP → everything
-   *  - CNO              → only their hospital
-   *  - everything else  → nothing (defence in depth; the route guard also blocks)
+   *  - SUPER_ADMIN / SVP   → everything
+   *  - CNO                 → only their hospital
+   *  - DIRECTOR / MANAGER  → only their assigned feedback unit(s)
+   *  - everything else     → nothing (defence in depth; route guard also blocks)
    */
   private async resolveScope(reqUser?: RequestUser): Promise<TicketScope> {
     const roles = reqUser?.roles ?? [];
     if (roles.some((r) => ALL_HOSPITAL_ROLES.includes(r))) return { all: true };
-    if (!roles.includes('CNO') || !reqUser?.id) return { all: false, none: true };
+    if (!reqUser?.id) return { all: false, none: true };
 
-    const user = await this.userRepo.findOne({
-      where: { id: reqUser.id },
-      relations: ['orgUnit', 'orgUnit.parent', 'orgUnit.parent.parent'],
-    });
-    if (!user?.orgUnit) return { all: false, none: true };
+    if (roles.includes('CNO')) {
+      const user = await this.userRepo.findOne({
+        where: { id: reqUser.id },
+        relations: ['orgUnit', 'orgUnit.parent', 'orgUnit.parent.parent'],
+      });
+      let node: any = user?.orgUnit ?? null;
+      while (node && node.level !== 'HOSPITAL') node = node.parent ?? null;
+      return node?.id ? { all: false, hospitalId: node.id } : { all: false, none: true };
+    }
 
-    let node: any = user.orgUnit;
-    while (node && node.level !== 'HOSPITAL') node = node.parent ?? null;
-    return node?.id ? { all: false, hospitalId: node.id } : { all: false, none: true };
+    if (roles.includes('DIRECTOR') || roles.includes('MANAGER')) {
+      const members = await this.memberRepo.find({ where: { userId: reqUser.id } });
+      const unitIds = members.map((m) => m.unitId);
+      return unitIds.length ? { all: false, unitIds } : { all: false, none: true };
+    }
+
+    return { all: false, none: true };
   }
 
   /** What the current user is allowed to see — drives the admin UI scoping. */
   async getScope(reqUser?: RequestUser) {
     const scope = await this.resolveScope(reqUser);
-    if (scope.all) return { all: true, hospitalId: null, hospitalName: null };
-    if (scope.none || !scope.hospitalId) return { all: false, hospitalId: null, hospitalName: null };
-    const hosp = await this.orgRepo.findOne({ where: { id: scope.hospitalId } });
-    return { all: false, hospitalId: scope.hospitalId, hospitalName: hosp?.name ?? null };
+    // canManageUnits: may create units, rooms anywhere in scope, and assign members.
+    if (scope.all) return { all: true, hospitalId: null, hospitalName: null, unitIds: [] as string[], canManageUnits: true };
+    if (scope.hospitalId) {
+      const hosp = await this.orgRepo.findOne({ where: { id: scope.hospitalId } });
+      return { all: false, hospitalId: scope.hospitalId, hospitalName: hosp?.name ?? null, unitIds: [] as string[], canManageUnits: true };
+    }
+    if (scope.unitIds?.length) {
+      return { all: false, hospitalId: null, hospitalName: null, unitIds: scope.unitIds, canManageUnits: false };
+    }
+    return { all: false, hospitalId: null, hospitalName: null, unitIds: [] as string[], canManageUnits: false };
   }
 
   /** The hospital's CNO is the owner of every auto-created ticket. */
@@ -214,6 +232,7 @@ export class PatientFeedbackService {
       this.feedbackRepo.create({
         token,
         locationId: loc.id,
+        unitId: loc.unitId ?? undefined,
         channel: FeedbackChannel.QR_BED, // single channel now; the QR_WARD enum value is retained but unused
         rating: numericRating ?? undefined,
         answers: answerRows,
@@ -252,6 +271,7 @@ export class PatientFeedbackService {
         ticketNumber,
         feedbackId: feedback.id,
         locationId: loc.id,
+        unitId: loc.unitId ?? undefined,
         severity: feedback.severity,
         status: FeedbackTicketStatus.OPEN,
         hospitalId: loc.hospitalId,
@@ -308,61 +328,80 @@ export class PatientFeedbackService {
       .addOrderBy('l.room', 'ASC');
     if (query.hospitalId) qb.andWhere('l.hospitalId = :h', { h: query.hospitalId });
     if (query.status)     qb.andWhere('l.status = :status', { status: query.status });
-    // CNO is locked to their own hospital.
+    // CNO → their hospital; Director/Manager → their assigned units.
     if (!scope.all && scope.hospitalId) qb.andWhere('l.hospitalId = :sh', { sh: scope.hospitalId });
+    if (!scope.all && scope.unitIds?.length) qb.andWhere('l.unitId IN (:...su)', { su: scope.unitIds });
     return qb.getMany();
+  }
+
+  // ── Scope helpers ───────────────────────────────────────────────────────────
+
+  /** SVP/SUPER_ADMIN or CNO may create units, add hospitals and assign members. */
+  private canManage(scope: TicketScope): boolean {
+    return scope.all || !!scope.hospitalId;
+  }
+
+  /** Authorize a write that targets a specific unit. The unit also defines the hospital. */
+  private assertUnitInScope(unit: FeedbackUnit | null | undefined, scope: TicketScope): asserts unit is FeedbackUnit {
+    if (!unit) throw new BadRequestException('Unit not found');
+    if (scope.all) return;
+    if (scope.hospitalId) {
+      if (unit.hospitalId !== scope.hospitalId) throw new ForbiddenException('Outside your hospital scope');
+      return;
+    }
+    if (scope.unitIds?.length) {
+      if (!scope.unitIds.includes(unit.id)) throw new ForbiddenException('Outside your unit scope');
+      return;
+    }
+    throw new ForbiddenException('Not permitted');
+  }
+
+  /** Authorize a write that targets an existing location. */
+  private assertLocationInScope(loc: FeedbackLocation, scope: TicketScope) {
+    if (scope.all) return;
+    if (scope.hospitalId) {
+      if (loc.hospitalId !== scope.hospitalId) throw new ForbiddenException('Outside your hospital scope');
+      return;
+    }
+    if (scope.unitIds?.length) {
+      if (!loc.unitId || !scope.unitIds.includes(loc.unitId)) throw new ForbiddenException('Outside your unit scope');
+      return;
+    }
+    throw new ForbiddenException('Not permitted');
   }
 
   async createLocation(body: any, reqUser?: RequestUser) {
     const scope = await this.resolveScope(reqUser);
-    // A CNO can only create rooms in their own hospital — force it.
-    const hospitalId = !scope.all && scope.hospitalId
-      ? scope.hospitalId
-      : String(body?.hospitalId ?? '').trim();
     const unitId = String(body?.unitId ?? '').trim();
     const room = String(body?.room ?? '').trim();
-    if (!hospitalId) throw new BadRequestException('hospitalId is required');
     if (!unitId) throw new BadRequestException('unitId is required');
     if (!room) throw new BadRequestException('room is required');
 
-    // Unit must exist and belong to this hospital.
+    // The unit determines the hospital and the caller's permission to add here.
     const unit = await this.unitRepo.findOne({ where: { id: unitId } });
-    if (!unit || unit.hospitalId !== hospitalId) {
-      throw new BadRequestException('Selected unit does not belong to this hospital');
-    }
+    this.assertUnitInScope(unit, scope);
+    const hospitalId = unit.hospitalId;
 
-    // Block duplicate room within the same unit (keeps "one QR per room").
     const dupe = await this.locationRepo.findOne({ where: { hospitalId, unitId, room } });
-    if (dupe) {
-      throw new BadRequestException(`A QR already exists for room "${room}" in this unit`);
-    }
+    if (dupe) throw new BadRequestException(`A QR already exists for room "${room}" in this unit`);
 
     const token = await this.genUniqueToken();
     return this.locationRepo.save(
-      this.locationRepo.create({
-        token,
-        hospitalId,
-        unitId,
-        room,
-        status: FeedbackLocationStatus.ACTIVE,
-      }),
+      this.locationRepo.create({ token, hospitalId, unitId, room, status: FeedbackLocationStatus.ACTIVE }),
     );
   }
 
   /** Bulk-create rooms from a list of room labels (CSV on the client). */
   async bulkCreateLocations(body: any, reqUser?: RequestUser) {
     const scope = await this.resolveScope(reqUser);
-    const hospitalId = !scope.all && scope.hospitalId
-      ? scope.hospitalId
-      : (body?.hospitalId ?? '');
     const { unitId, rooms } = body ?? {};
-    if (!hospitalId || !unitId || !Array.isArray(rooms) || rooms.length === 0) {
-      throw new BadRequestException('hospitalId, unitId and rooms[] are required');
+    if (!unitId || !Array.isArray(rooms) || rooms.length === 0) {
+      throw new BadRequestException('unitId and rooms[] are required');
     }
     const unit = await this.unitRepo.findOne({ where: { id: unitId } });
-    if (!unit || unit.hospitalId !== hospitalId) {
-      throw new BadRequestException('Selected unit does not belong to this hospital');
-    }
+    this.assertUnitInScope(unit, scope);
+    const hospitalId = unit.hospitalId;
+
     const created: FeedbackLocation[] = [];
     const skipped: string[] = [];
     for (const raw of rooms) {
@@ -370,7 +409,10 @@ export class PatientFeedbackService {
       if (!room) continue;
       const dupe = await this.locationRepo.findOne({ where: { hospitalId, unitId, room } });
       if (dupe) { skipped.push(room); continue; }
-      created.push(await this.createLocation({ hospitalId, unitId, room }));
+      const token = await this.genUniqueToken();
+      created.push(await this.locationRepo.save(
+        this.locationRepo.create({ token, hospitalId, unitId, room, status: FeedbackLocationStatus.ACTIVE }),
+      ));
     }
     return { created: created.length, skipped, locations: created };
   }
@@ -378,11 +420,15 @@ export class PatientFeedbackService {
   async updateLocation(id: string, body: any, reqUser?: RequestUser) {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
-    await this.assertInScope(loc.hospitalId, reqUser);
-    // A CNO cannot move a room to another hospital.
     const scope = await this.resolveScope(reqUser);
-    if (body.hospitalId !== undefined && scope.all) loc.hospitalId = body.hospitalId;
-    if (body.unitId !== undefined) loc.unitId = body.unitId || null as any;
+    this.assertLocationInScope(loc, scope);
+    // Moving a room to a different unit requires the target unit to be in scope.
+    if (body.unitId !== undefined && body.unitId && body.unitId !== loc.unitId) {
+      const newUnit = await this.unitRepo.findOne({ where: { id: String(body.unitId) } });
+      this.assertUnitInScope(newUnit, scope);
+      loc.unitId = newUnit.id;
+      loc.hospitalId = newUnit.hospitalId;
+    }
     if (body.room !== undefined) loc.room = String(body.room).trim();
     if (body.status !== undefined) loc.status = body.status;
     return this.locationRepo.save(loc);
@@ -391,19 +437,11 @@ export class PatientFeedbackService {
   async deleteLocation(id: string, reqUser?: RequestUser) {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
-    await this.assertInScope(loc.hospitalId, reqUser);
+    const scope = await this.resolveScope(reqUser);
+    this.assertLocationInScope(loc, scope);
     loc.status = FeedbackLocationStatus.INACTIVE;
     await this.locationRepo.save(loc);
     return { ok: true };
-  }
-
-  /** Throw if the user (a CNO) is acting outside their hospital. */
-  private async assertInScope(hospitalId: string | null | undefined, reqUser?: RequestUser) {
-    const scope = await this.resolveScope(reqUser);
-    if (scope.none) throw new ForbiddenException('Not permitted');
-    if (!scope.all && scope.hospitalId && hospitalId !== scope.hospitalId) {
-      throw new ForbiddenException('Outside your hospital scope');
-    }
   }
 
   // ── Units (the level between hospital and room) ─────────────────────────────
@@ -418,14 +456,14 @@ export class PatientFeedbackService {
     if (query.hospitalId) qb.andWhere('u.hospitalId = :h', { h: query.hospitalId });
     if (query.status)     qb.andWhere('u.status = :status', { status: query.status });
     if (!scope.all && scope.hospitalId) qb.andWhere('u.hospitalId = :sh', { sh: scope.hospitalId });
+    if (!scope.all && scope.unitIds?.length) qb.andWhere('u.id IN (:...su)', { su: scope.unitIds });
     return qb.getMany();
   }
 
   async createUnit(body: any, reqUser?: RequestUser) {
     const scope = await this.resolveScope(reqUser);
-    const hospitalId = !scope.all && scope.hospitalId
-      ? scope.hospitalId
-      : String(body?.hospitalId ?? '').trim();
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted to create units');
+    const hospitalId = scope.hospitalId ? scope.hospitalId : String(body?.hospitalId ?? '').trim();
     const name = String(body?.name ?? '').trim();
     if (!hospitalId) throw new BadRequestException('hospitalId is required');
     if (!name) throw new BadRequestException('name is required');
@@ -439,18 +477,20 @@ export class PatientFeedbackService {
   }
 
   async updateUnit(id: string, body: any, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted to edit units');
     const unit = await this.unitRepo.findOne({ where: { id } });
-    if (!unit) throw new NotFoundException('Unit not found');
-    await this.assertInScope(unit.hospitalId, reqUser);
+    this.assertUnitInScope(unit, scope);
     if (body.name !== undefined) unit.name = String(body.name).trim();
     if (body.status !== undefined) unit.status = body.status;
     return this.unitRepo.save(unit);
   }
 
   async deleteUnit(id: string, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted to remove units');
     const unit = await this.unitRepo.findOne({ where: { id } });
-    if (!unit) throw new NotFoundException('Unit not found');
-    await this.assertInScope(unit.hospitalId, reqUser);
+    this.assertUnitInScope(unit, scope);
     // Block deactivation if active rooms still reference it.
     const inUse = await this.locationRepo.count({
       where: { unitId: id, status: FeedbackLocationStatus.ACTIVE },
@@ -460,6 +500,74 @@ export class PatientFeedbackService {
     }
     unit.status = FeedbackUnitStatus.INACTIVE;
     await this.unitRepo.save(unit);
+    return { ok: true };
+  }
+
+  // ── Unit members (Directors / Managers assigned to a unit) ──────────────────
+
+  /** Directors/Managers who can be assigned to units (for the picker). */
+  async listAssignableStaff(reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted');
+    const users = await this.userRepo
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.roles', 'r')
+      .where('r.name IN (:...roles)', { roles: ['DIRECTOR', 'MANAGER'] })
+      .andWhere('u.status = :s', { s: 'ACTIVE' })
+      .orderBy('u.firstName', 'ASC')
+      .getMany();
+    return users.map((u) => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`,
+      jobTitle: (u as any).jobTitle ?? null,
+      roles: (u.roles ?? []).map((r) => r.name).filter((n) => n === 'DIRECTOR' || n === 'MANAGER'),
+    }));
+  }
+
+  async listUnitMembers(unitId: string, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted');
+    const unit = await this.unitRepo.findOne({ where: { id: unitId } });
+    this.assertUnitInScope(unit, scope);
+    const members = await this.memberRepo.find({ where: { unitId } });
+    const userIds = members.map((m) => m.userId);
+    const users = userIds.length ? await this.userRepo.find({ where: { id: In(userIds) } }) : [];
+    const userMap = new Map(users.map((u) => [u.id, u] as [string, typeof u]));
+    return members.map((m) => {
+      const u = userMap.get(m.userId);
+      return {
+        id: m.id,
+        userId: m.userId,
+        name: u ? `${u.firstName} ${u.lastName}` : 'Unknown',
+        jobTitle: (u as any)?.jobTitle ?? null,
+      };
+    });
+  }
+
+  async addUnitMember(unitId: string, userId: string, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted');
+    const unit = await this.unitRepo.findOne({ where: { id: unitId } });
+    this.assertUnitInScope(unit, scope);
+    if (!userId) throw new BadRequestException('userId is required');
+
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['roles'] });
+    const roles = (user?.roles ?? []).map((r) => r.name);
+    if (!user || !(roles.includes('DIRECTOR') || roles.includes('MANAGER'))) {
+      throw new BadRequestException('Only Directors and Managers can be assigned to a unit');
+    }
+
+    const existing = await this.memberRepo.findOne({ where: { unitId, userId } });
+    if (existing) return existing;
+    return this.memberRepo.save(this.memberRepo.create({ unitId, userId }));
+  }
+
+  async removeUnitMember(unitId: string, userId: string, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (!this.canManage(scope)) throw new ForbiddenException('Not permitted');
+    const unit = await this.unitRepo.findOne({ where: { id: unitId } });
+    this.assertUnitInScope(unit, scope);
+    await this.memberRepo.delete({ unitId, userId });
     return { ok: true };
   }
 
@@ -476,14 +584,30 @@ export class PatientFeedbackService {
     if (query.assignedToId) qb.andWhere('t.assignedToId = :a', { a: query.assignedToId });
 
     if (!scope.all && scope.hospitalId) qb.andWhere('t.hospitalId = :sh', { sh: scope.hospitalId });
+    if (!scope.all && scope.unitIds?.length) qb.andWhere('t.unitId IN (:...su)', { su: scope.unitIds });
 
     const tickets = await qb.getMany();
     return this.enrichTickets(tickets);
   }
 
-  async getTicket(id: string) {
+  /** Authorize access to a single ticket by the caller's scope. */
+  private assertTicketInScope(t: FeedbackTicket, scope: TicketScope) {
+    if (scope.all) return;
+    if (scope.hospitalId) {
+      if (t.hospitalId !== scope.hospitalId) throw new ForbiddenException('Outside your hospital scope');
+      return;
+    }
+    if (scope.unitIds?.length) {
+      if (!t.unitId || !scope.unitIds.includes(t.unitId)) throw new ForbiddenException('Outside your unit scope');
+      return;
+    }
+    throw new ForbiddenException('Not permitted');
+  }
+
+  async getTicket(id: string, reqUser?: RequestUser) {
     const t = await this.ticketRepo.findOne({ where: { id } });
     if (!t) throw new NotFoundException('Ticket not found');
+    this.assertTicketInScope(t, await this.resolveScope(reqUser));
     const [enriched] = await this.enrichTickets([t]);
     return enriched;
   }
@@ -496,6 +620,7 @@ export class PatientFeedbackService {
   async updateTicket(id: string, body: any, reqUser?: RequestUser) {
     const t = await this.ticketRepo.findOne({ where: { id } });
     if (!t) throw new NotFoundException('Ticket not found');
+    this.assertTicketInScope(t, await this.resolveScope(reqUser));
     const before = { ...t };
 
     if (body.status) t.status = body.status;
@@ -577,6 +702,11 @@ export class PatientFeedbackService {
     if (effectiveHospitalId) {
       fbQb.andWhere('f.hospitalId = :h', { h: effectiveHospitalId });
       tkQb.andWhere('t.hospitalId = :h', { h: effectiveHospitalId });
+    }
+    // Director/Manager → restrict to their assigned units.
+    if (scope.unitIds?.length) {
+      fbQb.andWhere('f.unitId IN (:...su)', { su: scope.unitIds });
+      tkQb.andWhere('t.unitId IN (:...su)', { su: scope.unitIds });
     }
     const [feedbacks, tickets] = await Promise.all([fbQb.getMany(), tkQb.getMany()]);
     const hospIds = Array.from(new Set(feedbacks.map((f) => f.hospitalId).filter(Boolean))) as string[];
@@ -733,6 +863,7 @@ export class PatientFeedbackService {
     if (query.hospitalId) qb.andWhere('f.hospitalId = :h', { h: query.hospitalId });
     if (query.channel)    qb.andWhere('f.channel = :c', { c: query.channel });
     if (!scope.all && scope.hospitalId) qb.andWhere('f.hospitalId = :sh', { sh: scope.hospitalId });
+    if (!scope.all && scope.unitIds?.length) qb.andWhere('f.unitId IN (:...su)', { su: scope.unitIds });
 
     const feedbacks = await qb.limit(Number(query.limit ?? 500)).getMany();
     const locIds = feedbacks.map((f) => f.locationId).filter(Boolean) as string[];

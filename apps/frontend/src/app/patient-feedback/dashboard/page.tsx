@@ -8,7 +8,6 @@ import {
 } from 'recharts';
 import { AlertOctagon, Clock, MessageSquare, TrendingUp } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import PfHeader from '@/components/patient-feedback/PfHeader';
 import { SEVERITY } from '@/components/patient-feedback/severity';
@@ -86,28 +85,34 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 interface OrgUnit { id: string; name: string; level: string }
 
 export default function FeedbackDashboard() {
-  const { hasRole } = useAuth();
-  const isCno = hasRole('CNO') && !hasRole('SVP') && !hasRole('SUPER_ADMIN');
-
   const [hospitalId, setHospitalId] = useState('');
   const [period, setPeriod] = useState<Period>('monthly');
+
+  // Only org-wide managers (SVP/SUPER_ADMIN) pick a hospital. CNO is locked to
+  // their hospital; Director/Manager to their units — both scoped server-side.
+  const { data: scope } = useQuery<{ all: boolean }>({
+    queryKey: ['fb-scope'],
+    queryFn: () => api.get('/patient-feedback/scope').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const canPickHospital = !!scope?.all;
 
   const { data: orgUnits = [] } = useQuery<OrgUnit[]>({
     queryKey: ['org-units'],
     queryFn: () => api.get('/org/units').then((r) => r.data),
     staleTime: 5 * 60_000,
-    enabled: !isCno, // CNO has nothing to pick — skip the lookup
+    enabled: canPickHospital, // others have nothing to pick — skip the lookup
   });
   const hospitals = orgUnits
     .filter((u) => u.level === 'HOSPITAL')
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const { data, isLoading } = useQuery<Dashboard>({
-    queryKey: ['fb-dashboard', hospitalId, period],
+    queryKey: ['fb-dashboard', hospitalId, period, canPickHospital],
     queryFn: () =>
       api
         .get('/patient-feedback/dashboard', {
-          params: { period, ...(hospitalId && !isCno ? { hospitalId } : {}) },
+          params: { period, ...(hospitalId && canPickHospital ? { hospitalId } : {}) },
         })
         .then((r) => r.data),
   });
@@ -146,7 +151,7 @@ export default function FeedbackDashboard() {
                 </button>
               ))}
             </div>
-            {!isCno && (
+            {canPickHospital && (
               <select
                 value={hospitalId}
                 onChange={(e) => setHospitalId(e.target.value)}
@@ -279,7 +284,7 @@ export default function FeedbackDashboard() {
         )}
       </div>
 
-      {!isCno && data.perHospital && data.perHospital.length > 0 && (
+      {canPickHospital && data.perHospital && data.perHospital.length > 0 && (
         <PerHospitalMatrix
           perHospital={data.perHospital}
           buckets={data.trend.slice(-6).map((b) => b.period)}

@@ -34,6 +34,11 @@ export class FeedbackTicket {
   @Column({ nullable: true })
   locationId: string;
 
+  // Denormalised from the location for unit-level scoping (Director/Manager).
+  @Index()
+  @Column({ nullable: true })
+  unitId: string;
+
   @Column({ type: 'enum', enum: FeedbackSeverity })
   severity: FeedbackSeverity;
 
