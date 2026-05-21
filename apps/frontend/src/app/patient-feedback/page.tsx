@@ -51,6 +51,18 @@ function useHospitals() {
   return { hospitals, nameOf };
 }
 
+// What the current user may see. CNO → locked to one hospital.
+interface Scope { all: boolean; hospitalId: string | null; hospitalName: string | null }
+function useScope() {
+  const { data } = useQuery<Scope>({
+    queryKey: ['fb-scope'],
+    queryFn: () => api.get('/patient-feedback/scope').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const lockedHospitalId = data && !data.all ? data.hospitalId : null;
+  return { scope: data, lockedHospitalId };
+}
+
 // Feedback units (the level between hospital and room).
 function useUnits() {
   const { data: units = [] } = useQuery<FeedbackUnit[]>({
@@ -76,6 +88,7 @@ export default function LocationsPage() {
 
   const { hospitals, nameOf } = useHospitals();
   const { unitNameOf } = useUnits();
+  const { lockedHospitalId } = useScope();
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ['fb-locations'],
@@ -130,18 +143,21 @@ export default function LocationsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <select
-          value={hospitalFilter}
-          onChange={(e) => setHospitalFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-        >
-          <option value="">All hospitals</option>
-          {hospitals.map((h) => (
-            <option key={h.id} value={h.id}>{h.name}</option>
-          ))}
-        </select>
-      </div>
+      {/* Hospital filter — hidden for a CNO, whose data is already scoped to one hospital. */}
+      {!lockedHospitalId && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <select
+            value={hospitalFilter}
+            onChange={(e) => setHospitalFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="">All hospitals</option>
+            {hospitals.map((h) => (
+              <option key={h.id} value={h.id}>{h.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm table-scroll">
         <table className="w-full text-sm whitespace-nowrap">
@@ -211,9 +227,9 @@ export default function LocationsPage() {
           onClose={() => setQrFor(null)}
         />
       )}
-      {showAdd && <AddModal onClose={() => setShowAdd(false)} />}
-      {showBulk && <BulkModal onClose={() => setShowBulk(false)} />}
-      {showUnits && <UnitsModal onClose={() => setShowUnits(false)} />}
+      {showAdd && <AddModal lockedHospitalId={lockedHospitalId} onClose={() => setShowAdd(false)} />}
+      {showBulk && <BulkModal lockedHospitalId={lockedHospitalId} onClose={() => setShowBulk(false)} />}
+      {showUnits && <UnitsModal lockedHospitalId={lockedHospitalId} onClose={() => setShowUnits(false)} />}
     </div>
   );
 }
@@ -280,12 +296,12 @@ function QrModal({
   );
 }
 
-function AddModal({ onClose }: { onClose: () => void }) {
+function AddModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHospitalId?: string | null }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { hospitals } = useHospitals();
   const { activeUnitsFor } = useUnits();
-  const [form, setForm] = useState({ hospitalId: '', unitId: '', room: '' });
+  const [form, setForm] = useState({ hospitalId: lockedHospitalId ?? '', unitId: '', room: '' });
   const units = activeUnitsFor(form.hospitalId);
   const create = useMutation({
     mutationFn: () => api.post('/patient-feedback/locations', form).then((r) => r.data),
@@ -302,18 +318,20 @@ function AddModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Add room" onClose={onClose} />
         <div className="space-y-3">
-          <Field label="Hospital">
-            <select
-              className="input"
-              value={form.hospitalId}
-              onChange={(e) => setForm({ ...form, hospitalId: e.target.value, unitId: '' })}
-            >
-              <option value="">— Select hospital —</option>
-              {hospitals.map((h) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
-          </Field>
+          {!lockedHospitalId && (
+            <Field label="Hospital">
+              <select
+                className="input"
+                value={form.hospitalId}
+                onChange={(e) => setForm({ ...form, hospitalId: e.target.value, unitId: '' })}
+              >
+                <option value="">— Select hospital —</option>
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Unit">
             <select
               className="input disabled:bg-gray-50 disabled:text-gray-400"
@@ -350,12 +368,12 @@ function AddModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function BulkModal({ onClose }: { onClose: () => void }) {
+function BulkModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHospitalId?: string | null }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { hospitals } = useHospitals();
   const { activeUnitsFor } = useUnits();
-  const [form, setForm] = useState({ hospitalId: '', unitId: '', roomsCsv: '' });
+  const [form, setForm] = useState({ hospitalId: lockedHospitalId ?? '', unitId: '', roomsCsv: '' });
   const units = activeUnitsFor(form.hospitalId);
   const create = useMutation({
     mutationFn: () =>
@@ -379,18 +397,20 @@ function BulkModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Bulk generate rooms" onClose={onClose} />
         <div className="space-y-3">
-          <Field label="Hospital">
-            <select
-              className="input"
-              value={form.hospitalId}
-              onChange={(e) => setForm({ ...form, hospitalId: e.target.value, unitId: '' })}
-            >
-              <option value="">— Select hospital —</option>
-              {hospitals.map((h) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
-          </Field>
+          {!lockedHospitalId && (
+            <Field label="Hospital">
+              <select
+                className="input"
+                value={form.hospitalId}
+                onChange={(e) => setForm({ ...form, hospitalId: e.target.value, unitId: '' })}
+              >
+                <option value="">— Select hospital —</option>
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Unit">
             <select
               className="input disabled:bg-gray-50 disabled:text-gray-400"
@@ -430,12 +450,12 @@ function BulkModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function UnitsModal({ onClose }: { onClose: () => void }) {
+function UnitsModal({ onClose, lockedHospitalId }: { onClose: () => void; lockedHospitalId?: string | null }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { hospitals } = useHospitals();
   const { units } = useUnits();
-  const [hospitalId, setHospitalId] = useState('');
+  const [hospitalId, setHospitalId] = useState(lockedHospitalId ?? '');
   const [newName, setNewName] = useState('');
 
   const hospUnits = hospitalId
@@ -466,18 +486,20 @@ function UnitsModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl p-6 max-w-md w-full">
         <Header title="Manage units" onClose={onClose} />
         <div className="space-y-3">
-          <Field label="Hospital">
-            <select
-              className="input"
-              value={hospitalId}
-              onChange={(e) => setHospitalId(e.target.value)}
-            >
-              <option value="">— Select hospital —</option>
-              {hospitals.map((h) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
-          </Field>
+          {!lockedHospitalId && (
+            <Field label="Hospital">
+              <select
+                className="input"
+                value={hospitalId}
+                onChange={(e) => setHospitalId(e.target.value)}
+              >
+                <option value="">— Select hospital —</option>
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           {hospitalId && (
             <>

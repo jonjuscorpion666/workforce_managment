@@ -42,20 +42,29 @@ export class PatientFeedbackController {
 
   // ── Admin: location master & QR ───────────────────────────────────────────
 
+  @Get('scope')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  @ApiOperation({ summary: 'What the current user may see (all hospitals vs one)' })
+  getScope(@Req() req: any) {
+    return this.service.getScope(req.user);
+  }
+
   @Get('locations')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  listLocations(@Query() query: any) {
-    return this.service.listLocations(query);
+  listLocations(@Query() query: any, @Req() req: any) {
+    return this.service.listLocations(query, req.user);
   }
 
   @Post('locations')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  createLocation(@Body() body: any) {
-    return this.service.createLocation(body);
+  createLocation(@Body() body: any, @Req() req: any) {
+    return this.service.createLocation(body, req.user);
   }
 
   @Post('locations/bulk')
@@ -63,24 +72,24 @@ export class PatientFeedbackController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
   @ApiOperation({ summary: 'Bulk-generate bed locations for a ward' })
-  bulkCreate(@Body() body: any) {
-    return this.service.bulkCreateLocations(body);
+  bulkCreate(@Body() body: any, @Req() req: any) {
+    return this.service.bulkCreateLocations(body, req.user);
   }
 
   @Patch('locations/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  updateLocation(@Param('id') id: string, @Body() body: any) {
-    return this.service.updateLocation(id, body);
+  updateLocation(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.service.updateLocation(id, body, req.user);
   }
 
   @Delete('locations/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  deleteLocation(@Param('id') id: string) {
-    return this.service.deleteLocation(id);
+  deleteLocation(@Param('id') id: string, @Req() req: any) {
+    return this.service.deleteLocation(id, req.user);
   }
 
   // ── Admin: units (level between hospital and room) ─────────────────────────
@@ -89,32 +98,32 @@ export class PatientFeedbackController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  listUnits(@Query() query: any) {
-    return this.service.listUnits(query);
+  listUnits(@Query() query: any, @Req() req: any) {
+    return this.service.listUnits(query, req.user);
   }
 
   @Post('units')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  createUnit(@Body() body: any) {
-    return this.service.createUnit(body);
+  createUnit(@Body() body: any, @Req() req: any) {
+    return this.service.createUnit(body, req.user);
   }
 
   @Patch('units/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  updateUnit(@Param('id') id: string, @Body() body: any) {
-    return this.service.updateUnit(id, body);
+  updateUnit(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.service.updateUnit(id, body, req.user);
   }
 
   @Delete('units/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...FEEDBACK_MANAGERS)
-  deleteUnit(@Param('id') id: string) {
-    return this.service.deleteUnit(id);
+  deleteUnit(@Param('id') id: string, @Req() req: any) {
+    return this.service.deleteUnit(id, req.user);
   }
 
   // ── Admin: tickets ────────────────────────────────────────────────────────

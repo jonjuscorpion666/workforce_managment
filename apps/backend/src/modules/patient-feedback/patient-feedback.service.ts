@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as crypto from 'crypto';
@@ -130,6 +130,15 @@ export class PatientFeedbackService {
     let node: any = user.orgUnit;
     while (node && node.level !== 'HOSPITAL') node = node.parent ?? null;
     return node?.id ? { all: false, hospitalId: node.id } : { all: false, none: true };
+  }
+
+  /** What the current user is allowed to see — drives the admin UI scoping. */
+  async getScope(reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (scope.all) return { all: true, hospitalId: null, hospitalName: null };
+    if (scope.none || !scope.hospitalId) return { all: false, hospitalId: null, hospitalName: null };
+    const hosp = await this.orgRepo.findOne({ where: { id: scope.hospitalId } });
+    return { all: false, hospitalId: scope.hospitalId, hospitalName: hosp?.name ?? null };
   }
 
   /** The hospital's CNO is the owner of every auto-created ticket. */
@@ -290,18 +299,26 @@ export class PatientFeedbackService {
     throw new BadRequestException('Could not generate a unique token, please retry');
   }
 
-  listLocations(query: any = {}) {
+  async listLocations(query: any = {}, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (scope.none) return [];
     const qb = this.locationRepo
       .createQueryBuilder('l')
       .orderBy('l.hospitalId', 'ASC')
       .addOrderBy('l.room', 'ASC');
     if (query.hospitalId) qb.andWhere('l.hospitalId = :h', { h: query.hospitalId });
     if (query.status)     qb.andWhere('l.status = :status', { status: query.status });
+    // CNO is locked to their own hospital.
+    if (!scope.all && scope.hospitalId) qb.andWhere('l.hospitalId = :sh', { sh: scope.hospitalId });
     return qb.getMany();
   }
 
-  async createLocation(body: any) {
-    const hospitalId = String(body?.hospitalId ?? '').trim();
+  async createLocation(body: any, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    // A CNO can only create rooms in their own hospital — force it.
+    const hospitalId = !scope.all && scope.hospitalId
+      ? scope.hospitalId
+      : String(body?.hospitalId ?? '').trim();
     const unitId = String(body?.unitId ?? '').trim();
     const room = String(body?.room ?? '').trim();
     if (!hospitalId) throw new BadRequestException('hospitalId is required');
@@ -333,8 +350,12 @@ export class PatientFeedbackService {
   }
 
   /** Bulk-create rooms from a list of room labels (CSV on the client). */
-  async bulkCreateLocations(body: any) {
-    const { hospitalId, unitId, rooms } = body ?? {};
+  async bulkCreateLocations(body: any, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    const hospitalId = !scope.all && scope.hospitalId
+      ? scope.hospitalId
+      : (body?.hospitalId ?? '');
+    const { unitId, rooms } = body ?? {};
     if (!hospitalId || !unitId || !Array.isArray(rooms) || rooms.length === 0) {
       throw new BadRequestException('hospitalId, unitId and rooms[] are required');
     }
@@ -354,38 +375,57 @@ export class PatientFeedbackService {
     return { created: created.length, skipped, locations: created };
   }
 
-  async updateLocation(id: string, body: any) {
+  async updateLocation(id: string, body: any, reqUser?: RequestUser) {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
-    if (body.hospitalId !== undefined) loc.hospitalId = body.hospitalId;
+    await this.assertInScope(loc.hospitalId, reqUser);
+    // A CNO cannot move a room to another hospital.
+    const scope = await this.resolveScope(reqUser);
+    if (body.hospitalId !== undefined && scope.all) loc.hospitalId = body.hospitalId;
     if (body.unitId !== undefined) loc.unitId = body.unitId || null as any;
     if (body.room !== undefined) loc.room = String(body.room).trim();
     if (body.status !== undefined) loc.status = body.status;
     return this.locationRepo.save(loc);
   }
 
-  async deleteLocation(id: string) {
+  async deleteLocation(id: string, reqUser?: RequestUser) {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
+    await this.assertInScope(loc.hospitalId, reqUser);
     loc.status = FeedbackLocationStatus.INACTIVE;
     await this.locationRepo.save(loc);
     return { ok: true };
   }
 
+  /** Throw if the user (a CNO) is acting outside their hospital. */
+  private async assertInScope(hospitalId: string | null | undefined, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (scope.none) throw new ForbiddenException('Not permitted');
+    if (!scope.all && scope.hospitalId && hospitalId !== scope.hospitalId) {
+      throw new ForbiddenException('Outside your hospital scope');
+    }
+  }
+
   // ── Units (the level between hospital and room) ─────────────────────────────
 
-  listUnits(query: any = {}) {
+  async listUnits(query: any = {}, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    if (scope.none) return [];
     const qb = this.unitRepo
       .createQueryBuilder('u')
       .orderBy('u.hospitalId', 'ASC')
       .addOrderBy('u.name', 'ASC');
     if (query.hospitalId) qb.andWhere('u.hospitalId = :h', { h: query.hospitalId });
     if (query.status)     qb.andWhere('u.status = :status', { status: query.status });
+    if (!scope.all && scope.hospitalId) qb.andWhere('u.hospitalId = :sh', { sh: scope.hospitalId });
     return qb.getMany();
   }
 
-  async createUnit(body: any) {
-    const hospitalId = String(body?.hospitalId ?? '').trim();
+  async createUnit(body: any, reqUser?: RequestUser) {
+    const scope = await this.resolveScope(reqUser);
+    const hospitalId = !scope.all && scope.hospitalId
+      ? scope.hospitalId
+      : String(body?.hospitalId ?? '').trim();
     const name = String(body?.name ?? '').trim();
     if (!hospitalId) throw new BadRequestException('hospitalId is required');
     if (!name) throw new BadRequestException('name is required');
@@ -398,17 +438,19 @@ export class PatientFeedbackService {
     );
   }
 
-  async updateUnit(id: string, body: any) {
+  async updateUnit(id: string, body: any, reqUser?: RequestUser) {
     const unit = await this.unitRepo.findOne({ where: { id } });
     if (!unit) throw new NotFoundException('Unit not found');
+    await this.assertInScope(unit.hospitalId, reqUser);
     if (body.name !== undefined) unit.name = String(body.name).trim();
     if (body.status !== undefined) unit.status = body.status;
     return this.unitRepo.save(unit);
   }
 
-  async deleteUnit(id: string) {
+  async deleteUnit(id: string, reqUser?: RequestUser) {
     const unit = await this.unitRepo.findOne({ where: { id } });
     if (!unit) throw new NotFoundException('Unit not found');
+    await this.assertInScope(unit.hospitalId, reqUser);
     // Block deactivation if active rooms still reference it.
     const inUse = await this.locationRepo.count({
       where: { unitId: id, status: FeedbackLocationStatus.ACTIVE },
