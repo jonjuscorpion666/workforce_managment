@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import {
   FeedbackLocation, FeedbackLocationStatus,
 } from './entities/feedback-location.entity';
+import { FeedbackUnit, FeedbackUnitStatus } from './entities/feedback-unit.entity';
 import {
   PatientFeedback, FeedbackChannel, FeedbackSeverity,
 } from './entities/patient-feedback.entity';
@@ -99,6 +100,7 @@ const EMPTY_DASHBOARD = {
 export class PatientFeedbackService {
   constructor(
     @InjectRepository(FeedbackLocation) private readonly locationRepo: Repository<FeedbackLocation>,
+    @InjectRepository(FeedbackUnit)     private readonly unitRepo:     Repository<FeedbackUnit>,
     @InjectRepository(PatientFeedback)  private readonly feedbackRepo: Repository<PatientFeedback>,
     @InjectRepository(FeedbackTicket)   private readonly ticketRepo:   Repository<FeedbackTicket>,
     @InjectRepository(User)             private readonly userRepo:     Repository<User>,
@@ -156,12 +158,19 @@ export class PatientFeedbackService {
     }
     const hospital = await this.orgRepo.findOne({ where: { id: loc.hospitalId } });
     const hospitalName = hospital?.name ?? 'Hospital';
+    const unit = loc.unitId ? await this.unitRepo.findOne({ where: { id: loc.unitId } }) : null;
+    const unitName = unit?.name ?? null;
+    const display = unitName
+      ? `${hospitalName} | ${unitName} | Room ${loc.room}`
+      : `${hospitalName} | Room ${loc.room}`;
     return {
       token: loc.token,
       hospitalId: loc.hospitalId,
       hospitalName,
+      unitId: loc.unitId ?? null,
+      unitName,
       room: loc.room,
-      display: `${hospitalName} | Room ${loc.room}`,
+      display,
       retentionDays: retentionDays(),
       form: this.getFormDefinition(),
     };
@@ -292,14 +301,22 @@ export class PatientFeedbackService {
 
   async createLocation(body: any) {
     const hospitalId = String(body?.hospitalId ?? '').trim();
+    const unitId = String(body?.unitId ?? '').trim();
     const room = String(body?.room ?? '').trim();
     if (!hospitalId) throw new BadRequestException('hospitalId is required');
+    if (!unitId) throw new BadRequestException('unitId is required');
     if (!room) throw new BadRequestException('room is required');
 
-    // Block duplicate room within the same hospital (keeps "one QR per room").
-    const dupe = await this.locationRepo.findOne({ where: { hospitalId, room } });
+    // Unit must exist and belong to this hospital.
+    const unit = await this.unitRepo.findOne({ where: { id: unitId } });
+    if (!unit || unit.hospitalId !== hospitalId) {
+      throw new BadRequestException('Selected unit does not belong to this hospital');
+    }
+
+    // Block duplicate room within the same unit (keeps "one QR per room").
+    const dupe = await this.locationRepo.findOne({ where: { hospitalId, unitId, room } });
     if (dupe) {
-      throw new BadRequestException(`A QR already exists for room "${room}" in this hospital`);
+      throw new BadRequestException(`A QR already exists for room "${room}" in this unit`);
     }
 
     const token = await this.genUniqueToken();
@@ -307,6 +324,7 @@ export class PatientFeedbackService {
       this.locationRepo.create({
         token,
         hospitalId,
+        unitId,
         room,
         status: FeedbackLocationStatus.ACTIVE,
       }),
@@ -315,18 +333,22 @@ export class PatientFeedbackService {
 
   /** Bulk-create rooms from a list of room labels (CSV on the client). */
   async bulkCreateLocations(body: any) {
-    const { hospitalId, rooms } = body ?? {};
-    if (!hospitalId || !Array.isArray(rooms) || rooms.length === 0) {
-      throw new BadRequestException('hospitalId and rooms[] are required');
+    const { hospitalId, unitId, rooms } = body ?? {};
+    if (!hospitalId || !unitId || !Array.isArray(rooms) || rooms.length === 0) {
+      throw new BadRequestException('hospitalId, unitId and rooms[] are required');
+    }
+    const unit = await this.unitRepo.findOne({ where: { id: unitId } });
+    if (!unit || unit.hospitalId !== hospitalId) {
+      throw new BadRequestException('Selected unit does not belong to this hospital');
     }
     const created: FeedbackLocation[] = [];
     const skipped: string[] = [];
     for (const raw of rooms) {
       const room = String(raw).trim();
       if (!room) continue;
-      const dupe = await this.locationRepo.findOne({ where: { hospitalId, room } });
+      const dupe = await this.locationRepo.findOne({ where: { hospitalId, unitId, room } });
       if (dupe) { skipped.push(room); continue; }
-      created.push(await this.createLocation({ hospitalId, room }));
+      created.push(await this.createLocation({ hospitalId, unitId, room }));
     }
     return { created: created.length, skipped, locations: created };
   }
@@ -335,6 +357,7 @@ export class PatientFeedbackService {
     const loc = await this.locationRepo.findOne({ where: { id } });
     if (!loc) throw new NotFoundException('Location not found');
     if (body.hospitalId !== undefined) loc.hospitalId = body.hospitalId;
+    if (body.unitId !== undefined) loc.unitId = body.unitId || null as any;
     if (body.room !== undefined) loc.room = String(body.room).trim();
     if (body.status !== undefined) loc.status = body.status;
     return this.locationRepo.save(loc);
@@ -345,6 +368,55 @@ export class PatientFeedbackService {
     if (!loc) throw new NotFoundException('Location not found');
     loc.status = FeedbackLocationStatus.INACTIVE;
     await this.locationRepo.save(loc);
+    return { ok: true };
+  }
+
+  // ── Units (the level between hospital and room) ─────────────────────────────
+
+  listUnits(query: any = {}) {
+    const qb = this.unitRepo
+      .createQueryBuilder('u')
+      .orderBy('u.hospitalId', 'ASC')
+      .addOrderBy('u.name', 'ASC');
+    if (query.hospitalId) qb.andWhere('u.hospitalId = :h', { h: query.hospitalId });
+    if (query.status)     qb.andWhere('u.status = :status', { status: query.status });
+    return qb.getMany();
+  }
+
+  async createUnit(body: any) {
+    const hospitalId = String(body?.hospitalId ?? '').trim();
+    const name = String(body?.name ?? '').trim();
+    if (!hospitalId) throw new BadRequestException('hospitalId is required');
+    if (!name) throw new BadRequestException('name is required');
+
+    const dupe = await this.unitRepo.findOne({ where: { hospitalId, name } });
+    if (dupe) throw new BadRequestException(`A unit named "${name}" already exists in this hospital`);
+
+    return this.unitRepo.save(
+      this.unitRepo.create({ hospitalId, name, status: FeedbackUnitStatus.ACTIVE }),
+    );
+  }
+
+  async updateUnit(id: string, body: any) {
+    const unit = await this.unitRepo.findOne({ where: { id } });
+    if (!unit) throw new NotFoundException('Unit not found');
+    if (body.name !== undefined) unit.name = String(body.name).trim();
+    if (body.status !== undefined) unit.status = body.status;
+    return this.unitRepo.save(unit);
+  }
+
+  async deleteUnit(id: string) {
+    const unit = await this.unitRepo.findOne({ where: { id } });
+    if (!unit) throw new NotFoundException('Unit not found');
+    // Block deactivation if active rooms still reference it.
+    const inUse = await this.locationRepo.count({
+      where: { unitId: id, status: FeedbackLocationStatus.ACTIVE },
+    });
+    if (inUse > 0) {
+      throw new BadRequestException(`Cannot remove — ${inUse} active room(s) still use this unit`);
+    }
+    unit.status = FeedbackUnitStatus.INACTIVE;
+    await this.unitRepo.save(unit);
     return { ok: true };
   }
 

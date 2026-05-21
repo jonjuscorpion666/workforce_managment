@@ -26,6 +26,12 @@ export class FeedbackLocation {
   @Column()
   hospitalId: string;
 
+  // FeedbackUnit id — the ward/unit between hospital and room. Nullable so
+  // pre-existing rooms keep working; required for newly created rooms.
+  @Index()
+  @Column({ nullable: true })
+  unitId: string;
+
   // Free-text room label as the hospital actually signs it (e.g. "312", "ICU-12").
   @Column()
   room: string;

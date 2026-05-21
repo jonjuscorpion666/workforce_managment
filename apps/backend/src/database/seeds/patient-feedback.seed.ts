@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import {
   FeedbackLocation, FeedbackLocationStatus,
 } from '../../modules/patient-feedback/entities/feedback-location.entity';
+import { FeedbackUnit, FeedbackUnitStatus } from '../../modules/patient-feedback/entities/feedback-unit.entity';
 import { OrgUnit } from '../../modules/org/entities/org-unit.entity';
 
 const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -24,6 +25,7 @@ function token(): string {
  */
 export async function seedPatientFeedback(dataSource: DataSource) {
   const repo = dataSource.getRepository(FeedbackLocation);
+  const unitRepo = dataSource.getRepository(FeedbackUnit);
   const orgRepo = dataSource.getRepository(OrgUnit);
 
   // ── one-shot cleanup after model trim ────────────────────────────────────
@@ -48,14 +50,33 @@ export async function seedPatientFeedback(dataSource: DataSource) {
     return;
   }
 
+  // ── Sample units (the level between hospital and room) ───────────────────
+  async function ensureUnit(name: string): Promise<FeedbackUnit> {
+    let unit = await unitRepo.findOne({ where: { hospitalId: indyHospital!.id, name } });
+    if (!unit) {
+      unit = await unitRepo.save(
+        unitRepo.create({ hospitalId: indyHospital!.id, name, status: FeedbackUnitStatus.ACTIVE }),
+      );
+      console.log(`   ✓ Seeded unit: ${name}`);
+    }
+    return unit;
+  }
+  const westUnit = await ensureUnit('3 West');
+  await ensureUnit('ICU');
+
+  // Pilot rooms live under "3 West". Existing pilot rooms are backfilled to it.
   let created = 0;
   for (const room of ['312', '313', '314']) {
     const exists = await repo.findOne({ where: { hospitalId: indyHospital.id, room } });
-    if (exists) continue;
+    if (exists) {
+      if (!exists.unitId) { exists.unitId = westUnit.id; await repo.save(exists); }
+      continue;
+    }
     await repo.save(
       repo.create({
         token: token(),
         hospitalId: indyHospital.id,
+        unitId: westUnit.id,
         room,
         status: FeedbackLocationStatus.ACTIVE,
       }),
@@ -64,7 +85,7 @@ export async function seedPatientFeedback(dataSource: DataSource) {
   }
   console.log(
     created > 0
-      ? `   ✓ Seeded ${created} room QR(s) under FH-INDY`
+      ? `   ✓ Seeded ${created} room QR(s) under FH-INDY · 3 West`
       : '   → All FH-INDY pilot rooms already present',
   );
 }

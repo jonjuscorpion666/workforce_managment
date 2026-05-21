@@ -83,6 +83,40 @@ export class PatientFeedbackController {
     return this.service.deleteLocation(id);
   }
 
+  // ── Admin: units (level between hospital and room) ─────────────────────────
+
+  @Get('units')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  listUnits(@Query() query: any) {
+    return this.service.listUnits(query);
+  }
+
+  @Post('units')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  createUnit(@Body() body: any) {
+    return this.service.createUnit(body);
+  }
+
+  @Patch('units/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  updateUnit(@Param('id') id: string, @Body() body: any) {
+    return this.service.updateUnit(id, body);
+  }
+
+  @Delete('units/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...FEEDBACK_MANAGERS)
+  deleteUnit(@Param('id') id: string) {
+    return this.service.deleteUnit(id);
+  }
+
   // ── Admin: tickets ────────────────────────────────────────────────────────
 
   @Get('tickets')

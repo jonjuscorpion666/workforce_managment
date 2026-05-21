@@ -12,10 +12,12 @@ interface Location {
   id: string;
   token: string;
   hospitalId: string;
+  unitId?: string | null;
   room: string;
   status: string;
 }
 interface OrgUnit { id: string; name: string; level: string }
+interface FeedbackUnit { id: string; name: string }
 
 function feedbackUrl(token: string) {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -33,6 +35,13 @@ function PrintInner() {
   });
   const hospitalName = (id: string) =>
     orgUnits.find((u) => u.id === id && u.level === 'HOSPITAL')?.name ?? 'Hospital';
+
+  const { data: units = [] } = useQuery<FeedbackUnit[]>({
+    queryKey: ['fb-units'],
+    queryFn: () => api.get('/patient-feedback/units').then((r) => r.data),
+    staleTime: 60_000,
+  });
+  const unitName = (id?: string | null) => (id ? units.find((u) => u.id === id)?.name ?? null : null);
 
   const { data: locations = [], isLoading } = useQuery<Location[]>({
     queryKey: ['fb-print', hospitalId],
@@ -85,7 +94,8 @@ function PrintInner() {
           >
             <p className="text-sm font-bold text-gray-900">Patient Feedback — Nursing Care</p>
             <p className="text-xs text-gray-600 mb-3">
-              {hospitalName(l.hospitalId)} | Room {l.room}
+              {hospitalName(l.hospitalId)}
+              {unitName(l.unitId) ? ` | ${unitName(l.unitId)}` : ''} | Room {l.room}
             </p>
             <div className="flex justify-center">
               <QRCodeSVG value={feedbackUrl(l.token)} size={150} includeMargin />
