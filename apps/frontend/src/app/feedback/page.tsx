@@ -321,7 +321,7 @@ function FeedbackInner() {
               <p className="text-base font-medium text-gray-800">{q.text}</p>
               <div className="flex gap-2 mt-3 flex-wrap">
                 {q.type === 'RATING' ? (
-                  <div className="flex gap-2">
+                  <div className="flex w-full justify-between gap-1.5">
                     {[1, 2, 3, 4, 5].map((n) => (
                       <button
                         key={n}
@@ -329,7 +329,7 @@ function FeedbackInner() {
                         aria-label={`Rate ${n} of 5`}
                         aria-pressed={answers[q.id] === n}
                         onClick={() => setAnswers((a) => ({ ...a, [q.id]: n }))}
-                        className={`w-12 h-12 rounded-full border-2 text-base font-semibold transition-all ${
+                        className={`w-11 h-11 shrink-0 rounded-full border-2 text-base font-semibold transition-all ${
                           answers[q.id] === n
                             ? `${RATING_COLORS[n - 1]} text-white scale-110`
                             : 'border-gray-200 text-gray-500 hover:border-gray-400'
