@@ -16,9 +16,10 @@
 **/*.log
 **/.DS_Store
 
-# Unrelated workspaces (backend image doesn't need them)
-apps/frontend
-packages
+# NOTE: do not exclude source workspaces (apps/*, packages/*) here — this
+# .dockerignore is shared by every image build from the repo root, and the
+# frontend Dockerfile copies apps/frontend. The big artifacts (node_modules,
+# .next, dist, .git) are already excluded above, which is where the savings are.
 
 # Tooling & CI
 .github
