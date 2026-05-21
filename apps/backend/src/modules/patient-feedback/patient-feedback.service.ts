@@ -581,6 +581,7 @@ export class PatientFeedbackService {
         const q = FEEDBACK_QUESTIONS.find((x) => x.id === a.questionId);
         if (!q) continue;
         const isNeg =
+          (q.type === 'SMILEY' && a.answer === 'UNHAPPY') ||
           (q.negativeIf && a.answer === q.negativeIf) ||
           (q.escalateIf && a.answer === q.escalateIf);
         if (isNeg) issueCount[q.text] = (issueCount[q.text] ?? 0) + 1;

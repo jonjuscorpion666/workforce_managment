@@ -15,8 +15,14 @@ const pub = axios.create({
 interface QuestionDef {
   id: string;
   text: string;
-  type: 'YES_NO' | 'YES_NO_NA' | 'RATING' | 'TEXT';
+  type: 'YES_NO' | 'YES_NO_NA' | 'RATING' | 'TEXT' | 'SMILEY';
 }
+
+const SMILEY_OPTIONS = [
+  { value: 'HAPPY',   emoji: '🙂', label: 'Happy',   sel: 'bg-green-500 border-green-500' },
+  { value: 'OKAY',    emoji: '😐', label: 'Okay',    sel: 'bg-amber-400 border-amber-400' },
+  { value: 'UNHAPPY', emoji: '🙁', label: 'Unhappy', sel: 'bg-red-500 border-red-500' },
+] as const;
 interface Resolved {
   token: string;
   hospitalId: string;
@@ -90,12 +96,13 @@ function FeedbackInner() {
 
   const questions = resolved?.form.questions ?? [];
   const choiceQuestions = useMemo(
-    () => questions.filter((q) => q.type === 'YES_NO' || q.type === 'YES_NO_NA' || q.type === 'RATING'),
+    () => questions.filter((q) => q.type === 'SMILEY' || q.type === 'YES_NO' || q.type === 'YES_NO_NA' || q.type === 'RATING'),
     [questions],
   );
 
+  // Questions the patient must answer before submitting (smileys + any yes/no).
   const requiredYesNo = useMemo(
-    () => questions.filter((q) => q.type === 'YES_NO' || q.type === 'YES_NO_NA'),
+    () => questions.filter((q) => q.type === 'SMILEY' || q.type === 'YES_NO' || q.type === 'YES_NO_NA'),
     [questions],
   );
 
@@ -320,7 +327,28 @@ function FeedbackInner() {
             >
               <p className="text-base font-medium text-gray-800">{q.text}</p>
               <div className="flex gap-2 mt-3 flex-wrap">
-                {q.type === 'RATING' ? (
+                {q.type === 'SMILEY' ? (
+                  <div className="flex w-full justify-between gap-2">
+                    {SMILEY_OPTIONS.map((opt) => {
+                      const selected = answers[q.id] === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-label={opt.label}
+                          aria-pressed={selected}
+                          onClick={() => setAnswers((a) => ({ ...a, [q.id]: opt.value }))}
+                          className={`flex-1 flex flex-col items-center gap-1 rounded-2xl border-2 py-3 transition-all ${
+                            selected ? `${opt.sel} text-white shadow scale-105` : 'bg-white border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <span className="text-4xl leading-none" aria-hidden="true">{opt.emoji}</span>
+                          <span className={`text-xs font-semibold ${selected ? 'text-white' : 'text-gray-600'}`}>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : q.type === 'RATING' ? (
                   <div className="flex w-full justify-between gap-1.5">
                     {[1, 2, 3, 4, 5].map((n) => (
                       <button

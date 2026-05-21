@@ -1,39 +1,40 @@
 import { FeedbackSeverity } from './entities/patient-feedback.entity';
 
-export type FeedbackQuestionType = 'YES_NO' | 'YES_NO_NA' | 'RATING' | 'TEXT';
+export type FeedbackQuestionType = 'YES_NO' | 'YES_NO_NA' | 'RATING' | 'TEXT' | 'SMILEY';
+
+// Smiley answer values (3-point scale). Stored verbatim in answers[].
+export type SmileyAnswer = 'HAPPY' | 'OKAY' | 'UNHAPPY';
 
 export interface FeedbackQuestionDef {
   id: string;
   text: string;
   type: FeedbackQuestionType;
-  /** The answer value that counts as a negative experience. */
+  /** The answer value that counts as a negative experience (YES_NO questions). */
   negativeIf?: 'Yes' | 'No';
   /** The answer value that should force an immediate (RED) escalation. */
   escalateIf?: 'Yes' | 'No';
-  /** Negative answer on this question is treated as a critical/RED signal. */
+  /** An UNHAPPY smiley (or negative answer) here is a critical/RED signal. */
   critical?: boolean;
 }
 
 /**
- * The fixed Inpatient Nursing Care feedback form. Kept short (< 1 minute).
+ * The fixed Inpatient Nursing Care feedback form. Deliberately tiny: four
+ * 3-smiley questions (🙂 Happy / 😐 Okay / 🙁 Unhappy) plus an optional comment,
+ * so a patient who may be unwell can answer in seconds without reading scales.
  * Order is the display order.
  */
 export const FEEDBACK_QUESTIONS: FeedbackQuestionDef[] = [
-  { id: 'satisfied',          text: 'Are you satisfied with nursing care?',          type: 'YES_NO',    negativeIf: 'No' },
-  { id: 'responded',          text: 'Did nurses respond when you called?',           type: 'YES_NO',    negativeIf: 'No' },
-  { id: 'medication_on_time', text: 'Was medicine given on time?',                   type: 'YES_NO_NA', negativeIf: 'No', critical: true },
-  { id: 'respectful',         text: 'Were nurses respectful and polite?',            type: 'YES_NO',    negativeIf: 'No', critical: true },
-  { id: 'explained',          text: 'Did nurses explain your care clearly?',         type: 'YES_NO',    negativeIf: 'No' },
-  { id: 'urgent_issue',       text: 'Is there any urgent issue right now?',          type: 'YES_NO',    escalateIf: 'Yes' },
-  { id: 'wants_contact',      text: 'Do you want someone to contact you?',           type: 'YES_NO',    escalateIf: 'Yes' },
-  { id: 'rating',             text: 'Rate nursing care overall (optional)',          type: 'RATING' },
-  { id: 'comment',            text: 'Anything else you would like to share? (optional)', type: 'TEXT' },
+  { id: 'pain',        text: 'How well is your pain being managed?', type: 'SMILEY', critical: true },
+  { id: 'food',        text: 'How happy are you with your meals?',   type: 'SMILEY' },
+  { id: 'cleanliness', text: 'How clean is your room and bathroom?', type: 'SMILEY' },
+  { id: 'overall',     text: 'Overall, how is your care so far?',    type: 'SMILEY' },
+  { id: 'comment',     text: 'Anything else you would like to tell us? (optional)', type: 'TEXT' },
 ];
 
 export const FEEDBACK_FORM_META = {
   title: 'Inpatient Nursing Care Feedback',
   description:
-    'Please share your feedback about nursing care. You do not need to enter your name, room number, or patient ID. Your location is captured automatically through the QR code to help us improve care and respond quickly when needed.',
+    'Tap a face for each question — there are no wrong answers. You do not need to enter your name, room number, or patient ID. Your location is captured automatically through the QR code to help us improve care and respond quickly when needed.',
 };
 
 export interface ClassificationResult {
@@ -42,71 +43,61 @@ export interface ClassificationResult {
 }
 
 /**
- * Green / Yellow / Red / Critical triage logic (design §6 & §14).
+ * Green / Yellow / Red / Critical triage for the 3-smiley form.
  *
- *  CRITICAL — an urgent issue combined with a safety/medication/respect
- *             concern (or a 1/5 rating with an urgent issue). Safety risk,
- *             serious medication concern, abuse-adjacent.
- *  RED      — urgent issue, contact requested, medication delay, rude
- *             behaviour, ≥3 negative answers, or rating ≤ 2.
- *  YELLOW   — 1–2 negative answers or a neutral (3) rating, nothing urgent.
- *  GREEN    — everything positive, nothing urgent, no contact requested.
+ *  CRITICAL — 🙁 on pain (clinically time-sensitive) OR 3+ 🙁 answers.
+ *  RED      — any 🙁 (the patient is unhappy with at least one area).
+ *  YELLOW   — any 😐, none 🙁.
+ *  GREEN    — all 🙂.
+ *
+ * Legacy YES_NO / RATING answers are still understood so old submissions
+ * classify sensibly, but the live form is smiley-only.
  */
 export function classifyFeedback(
   answers: Record<string, string | number | undefined>,
   rating?: number | null,
 ): ClassificationResult {
   const reasons: string[] = [];
-  let negatives = 0;
-  let red = false;
-  let urgent = false;
-  let criticalNegative = false;
+  let unhappy = 0;
+  let neutral = 0;
+  let painUnhappy = false;
+  let red = false; // legacy escalation paths
 
   for (const q of FEEDBACK_QUESTIONS) {
     const a = answers[q.id];
     if (a === undefined || a === null || a === '') continue;
 
-    if (q.escalateIf && a === q.escalateIf) {
-      red = true;
-      if (q.id === 'urgent_issue') {
-        urgent = true;
-        reasons.push('Urgent issue reported');
-      } else {
-        reasons.push('Patient requested contact');
+    if (q.type === 'SMILEY') {
+      if (a === 'UNHAPPY') {
+        unhappy += 1;
+        if (q.critical) painUnhappy = true;
+        reasons.push(`Unhappy: ${q.text}`);
+      } else if (a === 'OKAY') {
+        neutral += 1;
       }
+      continue;
     }
+
+    // ── Legacy answer shapes (kept for old submissions) ───────────────────
+    if (q.escalateIf && a === q.escalateIf) { red = true; reasons.push(`Flagged: ${q.text}`); }
     if (q.negativeIf && a === q.negativeIf) {
-      negatives += 1;
-      if (q.critical) {
-        red = true;
-        criticalNegative = true;
-        reasons.push(
-          q.id === 'medication_on_time' ? 'Medication not given on time' : 'Respect/politeness concern',
-        );
-      } else {
-        reasons.push(`Negative: ${q.text}`);
-      }
+      unhappy += 1;
+      if (q.critical) painUnhappy = true;
+      reasons.push(`Negative: ${q.text}`);
     }
   }
-
   const r = rating ?? null;
-  if (r !== null && r <= 2) {
-    red = true;
-    reasons.push(`Low overall rating (${r}/5)`);
-  }
+  if (r !== null && r <= 2) { red = true; reasons.push(`Low overall rating (${r}/5)`); }
 
-  // Critical: an urgent issue together with a safety/medication/respect
-  // concern, or the worst possible rating alongside an urgent issue.
-  if (urgent && (criticalNegative || r === 1)) {
-    reasons.push('Escalated to CRITICAL — urgent + safety/medication/respect concern');
+  if (painUnhappy || unhappy >= 3) {
+    reasons.push('Escalated to CRITICAL — pain concern or multiple unhappy answers');
     return { severity: FeedbackSeverity.CRITICAL, reasons };
   }
-
-  if (red || negatives >= 3) {
+  if (unhappy >= 1 || red) {
     return { severity: FeedbackSeverity.RED, reasons };
   }
-  if (negatives >= 1 || r === 3) {
-    if (r === 3 && negatives === 0) reasons.push('Neutral overall rating (3/5)');
+  if (neutral >= 1 || r === 3) {
+    if (r === 3 && neutral === 0) reasons.push('Neutral overall rating (3/5)');
     return { severity: FeedbackSeverity.YELLOW, reasons };
   }
   return { severity: FeedbackSeverity.GREEN, reasons: [] };
