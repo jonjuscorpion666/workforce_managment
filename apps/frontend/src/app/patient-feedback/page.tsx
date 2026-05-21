@@ -83,6 +83,7 @@ export default function LocationsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showUnits, setShowUnits] = useState(false);
+  const [showHospital, setShowHospital] = useState(false);
   const [qrFor, setQrFor] = useState<Location | null>(null);
   const [hospitalFilter, setHospitalFilter] = useState('');
 
@@ -121,6 +122,15 @@ export default function LocationsPage() {
             >
               <Printer className="w-4 h-4" /> Print labels
             </Link>
+            {/* Only org-wide managers (SVP/SUPER_ADMIN) can add hospitals. */}
+            {!lockedHospitalId && (
+              <button
+                onClick={() => setShowHospital(true)}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" /> Add hospital
+              </button>
+            )}
             <button
               onClick={() => setShowUnits(true)}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium"
@@ -230,6 +240,7 @@ export default function LocationsPage() {
       {showAdd && <AddModal lockedHospitalId={lockedHospitalId} onClose={() => setShowAdd(false)} />}
       {showBulk && <BulkModal lockedHospitalId={lockedHospitalId} onClose={() => setShowBulk(false)} />}
       {showUnits && <UnitsModal lockedHospitalId={lockedHospitalId} onClose={() => setShowUnits(false)} />}
+      {showHospital && <AddHospitalModal onClose={() => setShowHospital(false)} />}
     </div>
   );
 }
@@ -543,6 +554,61 @@ function UnitsModal({ onClose, lockedHospitalId }: { onClose: () => void; locked
             </>
           )}
         </div>
+      </div>
+    </Overlay>
+  );
+}
+
+function AddHospitalModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [form, setForm] = useState({ name: '', code: '' });
+  const create = useMutation({
+    mutationFn: () =>
+      api.post('/org/units', {
+        name: form.name.trim(),
+        code: form.code.trim() || undefined,
+        level: 'HOSPITAL',
+      }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['org-units'] });
+      toast.success('Hospital created');
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Failed to create hospital'),
+  });
+  return (
+    <Overlay onClose={onClose}>
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+        <Header title="Add hospital" onClose={onClose} />
+        <div className="space-y-3">
+          <Field label="Hospital name">
+            <input
+              className="input"
+              placeholder="e.g. Franciscan Health Olympia Fields"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </Field>
+          <Field label="Code (optional)">
+            <input
+              className="input"
+              placeholder="e.g. FH-OLYMPIA"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+            />
+          </Field>
+          <p className="text-xs text-gray-400">
+            Need address, beds, or contact details? Add those under Admin → Hospital Directory.
+          </p>
+        </div>
+        <button
+          disabled={create.isPending || !form.name.trim()}
+          onClick={() => create.mutate()}
+          className="mt-5 w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-medium"
+        >
+          {create.isPending ? 'Creating…' : 'Create hospital'}
+        </button>
       </div>
     </Overlay>
   );
