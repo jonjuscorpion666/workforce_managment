@@ -28,8 +28,6 @@ interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   issueId?: string;
-  milestoneId?: string;
-  milestoneName?: string;
   ownerId?: string;
   assignedToId?: string;
   parentTaskId?: string;
@@ -111,18 +109,11 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
   );
 }
 
-// ─── Types for issue/milestone pickers ───────────────────────────────────────
+// ─── Types for issue picker ───────────────────────────────────────────────────
 
 interface IssueSummary {
   id: string;
   title: string;
-  status: string;
-}
-
-interface MilestoneSummary {
-  id: string;
-  title: string;
-  dueDate?: string;
   status: string;
 }
 
@@ -138,7 +129,6 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
     assignedToId: '',
     dueDate: '',
     issueId: '',
-    milestoneId: '',
   });
 
   const set = (field: string, value: string) =>
@@ -149,19 +139,6 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
     queryKey: ['issues-summary'],
     queryFn: () => api.get('/issues').then((r) => r.data),
   });
-
-  // Load action plans (with milestones) when an issue is selected
-  const { data: actionPlans = [] } = useQuery<{ id: string; title: string; milestones: MilestoneSummary[] }[]>({
-    queryKey: ['issue-action-plans', form.issueId],
-    queryFn: () => api.get(`/issues/${form.issueId}/action-plans`).then((r) => r.data),
-    enabled: !!form.issueId,
-  });
-
-  const milestones: MilestoneSummary[] = actionPlans.flatMap((p) => p.milestones ?? []);
-
-  function handleIssueChange(issueId: string) {
-    setForm((f) => ({ ...f, issueId, milestoneId: '' }));
-  }
 
   const create = useMutation({
     mutationFn: (data: any) => api.post('/tasks', data).then((r) => r.data),
@@ -187,7 +164,6 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
     if (form.assignedToId)       payload.assignedToId = form.assignedToId;
     if (form.dueDate)            payload.dueDate = form.dueDate;
     if (form.issueId)            payload.issueId = form.issueId;
-    if (form.milestoneId)        payload.milestoneId = form.milestoneId;
     create.mutate(payload);
   }
 
@@ -254,7 +230,7 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
             <select
               className="input"
               value={form.issueId}
-              onChange={(e) => handleIssueChange(e.target.value)}
+              onChange={(e) => set('issueId', e.target.value)}
             >
               <option value="">— None —</option>
               {issues.map((issue) => (
@@ -262,25 +238,6 @@ function CreateTaskModal({ onClose, users }: { onClose: () => void; users: AppUs
               ))}
             </select>
           </div>
-
-          {/* Milestone picker — only shown when an issue with milestones is selected */}
-          {form.issueId && milestones.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Milestone <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <select
-                className="input"
-                value={form.milestoneId}
-                onChange={(e) => set('milestoneId', e.target.value)}
-              >
-                <option value="">— No milestone —</option>
-                {milestones.map((m) => (
-                  <option key={m.id} value={m.id}>{m.title}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
@@ -601,16 +558,6 @@ function TaskDetailPanel({
               <p className="text-sm text-gray-800">{formatDate(task.createdAt)}</p>
             </div>
           </div>
-
-          {/* Milestone */}
-          {task.milestoneName && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
-                <Layers className="w-3 h-3" /> Milestone
-              </p>
-              <p className="text-sm text-gray-800">{task.milestoneName}</p>
-            </div>
-          )}
 
           {/* Linked issue */}
           {task.issueId && (

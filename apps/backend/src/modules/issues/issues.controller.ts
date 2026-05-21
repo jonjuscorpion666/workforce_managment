@@ -85,43 +85,6 @@ export class IssuesController {
     return this.issuesService.autoCreateFromSurvey(body.surveyId, req.user.id);
   }
 
-  @Get(':id/action-plans')
-  @ApiOperation({ summary: 'Get all action plans for an issue' })
-  getActionPlans(@Param('id') id: string) {
-    return this.issuesService.getActionPlans(id);
-  }
-
-  @Post(':id/action-plans')
-  @ApiOperation({ summary: 'Create an action plan for an issue' })
-  createActionPlan(@Param('id') id: string, @Body() body: any, @Req() req: any) {
-    return this.issuesService.createActionPlan(id, body, req.user.id);
-  }
-
-  @Patch('action-plans/:planId')
-  @ApiOperation({ summary: 'Update an action plan' })
-  updateActionPlan(@Param('planId') planId: string, @Body() body: any, @Req() req: any) {
-    return this.issuesService.updateActionPlan(planId, body, req.user.id);
-  }
-
-  @Post('action-plans/:planId/milestones')
-  @ApiOperation({ summary: 'Add a milestone to an action plan' })
-  addMilestone(@Param('planId') planId: string, @Body() body: any) {
-    return this.issuesService.addMilestone(planId, body);
-  }
-
-  @Patch('milestones/:milestoneId')
-  @ApiOperation({ summary: 'Update a milestone' })
-  updateMilestone(@Param('milestoneId') milestoneId: string, @Body() body: any) {
-    return this.issuesService.updateMilestone(milestoneId, body);
-  }
-
-  @Delete('milestones/:milestoneId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a milestone' })
-  deleteMilestone(@Param('milestoneId') milestoneId: string) {
-    return this.issuesService.deleteMilestone(milestoneId);
-  }
-
   @Get(':id/comments')
   @ApiOperation({ summary: 'Get comments on an issue' })
   getComments(@Param('id') id: string) {

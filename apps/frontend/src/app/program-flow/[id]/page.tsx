@@ -186,7 +186,6 @@ export default function ProgramDetailPage() {
   const [editProblem, setEditProblem]     = useState('');
   const [editObjective, setEditObjective] = useState('');
   const [editCriteria, setEditCriteria]   = useState('');
-  const [remPlan, setRemPlan]             = useState('');
   const [commOpen, setCommOpen]           = useState(false);
   const [valOpen, setValOpen]             = useState(false);
   const [commReport, setCommReport]       = useState('');
@@ -244,7 +243,6 @@ export default function ProgramDetailPage() {
     setEditCriteria(program.successCriteria ?? '');
     setCommMessage(program.setupChecklist?.communicationMessage ?? '');
     setRcFindings(program.rootCauseChecklist?.findings ?? '');
-    setRemPlan(program.remediationChecklist?.actionPlan ?? '');
     setSetupOpen(program.currentStage === 'SETUP');
     setExecOpen(program.currentStage === 'EXECUTION');
     setRootCauseOpen(program.currentStage === 'ROOT_CAUSE');
@@ -676,14 +674,14 @@ export default function ProgramDetailPage() {
   const setupPreApprovalDone = ['meetingScheduled','employeeScopeDefined','communicationDrafted'].filter(k => !!(cl as any)[k]).length;
   const execDone    = ['surveyLaunched','reminderSent','surveyClosed'].filter(k => !!(execCl as any)[k]).length;
   const rcDone      = ['resultsReviewed','findingsDocumented','issuesCreated','teamAgreed'].filter(k => !!(rcCl as any)[k]).length;
-  const remDone     = ['actionPlanDrafted','tasksAssigned','progressReviewed'].filter(k => !!(remCl as any)[k]).length;
+  const remDone     = ['tasksAssigned','progressReviewed'].filter(k => !!(remCl as any)[k]).length;
   const commCl   = program.communicationChecklist ?? {};
   const valCl    = program.validationChecklist    ?? {};
   const commDone = ['reportPrepared', 'leadershipBriefed', 'employeesUpdated', 'documentationSaved'].filter(k => !!(commCl as any)[k]).length;
   const valDone  = ['followUpPlanned', 'metricsReviewed', 'successEvaluated', 'outcomesDocumented'].filter(k => !!(valCl as any)[k]).length;
 
   const checklistDone  = setupDone + execDone + rcDone + remDone + commDone + valDone;
-  const checklistTotal = 22;
+  const checklistTotal = 21;
   const checklistDotColor =
     checklistDone === 0            ? 'bg-gray-300'
     : checklistDone < checklistTotal ? 'bg-yellow-400'
@@ -809,7 +807,7 @@ export default function ProgramDetailPage() {
                 { label: 'Setup Checklist',       done: setupDone, total: 4 },
                 { label: 'Execution Orchestrator', done: execDone,  total: 3 },
                 { label: 'Root Cause Analysis',    done: rcDone,    total: 4 },
-                { label: 'Remediation',            done: remDone,   total: 3 },
+                { label: 'Remediation',            done: remDone,   total: 2 },
                 { label: 'Communication',          done: commDone,  total: 4 },
                 { label: 'Validation',             done: valDone,   total: 4 },
               ].map(({ label, done, total }) => (
@@ -1501,7 +1499,7 @@ export default function ProgramDetailPage() {
                   {!inRemOrLater && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                   <span className="text-sm font-bold text-gray-700 tracking-wide">REMEDIATION</span>
                   {inRemOrLater
-                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${remDone === 3 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{remDone}/3 done</span>
+                    ? <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${remDone === 2 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600'}`}>{remDone}/2 done</span>
                     : <span className="text-[11px] text-gray-400">Advance to Remediation to unlock</span>
                   }
                 </div>
@@ -1511,41 +1509,7 @@ export default function ProgramDetailPage() {
               {remOpen && inRemOrLater && (
                 <div className="border-t border-gray-50 px-5 pb-5 pt-3 space-y-2">
 
-                  {/* 1. Action plan */}
-                  {(() => {
-                    const drafted = !!remCl.actionPlanDrafted;
-                    return (
-                      <div className={`rounded-lg border overflow-hidden ${drafted ? 'border-green-200' : 'border-gray-200'}`}>
-                        <div className={`flex items-center gap-3 px-3 py-2.5 ${drafted ? 'bg-green-50' : 'bg-white'}`}>
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${drafted ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
-                            {drafted && <Check className="w-2.5 h-2.5 text-white" />}
-                          </div>
-                          <span className={`text-sm flex-1 ${drafted ? 'text-green-700 line-through' : 'text-gray-700'}`}>Action plan drafted</span>
-                          <span className="text-[10px] text-gray-400">auto</span>
-                        </div>
-                        <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2.5">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-[10px] text-gray-400">Outline remediation actions → ticks above</p>
-                            <button type="button" onClick={() => enhance('remPlan', 'remediation action plan for a healthcare workforce improvement program', remPlan, setRemPlan)}
-                              disabled={!remPlan.trim() || !!enhancing}
-                              className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                              <Sparkles className="w-3 h-3" />{enhancing === 'remPlan' ? 'Enhancing…' : 'Enhance'}
-                            </button>
-                          </div>
-                          <textarea rows={3}
-                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-                            placeholder="e.g. 1. Revise handover protocol — owner: Charge Nurse, due May 15&#10;2. Escalation training — owner: HR, due May 30…"
-                            value={remPlan}
-                            onChange={(e) => setRemPlan(e.target.value)}
-                            onBlur={() => { const t = remPlan.trim(); remediationMutation.mutate({ actionPlan: t, actionPlanDrafted: !!t }); }}
-                          />
-                          <AIDisclaimer />
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* 2. Issue tracker */}
+                  {/* 1. Issue tracker */}
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <div className="flex items-center gap-3 px-3 py-2.5 bg-white">
                       <BarChart2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -1638,13 +1602,13 @@ export default function ProgramDetailPage() {
                     )}
                   </div>
 
-                  {/* 3. Tasks assigned — auto when at least one issue has a task with owner + due date */}
+                  {/* 2. Tasks assigned — auto when at least one issue has a task with owner + due date */}
                   <CheckRow checked={!!remCl.tasksAssigned} label="Tasks assigned with owners & due dates"
                     auto={tasksAreAssigned}
                     onClick={tasksAreAssigned ? undefined : () => remediationMutation.mutate({ tasksAssigned: !remCl.tasksAssigned })}
                   />
 
-                  {/* 4. Progress reviewed */}
+                  {/* 3. Progress reviewed */}
                   <CheckRow checked={!!remCl.progressReviewed} label="Progress formally reviewed"
                     onClick={() => remediationMutation.mutate({ progressReviewed: !remCl.progressReviewed })}
                   />

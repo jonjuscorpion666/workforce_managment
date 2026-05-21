@@ -48,6 +48,16 @@ export class Issue {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  // Planning context (folded in from the removed ActionPlan model).
+  @Column({ type: 'text', nullable: true })
+  objective: string;
+
+  @Column({ type: 'text', nullable: true })
+  rootCauseSummary: string;
+
+  @Column({ type: 'text', nullable: true })
+  successCriteria: string;
+
   @Column({ type: 'enum', enum: IssueStatus, default: IssueStatus.OPEN })
   status: IssueStatus;
 

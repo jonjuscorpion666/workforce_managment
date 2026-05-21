@@ -15,7 +15,6 @@ import { Question } from '../../modules/surveys/entities/question.entity';
 import { Response } from '../../modules/responses/entities/response.entity';
 import { Issue } from '../../modules/issues/entities/issue.entity';
 import { IssueHistory } from '../../modules/issues/entities/issue-history.entity';
-import { ActionPlan, ActionPlanMilestone } from '../../modules/issues/entities/action-plan.entity';
 import { Task } from '../../modules/tasks/entities/task.entity';
 import { TaskAttachment } from '../../modules/tasks/entities/task-attachment.entity';
 import { TaskComment } from '../../modules/tasks/entities/task-comment.entity';
@@ -53,7 +52,7 @@ const AppDataSource = new DataSource({
   entities: [
     User, Role, Permission, OrgUnit,
     Survey, Question, Response,
-    Issue, IssueHistory, ActionPlan, ActionPlanMilestone,
+    Issue, IssueHistory,
     Task, TaskAttachment, TaskComment,
     Escalation,
     Meeting, MeetingNote,

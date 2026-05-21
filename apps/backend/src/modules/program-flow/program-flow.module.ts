@@ -6,7 +6,6 @@ import { OrgUnit } from '../org/entities/org-unit.entity';
 import { Survey } from '../surveys/entities/survey.entity';
 import { Response } from '../responses/entities/response.entity';
 import { Issue } from '../issues/entities/issue.entity';
-import { ActionPlan } from '../issues/entities/action-plan.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { ProgramFlowController } from './program-flow.controller';
 import { ProgramFlowService } from './program-flow.service';
@@ -20,7 +19,6 @@ import { ProgramFlowService } from './program-flow.service';
       Survey,
       Response,
       Issue,
-      ActionPlan,
       Task,
     ]),
   ],

@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, In, IsNull } from 'typeorm';
 import { Task, TaskStatus } from './entities/task.entity';
 import { TaskComment } from './entities/task-comment.entity';
-import { ActionPlanMilestone } from '../issues/entities/action-plan.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
 import { User } from '../auth/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
@@ -13,19 +12,10 @@ export class TasksService {
   constructor(
     @InjectRepository(Task) private readonly repo: Repository<Task>,
     @InjectRepository(TaskComment) private readonly commentRepo: Repository<TaskComment>,
-    @InjectRepository(ActionPlanMilestone) private readonly milestoneRepo: Repository<ActionPlanMilestone>,
     @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly auditService: AuditService,
   ) {}
-
-  private async enrichWithMilestone(tasks: Task[]): Promise<any[]> {
-    const ids = [...new Set(tasks.map((t) => t.milestoneId).filter(Boolean))] as string[];
-    if (!ids.length) return tasks;
-    const milestones = await this.milestoneRepo.find({ where: { id: In(ids) } });
-    const map = new Map(milestones.map((m) => [m.id, m.title]));
-    return tasks.map((t) => ({ ...t, milestoneName: t.milestoneId ? (map.get(t.milestoneId) ?? null) : null }));
-  }
 
   private async resolveHospitalOrgUnitId(userId: string): Promise<{ orgUnitId: string | null; hospitalId: string | null }> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['orgUnit'] });
@@ -68,8 +58,7 @@ export class TasksService {
       { deptId: query.departmentId },
     );
 
-    const tasks = await qb.getMany();
-    return this.enrichWithMilestone(tasks);
+    return qb.getMany();
   }
 
   async findOne(id: string) {
@@ -78,8 +67,7 @@ export class TasksService {
       relations: ['subTasks', 'parentTask'],
     });
     if (!task) throw new NotFoundException(`Task ${id} not found`);
-    const [enriched] = await this.enrichWithMilestone([task]);
-    return enriched;
+    return task;
   }
 
   async update(id: string, data: any, updatedById: string) {

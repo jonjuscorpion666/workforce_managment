@@ -517,7 +517,7 @@ export class ProgramsService {
 
       const EXEC_KEYS: (keyof ExecutionChecklist)[]       = ['surveyLaunched', 'reminderSent', 'surveyClosed'];
       const RC_KEYS:   (keyof RootCauseChecklist)[]       = ['resultsReviewed', 'findingsDocumented', 'issuesCreated', 'teamAgreed'];
-      const REM_KEYS:  (keyof RemediationChecklist)[]     = ['actionPlanDrafted', 'tasksAssigned', 'progressReviewed'];
+      const REM_KEYS:  (keyof RemediationChecklist)[]     = ['tasksAssigned', 'progressReviewed'];
       const COMM_KEYS: (keyof CommunicationChecklist)[] = ['reportPrepared', 'leadershipBriefed', 'employeesUpdated', 'documentationSaved'];
       const VAL_KEYS:  (keyof ValidationChecklist)[]     = ['followUpPlanned', 'metricsReviewed', 'successEvaluated', 'outcomesDocumented'];
 

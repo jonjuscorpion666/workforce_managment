@@ -59,11 +59,7 @@ export interface RootCauseChecklist {
 }
 
 export interface RemediationChecklist {
-  /** Text action plan — auto-ticks actionPlanDrafted when saved */
-  actionPlan?:         string;
-  /** Auto — ticked when action plan text is saved */
-  actionPlanDrafted?:  boolean;
-  /** Manual — tasks/action plans have been assigned with owners */
+  /** Auto — ticked when tasks are assigned to issues with owners & due dates */
   tasksAssigned?:      boolean;
   /** Manual — progress has been formally reviewed */
   progressReviewed?:   boolean;

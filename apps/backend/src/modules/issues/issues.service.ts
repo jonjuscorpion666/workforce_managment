@@ -4,7 +4,6 @@ import { Repository, In, Not } from 'typeorm';
 import { Issue, IssueStatus, IssueSeverity, IssuePriority, IssueSource } from './entities/issue.entity';
 import { IssueComment } from './entities/issue-comment.entity';
 import { IssueHistory } from './entities/issue-history.entity';
-import { ActionPlan, ActionPlanMilestone, ActionPlanStatus, MilestoneStatus } from './entities/action-plan.entity';
 import { AuditService } from '../audit/audit.service';
 import { Response } from '../responses/entities/response.entity';
 import { OrgUnit } from '../org/entities/org-unit.entity';
@@ -52,8 +51,6 @@ export class IssuesService {
   constructor(
     @InjectRepository(Issue) private readonly repo: Repository<Issue>,
     @InjectRepository(IssueHistory) private readonly historyRepo: Repository<IssueHistory>,
-    @InjectRepository(ActionPlan) private readonly actionPlanRepo: Repository<ActionPlan>,
-    @InjectRepository(ActionPlanMilestone) private readonly milestoneRepo: Repository<ActionPlanMilestone>,
     @InjectRepository(Response) private readonly responseRepo: Repository<Response>,
     @InjectRepository(OrgUnit) private readonly orgUnitRepo: Repository<OrgUnit>,
     @InjectRepository(Config)       private readonly configRepo:      Repository<Config>,
@@ -337,113 +334,6 @@ export class IssuesService {
     return { created: created.length, skipped, issues: created };
   }
 
-  // ─── Action Plan CRUD ────────────────────────────────────────────────────────
-  async createActionPlan(issueId: string, data: any, createdById: string) {
-    // Verify issue exists
-    const issue = await this.findOne(issueId);
-
-    const plan = this.actionPlanRepo.create({
-      ...data,
-      issueId,
-      createdById,
-    });
-    const savedPlan = await this.actionPlanRepo.save(plan);
-
-    // Advance issue status to ACTION_PLANNED if still OPEN or already ACTION_PLANNED
-    if (issue.status === IssueStatus.OPEN || issue.status === IssueStatus.ACTION_PLANNED) {
-      await this.repo.update(issueId, {
-        status: IssueStatus.ACTION_PLANNED,
-        lastStatusChangeAt: new Date(),
-      });
-    }
-
-    return savedPlan;
-  }
-
-  async getActionPlans(issueId: string) {
-    // Verify issue exists
-    await this.findOne(issueId);
-    return this.actionPlanRepo.find({
-      where: { issueId },
-      relations: ['milestones'],
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async updateActionPlan(planId: string, data: any, updatedById: string) {
-    const plan = await this.actionPlanRepo.findOne({ where: { id: planId }, relations: ['milestones'] });
-    if (!plan) throw new NotFoundException(`Action plan ${planId} not found`);
-
-    // If milestones were updated externally, recalculate progressPercent
-    if (plan.milestones && plan.milestones.length > 0) {
-      const completed = plan.milestones.filter((m) => m.status === MilestoneStatus.COMPLETED).length;
-      data.progressPercent = Math.round((completed / plan.milestones.length) * 100);
-    }
-
-    Object.assign(plan, data);
-    return this.actionPlanRepo.save(plan);
-  }
-
-  async addMilestone(planId: string, data: any) {
-    const plan = await this.actionPlanRepo.findOne({ where: { id: planId } });
-    if (!plan) throw new NotFoundException(`Action plan ${planId} not found`);
-
-    const milestone = this.milestoneRepo.create({
-      ...data,
-      actionPlanId: planId,
-    });
-    return this.milestoneRepo.save(milestone);
-  }
-
-  async deleteMilestone(milestoneId: string) {
-    const milestone = await this.milestoneRepo.findOne({ where: { id: milestoneId } });
-    if (!milestone) throw new NotFoundException(`Milestone ${milestoneId} not found`);
-    await this.milestoneRepo.remove(milestone);
-  }
-
-  async updateMilestone(milestoneId: string, data: any) {
-    const milestone = await this.milestoneRepo.findOne({ where: { id: milestoneId } });
-    if (!milestone) throw new NotFoundException(`Milestone ${milestoneId} not found`);
-
-    Object.assign(milestone, data);
-
-    // Auto-mark OVERDUE if past dueDate and not completed
-    if (
-      milestone.dueDate &&
-      milestone.status !== MilestoneStatus.COMPLETED &&
-      new Date(milestone.dueDate) < new Date()
-    ) {
-      milestone.status = MilestoneStatus.OVERDUE;
-    }
-
-    return this.milestoneRepo.save(milestone);
-  }
-
-  async getOverdueActionPlans() {
-    const now = new Date();
-
-    // Auto-update milestone statuses to OVERDUE where past due
-    const pendingMilestones = await this.milestoneRepo
-      .createQueryBuilder('m')
-      .where('m.dueDate < :now', { now })
-      .andWhere('m.status = :status', { status: MilestoneStatus.PENDING })
-      .getMany();
-
-    for (const m of pendingMilestones) {
-      m.status = MilestoneStatus.OVERDUE;
-      await this.milestoneRepo.save(m);
-    }
-
-    // Return action plans where endDate < now and status = ACTIVE
-    return this.actionPlanRepo
-      .createQueryBuilder('ap')
-      .leftJoinAndSelect('ap.milestones', 'milestones')
-      .where('ap.endDate < :now', { now })
-      .andWhere('ap.status = :status', { status: ActionPlanStatus.ACTIVE })
-      .orderBy('ap.endDate', 'ASC')
-      .getMany();
-  }
-
   async delete(id: string) {
     const issue = await this.repo.findOne({ where: { id } });
     if (!issue) throw new NotFoundException(`Issue ${id} not found`);
@@ -456,7 +346,7 @@ export class IssuesService {
       await this.taskRepo.delete({ issueId: id });
     }
 
-    // IssueHistory, ActionPlans, and Milestones cascade via DB FK onDelete
+    // IssueHistory cascades via DB FK onDelete
     await this.historyRepo.delete({ issueId: id });
     await this.repo.delete(id);
   }

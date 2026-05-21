@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Issue } from './entities/issue.entity';
 import { IssueComment } from './entities/issue-comment.entity';
 import { IssueHistory } from './entities/issue-history.entity';
-import { ActionPlan, ActionPlanMilestone } from './entities/action-plan.entity';
 import { IssuesController } from './issues.controller';
 import { IssuesService } from './issues.service';
 import { AuditModule } from '../audit/audit.module';
@@ -16,7 +15,7 @@ import { TaskComment } from '../tasks/entities/task-comment.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Issue, IssueComment, IssueHistory, ActionPlan, ActionPlanMilestone, Response, OrgUnit, User, Config, Task, TaskComment]),
+    TypeOrmModule.forFeature([Issue, IssueComment, IssueHistory, Response, OrgUnit, User, Config, Task, TaskComment]),
     AuditModule,
   ],
   controllers: [IssuesController],

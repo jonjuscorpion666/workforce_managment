@@ -2,6 +2,7 @@ import {
   Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany,
   CreateDateColumn, UpdateDateColumn, DeleteDateColumn,
 } from 'typeorm';
+import { Issue } from '../../issues/entities/issue.entity';
 
 export enum TaskStatus {
   TODO = 'TODO',
@@ -34,11 +35,11 @@ export class Task {
   @Column({ type: 'enum', enum: TaskPriority, default: TaskPriority.MEDIUM })
   priority: TaskPriority;
 
-  @Column({ nullable: true })
-  issueId: string;
+  @ManyToOne(() => Issue, { nullable: true, onDelete: 'CASCADE' })
+  issue: Issue;
 
   @Column({ nullable: true })
-  milestoneId: string;
+  issueId: string;
 
   @Column({ nullable: true })
   ownerId: string;

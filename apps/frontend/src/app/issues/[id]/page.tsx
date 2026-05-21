@@ -4,13 +4,11 @@ import { useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, Plus, ChevronDown, ChevronRight, Check, Clock, AlertCircle, X,
-  CheckCircle2, CircleDot, Trash2, Pencil,
+  ArrowLeft, AlertCircle, X, CircleDot, Trash2, Pencil,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
-import { FieldHint } from '@/components/ui/FieldHint';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,6 +17,9 @@ interface Issue {
   id: string;
   title: string;
   description?: string;
+  objective?: string;
+  rootCauseSummary?: string;
+  successCriteria?: string;
   status: string;
   severity: string;
   issueLevel: string;
@@ -49,30 +50,6 @@ interface HistoryEntry {
   note?: string;
   createdAt: string;
   changedBy?: { firstName?: string; lastName?: string; email?: string };
-}
-
-interface Milestone {
-  id: string;
-  title: string;
-  dueDate?: string;
-  status: string;
-  completedAt?: string;
-}
-
-interface ActionPlan {
-  id: string;
-  title: string;
-  status: string;
-  progress: number;
-  objective?: string;
-  plannedActions?: string[];
-  rootCauseSummary?: string;
-  successCriteria?: string;
-  endDate?: string;
-  notes?: string;
-  ownerId?: string;
-  milestones?: Milestone[];
-  createdAt: string;
 }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -136,535 +113,6 @@ function planStatusClass(status: string) {
 
 function labelify(s: string) {
   return s.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-// ─── Add Milestone Form ───────────────────────────────────────────────────────
-
-function AddMilestoneForm({ planId, onDone }: { planId: string; onDone: () => void }) {
-  const qc = useQueryClient();
-  const { id } = useParams<{ id: string }>();
-  const [title, setTitle] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const toast = useToast();
-
-  const add = useMutation({
-    mutationFn: () => api.post(`/issues/action-plans/${planId}/milestones`, { title, dueDate: dueDate || undefined }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['action-plans', id] });
-      toast.success('Milestone added');
-      onDone();
-    },
-    onError: () => toast.error('Failed to add milestone'),
-  });
-
-  return (
-    <div className="border border-dashed border-gray-300 rounded-lg p-3 mt-2 space-y-2">
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          Milestone title
-          <FieldHint significance="A phase or checkpoint within the action plan — chunks the plan into deliverable phases." example="Mentor pairing complete" />
-        </label>
-        <input
-          className="input text-sm"
-          placeholder="Milestone title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          Due date
-          <FieldHint significance="When this milestone should be complete. Drives 'Overdue' status and progress percentage." example="2026-06-15" />
-        </label>
-        <input type="date" className="input text-sm" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-      </div>
-      <div className="flex gap-2">
-        <button
-          className="btn-primary text-xs py-1 px-3"
-          disabled={!title || add.isPending}
-          onClick={() => add.mutate()}
-        >
-          {add.isPending ? 'Adding...' : 'Add'}
-        </button>
-        <button className="btn-secondary text-xs py-1 px-3" onClick={onDone}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Milestone Edit Form ──────────────────────────────────────────────────────
-
-function MilestoneEditForm({
-  milestone,
-  onSave,
-  onCancel,
-  isSaving,
-}: {
-  milestone: Milestone;
-  onSave: (title: string, dueDate: string) => void;
-  onCancel: () => void;
-  isSaving: boolean;
-}) {
-  const [title, setTitle] = useState(milestone.title);
-  const [dueDate, setDueDate] = useState(
-    milestone.dueDate ? milestone.dueDate.slice(0, 10) : '',
-  );
-
-  return (
-    <div className="border border-dashed border-blue-200 rounded-lg p-3 space-y-2 bg-blue-50/30">
-      <input
-        className="input text-sm"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Milestone title"
-      />
-      <input
-        type="date"
-        className="input text-sm"
-        value={dueDate}
-        onChange={(e) => setDueDate(e.target.value)}
-      />
-      <div className="flex gap-2">
-        <button
-          className="btn-primary text-xs py-1 px-3"
-          disabled={!title.trim() || isSaving}
-          onClick={() => onSave(title.trim(), dueDate)}
-        >
-          {isSaving ? 'Saving…' : 'Save'}
-        </button>
-        <button className="btn-secondary text-xs py-1 px-3" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Action Plan Card ─────────────────────────────────────────────────────────
-
-function ActionPlanCard({ plan, issueId }: { plan: ActionPlan; issueId: string }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [showObjective, setShowObjective] = useState(false);
-  const [showActions, setShowActions] = useState(false);
-  const [showAddMilestone, setShowAddMilestone] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [editProgress, setEditProgress] = useState(String(plan.progress));
-  const [editNotes, setEditNotes] = useState(plan.notes ?? '');
-  const [editStatus, setEditStatus] = useState(plan.status);
-  const [confirmCompleteId, setConfirmCompleteId] = useState<string | null>(null);
-  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
-
-  const completeMilestone = useMutation({
-    mutationFn: (milestoneId: string) =>
-      api.patch(`/issues/milestones/${milestoneId}`, { status: 'COMPLETED', completedAt: new Date().toISOString() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
-      setConfirmCompleteId(null);
-      toast.success('Milestone completed');
-    },
-    onError: () => toast.error('Failed to complete milestone'),
-  });
-
-  const deleteMilestone = useMutation({
-    mutationFn: (milestoneId: string) => api.delete(`/issues/milestones/${milestoneId}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['action-plans', issueId] }); toast.success('Milestone deleted'); },
-    onError: () => toast.error('Failed to delete milestone'),
-  });
-
-  const editMilestone = useMutation({
-    mutationFn: ({ id, title, dueDate }: { id: string; title: string; dueDate: string }) =>
-      api.patch(`/issues/milestones/${id}`, { title, dueDate: dueDate || undefined }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
-      setEditingMilestone(null);
-      toast.success('Milestone updated');
-    },
-    onError: () => toast.error('Failed to update milestone'),
-  });
-
-  const updatePlan = useMutation({
-    mutationFn: () =>
-      api.patch(`/issues/action-plans/${plan.id}`, {
-        progress: Number(editProgress),
-        notes: editNotes || undefined,
-        status: editStatus,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
-      setShowEditForm(false);
-      toast.success('Action plan updated');
-    },
-    onError: () => toast.error('Failed to update action plan'),
-  });
-
-  const now = new Date();
-
-  function milestoneIcon(m: Milestone) {
-    if (m.status === 'COMPLETED') return <Check className="w-4 h-4 text-green-500 flex-shrink-0" />;
-    if (m.dueDate && new Date(m.dueDate) < now && m.status !== 'COMPLETED') return <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />;
-    return <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />;
-  }
-
-  return (
-    <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-gray-900 text-sm">{plan.title}</h4>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`badge text-xs ${planStatusClass(plan.status)}`}>{labelify(plan.status)}</span>
-            {plan.endDate && (
-              <span className="text-xs text-gray-400">Due {formatDate(plan.endDate)}</span>
-            )}
-          </div>
-        </div>
-        <button
-          className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex-shrink-0"
-          onClick={() => setShowEditForm((v) => !v)}
-        >
-          {showEditForm ? 'Cancel' : 'Edit Plan'}
-        </button>
-      </div>
-
-      {/* Progress bar */}
-      <div>
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>Progress</span>
-          <span>{plan.progress}%</span>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-2">
-          <div
-            className="bg-blue-500 h-2 rounded-full transition-all"
-            style={{ width: `${Math.min(100, plan.progress)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Edit form */}
-      {showEditForm && (
-        <div className="border border-dashed border-blue-200 rounded-lg p-3 space-y-2 bg-blue-50/30">
-          <div>
-            <label className="text-xs font-medium text-gray-700">Progress (%)</label>
-            <input type="number" min="0" max="100" className="input text-sm mt-1" value={editProgress} onChange={(e) => setEditProgress(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700">Status</label>
-            <select className="input text-sm mt-1" value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
-              {['DRAFT', 'ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'].map((s) => (
-                <option key={s} value={s}>{labelify(s)}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700">Notes</label>
-            <textarea className="input text-sm mt-1" rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="btn-primary text-xs py-1 px-3"
-              disabled={updatePlan.isPending}
-              onClick={() => updatePlan.mutate()}
-            >
-              {updatePlan.isPending ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Objective collapsible */}
-      {plan.objective && (
-        <div>
-          <button
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 font-medium"
-            onClick={() => setShowObjective((v) => !v)}
-          >
-            {showObjective ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            Objective
-          </button>
-          {showObjective && (
-            <p className="text-sm text-gray-600 mt-1 pl-5">{plan.objective}</p>
-          )}
-        </div>
-      )}
-
-      {/* Planned actions collapsible */}
-      {plan.plannedActions && plan.plannedActions.length > 0 && (
-        <div>
-          <button
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 font-medium"
-            onClick={() => setShowActions((v) => !v)}
-          >
-            {showActions ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            Planned Actions ({plan.plannedActions.length})
-          </button>
-          {showActions && (
-            <ul className="mt-1 pl-5 space-y-1">
-              {plan.plannedActions.map((action, i) => (
-                <li key={i} className="text-sm text-gray-600 flex gap-2">
-                  <span className="text-gray-400 flex-shrink-0">{i + 1}.</span>
-                  {action}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Milestones */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium text-gray-700">Milestones</span>
-          <button
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-            onClick={() => setShowAddMilestone((v) => !v)}
-          >
-            <Plus className="w-3 h-3" /> Add
-          </button>
-        </div>
-
-        {plan.milestones && plan.milestones.length > 0 ? (
-          <ul className="space-y-1.5">
-            {plan.milestones.map((m) => (
-              <li key={m.id}>
-                {/* Edit inline form */}
-                {editingMilestone?.id === m.id ? (
-                  <MilestoneEditForm
-                    milestone={editingMilestone}
-                    onSave={(title, dueDate) => editMilestone.mutate({ id: m.id, title, dueDate })}
-                    onCancel={() => setEditingMilestone(null)}
-                    isSaving={editMilestone.isPending}
-                  />
-                ) : confirmCompleteId === m.id ? (
-                  /* Confirm complete */
-                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-green-800 flex-1">Mark <strong>{m.title}</strong> as complete?</span>
-                    <button
-                      className="text-xs font-medium text-green-700 hover:text-green-900 px-2 py-0.5 rounded bg-green-100 hover:bg-green-200"
-                      disabled={completeMilestone.isPending}
-                      onClick={() => completeMilestone.mutate(m.id)}
-                    >
-                      {completeMilestone.isPending ? 'Saving…' : 'Confirm'}
-                    </button>
-                    <button
-                      className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded"
-                      onClick={() => setConfirmCompleteId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  /* Normal row */
-                  <div className="flex items-center gap-2 group rounded px-1 py-0.5 hover:bg-gray-50">
-                    {/* Complete toggle */}
-                    <button
-                      title={m.status !== 'COMPLETED' ? 'Mark complete' : 'Completed'}
-                      className="flex-shrink-0"
-                      onClick={() => m.status !== 'COMPLETED' && setConfirmCompleteId(m.id)}
-                      disabled={m.status === 'COMPLETED'}
-                    >
-                      {milestoneIcon(m)}
-                    </button>
-
-                    {/* Title */}
-                    <span className={`text-sm flex-1 ${m.status === 'COMPLETED' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                      {m.title}
-                    </span>
-
-                    {/* Due date */}
-                    {m.dueDate && (
-                      <span className="text-xs text-gray-400">{formatDate(m.dueDate)}</span>
-                    )}
-
-                    {/* Edit / Delete — visible on hover */}
-                    {m.status !== 'COMPLETED' && (
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          title="Edit milestone"
-                          className="px-2 py-0.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded"
-                          onClick={() => setEditingMilestone(m)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          title="Delete milestone"
-                          className="text-xs text-gray-400 hover:text-red-500 px-1"
-                          disabled={deleteMilestone.isPending}
-                          onClick={() => {
-                            if (window.confirm(`Delete milestone "${m.title}"? This cannot be undone.`)) {
-                              deleteMilestone.mutate(m.id);
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-gray-400 italic">No milestones yet</p>
-        )}
-
-        {showAddMilestone && (
-          <AddMilestoneForm planId={plan.id} onDone={() => setShowAddMilestone(false)} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Add Action Plan Modal ────────────────────────────────────────────────────
-
-function AddActionPlanModal({ issueId, onClose }: { issueId: string; onClose: () => void }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [form, setForm] = useState({
-    title: '',
-    objective: '',
-    rootCauseSummary: '',
-    successCriteria: '',
-    endDate: '',
-    notes: '',
-  });
-  const [actions, setActions] = useState<string[]>(['']);
-
-  const create = useMutation({
-    mutationFn: () =>
-      api.post(`/issues/${issueId}/action-plans`, {
-        title: form.title,
-        objective: form.objective || undefined,
-        rootCauseSummary: form.rootCauseSummary || undefined,
-        plannedActions: actions.filter(Boolean),
-        successCriteria: form.successCriteria || undefined,
-        endDate: form.endDate || undefined,
-        notes: form.notes || undefined,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['action-plans', issueId] });
-      toast.success('Action plan created');
-      onClose();
-    },
-    onError: () => toast.error('Failed to create action plan'),
-  });
-
-  function set(key: string, value: string) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
-
-  function updateAction(i: number, val: string) {
-    setActions((a) => a.map((x, idx) => (idx === i ? val : x)));
-  }
-
-  function addAction() {
-    setActions((a) => [...a, '']);
-  }
-
-  function removeAction(i: number) {
-    setActions((a) => a.filter((_, idx) => idx !== i));
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Add Action Plan</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Title <span className="text-red-500">*</span>
-              <FieldHint significance="Short name for this action plan, distinct from the program." example="Night-shift Buddy Program" />
-            </label>
-            <input className="input" value={form.title} onChange={(e) => set('title', e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Objective
-              <FieldHint significance="What this plan specifically tries to achieve, in plain language." example="Pair every night-shift nurse with a senior mentor for 90 days." />
-            </label>
-            <textarea className="input" rows={2} value={form.objective} onChange={(e) => set('objective', e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Root Cause Summary
-              <FieldHint significance="Why the problem exists — the underlying causes, not the symptoms." example="Night-shift nurses report isolation and lack of escalation support." />
-            </label>
-            <textarea className="input" rows={2} value={form.rootCauseSummary} onChange={(e) => set('rootCauseSummary', e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Planned Actions
-              <FieldHint significance="Numbered high-level tactical steps you will take to deliver the plan." example="1. Match mentors. 2. Train mentors. 3. Weekly check-ins." />
-            </label>
-            <div className="space-y-2">
-              {actions.map((a, i) => (
-                <div key={i} className="flex gap-2">
-                  <input
-                    className="input flex-1"
-                    placeholder={`Action ${i + 1}`}
-                    value={a}
-                    onChange={(e) => updateAction(i, e.target.value)}
-                  />
-                  {actions.length > 1 && (
-                    <button onClick={() => removeAction(i)} className="text-gray-400 hover:text-red-500">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button onClick={addAction} className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-                <Plus className="w-3.5 h-3.5" /> Add action
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Success Criteria
-              <FieldHint significance="How you will know the plan worked — ideally a measurable target." example="Float Pool engagement score ≥ 70% by Q3." />
-            </label>
-            <textarea className="input" rows={2} value={form.successCriteria} onChange={(e) => set('successCriteria', e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
-                <FieldHint significance="When the plan should be fully completed." example="2026-09-30" />
-              </label>
-              <input type="date" className="input" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes
-              <FieldHint significance="Optional internal context — assumptions, dependencies, or caveats not covered above." example="Mentor stipend approved by HR; rollout paused during August holidays." />
-            </label>
-            <textarea className="input" rows={2} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-          </div>
-
-          {create.isError && (
-            <p className="text-sm text-red-600">Error creating plan. Please try again.</p>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button
-              className="btn-primary"
-              disabled={!form.title || create.isPending}
-              onClick={() => create.mutate()}
-            >
-              {create.isPending ? 'Creating...' : 'Create Plan'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── Status Transition Panel ──────────────────────────────────────────────────
@@ -811,14 +259,17 @@ function HistoryLog({ issueId }: { issueId: string }) {
 function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
-    title:       issue.title,
-    description: issue.description ?? '',
-    severity:    issue.severity,
-    priority:    issue.priority,
-    category:    issue.category ?? '',
-    subcategory: issue.subcategory ?? '',
-    ownerRole:   issue.ownerRole ?? '',
-    dueDate:     issue.dueDate ? issue.dueDate.slice(0, 10) : '',
+    title:            issue.title,
+    description:      issue.description ?? '',
+    objective:        issue.objective ?? '',
+    rootCauseSummary: issue.rootCauseSummary ?? '',
+    successCriteria:  issue.successCriteria ?? '',
+    severity:         issue.severity,
+    priority:         issue.priority,
+    category:         issue.category ?? '',
+    subcategory:      issue.subcategory ?? '',
+    ownerRole:        issue.ownerRole ?? '',
+    dueDate:          issue.dueDate ? issue.dueDate.slice(0, 10) : '',
   });
 
   const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
@@ -844,11 +295,14 @@ function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void 
       severity: form.severity,
       priority: form.priority,
     };
-    payload.description = form.description.trim() || null;
-    payload.category    = form.category.trim() || null;
-    payload.subcategory = form.subcategory.trim() || null;
-    payload.ownerRole   = form.ownerRole || null;
-    payload.dueDate     = form.dueDate || null;
+    payload.description      = form.description.trim() || null;
+    payload.objective        = form.objective.trim() || null;
+    payload.rootCauseSummary = form.rootCauseSummary.trim() || null;
+    payload.successCriteria  = form.successCriteria.trim() || null;
+    payload.category         = form.category.trim() || null;
+    payload.subcategory      = form.subcategory.trim() || null;
+    payload.ownerRole        = form.ownerRole || null;
+    payload.dueDate          = form.dueDate || null;
     update.mutate(payload);
   }
 
@@ -869,6 +323,21 @@ function EditIssueModal({ issue, onClose }: { issue: Issue; onClose: () => void 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
             <textarea className="input min-h-[80px] resize-none" value={form.description} onChange={(e) => set('description', e.target.value)} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Objective</label>
+            <textarea className="input resize-none" rows={2} value={form.objective} onChange={(e) => set('objective', e.target.value)} placeholder="What this remediation aims to achieve" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Root Cause Summary</label>
+            <textarea className="input resize-none" rows={2} value={form.rootCauseSummary} onChange={(e) => set('rootCauseSummary', e.target.value)} placeholder="Why the problem exists — the underlying causes" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Success Criteria</label>
+            <textarea className="input resize-none" rows={2} value={form.successCriteria} onChange={(e) => set('successCriteria', e.target.value)} placeholder="How you will know the remediation worked" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -936,18 +405,11 @@ export default function IssueDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromUrl = searchParams.get('from') || '/issues';
-  const [showAddPlan, setShowAddPlan] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
   const { data: issue, isLoading, isError } = useQuery<Issue>({
     queryKey: ['issue', id],
     queryFn: () => api.get(`/issues/${id}`).then((r) => r.data),
-    enabled: !!id,
-  });
-
-  const { data: actionPlans = [], isLoading: plansLoading } = useQuery<ActionPlan[]>({
-    queryKey: ['action-plans', id],
-    queryFn: () => api.get(`/issues/${id}/action-plans`).then((r) => r.data),
     enabled: !!id,
   });
 
@@ -1104,33 +566,30 @@ export default function IssueDetailPage() {
             </div>
           )}
 
-          {/* Action Plans */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">Action Plans</h2>
-              <button
-                onClick={() => setShowAddPlan(true)}
-                className="btn-primary flex items-center gap-1.5 text-sm py-1.5"
-              >
-                <Plus className="w-4 h-4" /> Add Action Plan
-              </button>
+          {/* Planning (objective / root cause / success criteria) */}
+          {(issue.objective || issue.rootCauseSummary || issue.successCriteria) && (
+            <div className="card space-y-4">
+              <h2 className="font-semibold text-gray-900">Planning</h2>
+              {issue.objective && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Objective</p>
+                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{issue.objective}</p>
+                </div>
+              )}
+              {issue.rootCauseSummary && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Root Cause Summary</p>
+                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{issue.rootCauseSummary}</p>
+                </div>
+              )}
+              {issue.successCriteria && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Success Criteria</p>
+                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{issue.successCriteria}</p>
+                </div>
+              )}
             </div>
-
-            {plansLoading ? (
-              <div className="text-sm text-gray-400">Loading plans...</div>
-            ) : actionPlans.length === 0 ? (
-              <div className="card text-center py-8 text-gray-400">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No action plans yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {actionPlans.map((plan) => (
-                  <ActionPlanCard key={plan.id} plan={plan} issueId={id} />
-                ))}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* History */}
           <div className="card space-y-4">
@@ -1198,10 +657,6 @@ export default function IssueDetailPage() {
           </div>
         </div>
       </div>
-
-      {showAddPlan && (
-        <AddActionPlanModal issueId={id} onClose={() => setShowAddPlan(false)} />
-      )}
 
       {showEdit && (
         <EditIssueModal issue={issue} onClose={() => setShowEdit(false)} />

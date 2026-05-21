@@ -7,7 +7,6 @@ import { OrgUnit, OrgLevel } from '../org/entities/org-unit.entity';
 import { Survey, SurveyStatus } from '../surveys/entities/survey.entity';
 import { Response } from '../responses/entities/response.entity';
 import { Issue, IssueStatus } from '../issues/entities/issue.entity';
-import { ActionPlan, ActionPlanStatus } from '../issues/entities/action-plan.entity';
 import { Task, TaskStatus } from '../tasks/entities/task.entity';
 
 const STAGE_ORDER: ProgramStage[] = [
@@ -74,8 +73,6 @@ export class ProgramFlowService {
     private responseRepo: Repository<Response>,
     @InjectRepository(Issue)
     private issueRepo: Repository<Issue>,
-    @InjectRepository(ActionPlan)
-    private actionPlanRepo: Repository<ActionPlan>,
     @InjectRepository(Task)
     private taskRepo: Repository<Task>,
   ) {}
@@ -147,14 +144,14 @@ export class ProgramFlowService {
       });
     }
 
-    // Action plans per issue (for units with issues)
+    // Remediation tasks per issue (for units with issues)
     const allIssueIds = Object.values(issuesByUnit).flat().map((i) => i.id);
-    const plansByIssue: Record<string, ActionPlan[]> = {};
+    const tasksByIssue: Record<string, Task[]> = {};
     if (allIssueIds.length) {
-      const plans = await this.actionPlanRepo.find({ where: { issueId: In(allIssueIds) } });
-      plans.forEach((p) => {
-        if (!plansByIssue[p.issueId]) plansByIssue[p.issueId] = [];
-        plansByIssue[p.issueId].push(p);
+      const issueTasks = await this.taskRepo.find({ where: { issueId: In(allIssueIds) } });
+      issueTasks.forEach((t) => {
+        if (!tasksByIssue[t.issueId]) tasksByIssue[t.issueId] = [];
+        tasksByIssue[t.issueId].push(t);
       });
     }
 
@@ -188,7 +185,7 @@ export class ProgramFlowService {
       const sla = slaStatus(slaDays, s.state === StageState.IN_PROGRESS ? daysIn : null);
       const metrics = this.buildStageMetrics(
         s.stage, s.orgUnitId, surveyId, survey,
-        responseCountMap, issuesByUnit, plansByIssue, tasksByUnit,
+        responseCountMap, issuesByUnit, tasksByIssue, tasksByUnit,
       );
 
       const daysSinceUpdate = daysSince(s.updatedAt);
@@ -356,11 +353,10 @@ export class ProgramFlowService {
       : [];
 
     const issueIds = issues.map((i) => i.id);
-    const actionPlans = issueIds.length
-      ? await this.actionPlanRepo.find({ where: { issueId: In(issueIds) } })
-      : [];
-
-    const tasks = await this.taskRepo.find({ where: { orgUnitId }, order: { dueDate: 'ASC' } });
+    const tasks = await this.taskRepo.find({
+      where: issueIds.length ? [{ orgUnitId }, { issueId: In(issueIds) }] : { orgUnitId },
+      order: { dueDate: 'ASC' },
+    });
     const overdueTasks = tasks.filter((t) => t.dueDate && t.status !== TaskStatus.DONE && new Date(t.dueDate) < new Date());
 
     const stageSlaMap = resolveSla(cycle);
@@ -421,14 +417,7 @@ export class ProgramFlowService {
         severity: i.severity,
         dueDate: i.dueDate,
         daysOpen: daysSince(i.createdAt),
-        actionPlansCount: actionPlans.filter((p) => p.issueId === i.id).length,
-      })),
-      actionPlans: actionPlans.map((p) => ({
-        id: p.id,
-        title: p.title,
-        status: p.status,
-        progressPercent: p.progressPercent,
-        ownerId: p.ownerId,
+        taskCount: tasks.filter((t) => t.issueId === i.id).length,
       })),
       tasks: tasks.map((t) => ({
         id: t.id,
@@ -447,7 +436,6 @@ export class ProgramFlowService {
         totalTasks: tasks.length,
         doneTasks: tasks.filter((t) => t.status === TaskStatus.DONE).length,
         overdueTasks: overdueTasks.length,
-        totalActionPlans: actionPlans.length,
       },
     };
   }
@@ -461,7 +449,7 @@ export class ProgramFlowService {
     survey: Survey | null,
     responseCountMap: Record<string, number>,
     issuesByUnit: Record<string, Issue[]>,
-    plansByIssue: Record<string, ActionPlan[]>,
+    tasksByIssue: Record<string, Task[]>,
     tasksByUnit: Record<string, Task[]>,
   ): any {
     const issues = issuesByUnit[orgUnitId] ?? [];
@@ -499,19 +487,16 @@ export class ProgramFlowService {
       }
 
       case ProgramStage.REMEDIATION: {
-        const issueIds = issues.map((i) => i.id);
-        const plans = issueIds.flatMap((id) => plansByIssue[id] ?? []);
-        const overdueTaskCount = tasks.filter(
+        const remTasks = issues.flatMap((i) => tasksByIssue[i.id] ?? []);
+        const doneTasks = remTasks.filter((t) => t.status === TaskStatus.DONE).length;
+        const overdueTaskCount = remTasks.filter(
           (t) => t.dueDate && t.status !== TaskStatus.DONE && new Date(t.dueDate) < now,
         ).length;
-        const donePlans = plans.filter((p) => p.status === ActionPlanStatus.COMPLETED).length;
         return {
-          label: plans.length ? `${donePlans}/${plans.length} plans done` : `${tasks.length} tasks`,
+          label: remTasks.length ? `${doneTasks}/${remTasks.length} tasks done` : 'No tasks',
           overdueTaskCount,
-          totalTasks: tasks.length,
-          doneTasks: tasks.filter((t) => t.status === TaskStatus.DONE).length,
-          totalPlans: plans.length,
-          donePlans,
+          totalTasks: remTasks.length,
+          doneTasks,
           hasOverdue: overdueTaskCount > 0,
         };
       }
@@ -748,9 +733,9 @@ export class ProgramFlowService {
       case ProgramStage.REMEDIATION: {
         const issues = await this.issueRepo.find({ where: { orgUnitId, linkedSurveyId: surveyId } });
         if (!issues.length) return null;
-        const plans = await this.actionPlanRepo.find({ where: { issueId: In(issues.map((i) => i.id)) } });
-        if (!plans.length) return StageState.NOT_STARTED;
-        return plans.every((p) => p.status === ActionPlanStatus.COMPLETED) ? StageState.COMPLETED : StageState.IN_PROGRESS;
+        const tasks = await this.taskRepo.find({ where: { issueId: In(issues.map((i) => i.id)) } });
+        if (!tasks.length) return StageState.NOT_STARTED;
+        return tasks.every((t) => t.status === TaskStatus.DONE) ? StageState.COMPLETED : StageState.IN_PROGRESS;
       }
       case ProgramStage.COMMUNICATION: {
         const tasks = await this.taskRepo.find({ where: { orgUnitId } });

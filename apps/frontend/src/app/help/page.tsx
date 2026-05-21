@@ -22,8 +22,7 @@ const SECTIONS: Section[] = [
   { id: 'surveys',       label: 'Surveys',                 icon: ClipboardList  },
   { id: 'announcements', label: 'Announcements',           icon: Megaphone      },
   { id: 'issues',        label: 'Issues from Surveys',     icon: AlertTriangle  },
-  { id: 'action-plans',  label: 'Action Plans & Milestones', icon: GitBranch    },
-  { id: 'tasks',         label: 'Tasks & Milestones',      icon: CheckSquare    },
+  { id: 'tasks',         label: 'Tasks',                   icon: CheckSquare    },
   { id: 'analytics',    label: 'Analytics',               icon: BarChart2      },
   { id: 'program-flow', label: 'Program Flow',            icon: GitBranch      },
   { id: 'program-flow-walkthrough', label: 'Program Flow — Walkthrough', icon: Milestone },
@@ -393,128 +392,27 @@ function IssuesSection() {
   );
 }
 
-function ActionPlansSection() {
-  return (
-    <section>
-      <SectionHeading
-        id="action-plans"
-        icon={GitBranch}
-        title="Action Plans & Milestones"
-        subtitle="How you structure your response to an issue and track progress toward fixing it."
-      />
-
-      <H3>What does "Action Planned" mean?</H3>
-      <P>
-        When an issue moves to <strong>Action Planned</strong> status, it means: <em>we know what the problem is, and we have a structured plan to fix it</em>. The action plan exists, the milestones are defined, but the actual work hasn't started yet.
-      </P>
-      <P>
-        It sits between <strong>Open</strong> (problem identified, no plan) and <strong>In Progress</strong> (plan is being executed). This separation is intentional — it helps leadership distinguish between issues that are being investigated versus ones where a concrete fix is underway.
-      </P>
-
-      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 mb-6 text-sm text-gray-700">
-        <div className="font-semibold mb-3 text-gray-900">Think of it like a building project:</div>
-        <div className="space-y-2">
-          <div className="flex gap-3 items-start">
-            <span className="w-24 text-gray-500 flex-shrink-0 font-medium">Open</span>
-            <span>→ We know the roof is leaking. No plan yet.</span>
-          </div>
-          <div className="flex gap-3 items-start">
-            <span className="w-24 text-blue-700 flex-shrink-0 font-semibold">Action Planned</span>
-            <span>→ Architect has drawn up the repair plan. Milestones defined. Workers not started yet.</span>
-          </div>
-          <div className="flex gap-3 items-start">
-            <span className="w-24 text-gray-500 flex-shrink-0 font-medium">In Progress</span>
-            <span>→ Workers are on the roof. Fix is underway.</span>
-          </div>
-          <div className="flex gap-3 items-start">
-            <span className="w-24 text-gray-500 flex-shrink-0 font-medium">Awaiting Validation</span>
-            <span>→ Roof is repaired. Waiting for an inspector to confirm it's watertight.</span>
-          </div>
-        </div>
-      </div>
-
-      <H3>What is an action plan?</H3>
-      <P>
-        An action plan is the formal response to an issue. One issue can have one action plan. It contains:
-      </P>
-      <Table
-        heads={['Field', 'What to put here']}
-        rows={[
-          ['Title', 'Short name for the plan, e.g. "Float Pool Experience Improvement Plan"'],
-          ['Objective', 'What you are trying to achieve, in plain language'],
-          ['Root Cause Summary', 'Why the problem exists — the underlying causes, not just the symptoms'],
-          ['Planned Actions', 'A numbered list of the high-level steps you will take'],
-          ['Success Criteria', 'How you will know the plan worked — ideally a measurable target like "score ≥ 70%"'],
-          ['Owner', 'The person accountable for the plan being executed'],
-          ['End Date', 'When the plan should be fully completed'],
-        ]}
-      />
-
-      <H3>What is a milestone?</H3>
-      <P>
-        A milestone is a phase or checkpoint within the action plan. Each milestone has a title, a due date, and a status (Pending / Completed / Overdue).
-      </P>
-      <P>
-        Milestones break the plan into manageable phases, each with its own deadline. As milestones are completed, the action plan's progress percentage updates automatically.
-      </P>
-
-      <Callout type="example" title="Example — Float Pool issue: Action Plan & Milestones">
-        <p><strong>Issue:</strong> Low Overall Experience — Float Pool (score: 48%, target: 70%)</p>
-        <p className="mt-2 font-semibold">Action Plan: "Float Pool Experience Improvement Plan"</p>
-        <p className="mt-1"><strong>Root Cause:</strong> No standardised orientation when float nurses arrive at a new unit. Scheduling is reactive. No regular touchpoint with management.</p>
-        <p className="mt-1"><strong>Success Criteria:</strong> Overall Experience ≥ 70% in the follow-up pulse survey.</p>
-        <div className="mt-3 space-y-2">
-          {[
-            { phase: 'Phase 1', title: 'Root Cause Investigation', due: '2 weeks', tasks: 4 },
-            { phase: 'Phase 2', title: 'Protocol Redesign',        due: '5 weeks', tasks: 4 },
-            { phase: 'Phase 3', title: 'Implementation & Training', due: '8 weeks', tasks: 4 },
-            { phase: 'Phase 4', title: 'Follow-up Survey & Validation', due: '11 weeks', tasks: 3 },
-          ].map((m) => (
-            <div key={m.phase} className="flex items-center gap-3">
-              <Circle className="w-3 h-3 text-blue-400 flex-shrink-0" />
-              <span className="font-medium text-blue-900">{m.phase} — {m.title}</span>
-              <span className="text-blue-700 text-xs ml-auto">Due in {m.due} · {m.tasks} tasks</span>
-            </div>
-          ))}
-        </div>
-      </Callout>
-
-      <H3>Progress tracking</H3>
-      <P>
-        The action plan's progress bar updates automatically as milestones are marked complete.
-        For example, if there are 4 milestones and 1 is completed, the plan shows <strong>25% progress</strong>.
-        You can also manually override the progress % if needed.
-      </P>
-
-      <Callout type="tip" title="When to move the issue from Action Planned → In Progress">
-        <p>Move the issue to <strong>In Progress</strong> when the first task from Phase 1 has been started — not when the plan is just written. The status should reflect reality on the ground.</p>
-      </Callout>
-    </section>
-  );
-}
-
 function TasksSection() {
   return (
     <section>
       <SectionHeading
         id="tasks"
         icon={CheckSquare}
-        title="Tasks & Milestones"
-        subtitle="The individual work items that make milestones happen."
+        title="Tasks"
+        subtitle="The individual work items that resolve an issue."
       />
 
-      <H3>The full hierarchy</H3>
+      <H3>The hierarchy</H3>
       <div className="font-mono text-sm bg-gray-900 text-green-400 p-4 rounded-xl mb-6 leading-loose">
         <div>Issue</div>
-        <div className="ml-4">└── Action Plan</div>
-        <div className="ml-10">└── Milestone (Phase 1, Phase 2, ...)</div>
-        <div className="ml-16">└── Tasks (the actual work)</div>
+        <div className="ml-6">└── Tasks (the actual work)</div>
+        <div className="ml-12">└── Subtasks (optional smaller steps)</div>
       </div>
       <P>
         Tasks are the concrete, assignable work items. Each task has one owner, a due date, a status,
-        and a priority. Tasks are linked to an issue — they represent the work being done to resolve it.
-        Milestones group tasks into phases conceptually; when all tasks for a phase are done, you mark
-        the milestone as complete.
+        and a priority. Tasks are attached directly to an issue — they represent the work being done to
+        resolve it. Add as many tasks to an issue as the remediation needs; the Remediation stage
+        completes when every task on the issue is Done.
       </P>
 
       <H3>Task statuses</H3>
@@ -524,7 +422,7 @@ function TasksSection() {
           [<Badge label="To Do"       color="bg-gray-100 text-gray-700"   />, 'Not started yet',                       'Assign to someone and set a due date if not done already'],
           [<Badge label="In Progress" color="bg-amber-100 text-amber-700" />, 'Currently being worked on',             'Update the task when done or if you hit a blocker'],
           [<Badge label="Blocked"     color="bg-red-100 text-red-700"     />, 'Cannot proceed — something is in the way', 'Add a note explaining the blocker. Escalate if needed.'],
-          [<Badge label="Done"        color="bg-green-100 text-green-700" />, 'Completed',                              'If it was the last task in a milestone phase, mark the milestone complete'],
+          [<Badge label="Done"        color="bg-green-100 text-green-700" />, 'Completed',                              'When every task on the issue is Done, the Remediation stage auto-completes'],
           [<Badge label="Cancelled"   color="bg-gray-100 text-gray-400"   />, 'No longer needed',                      'Add a reason in the description so the history is clear'],
         ]}
       />
@@ -539,18 +437,15 @@ function TasksSection() {
         ]}
       />
 
-      <H3>How tasks relate to milestones — in practice</H3>
+      <H3>Adding tasks to an issue</H3>
       <P>
-        Milestones define <em>what phase</em> you are in. Tasks define <em>what work</em> needs to happen in that phase.
-        The connection is conceptual, not technical — there is no system field that locks a task to a milestone.
-        Instead, tasks and milestones share the same issue, and the convention is:
+        Add tasks to an issue from the issue detail page, or directly in the <strong>Remediation</strong> step
+        of Program Flow using the <strong>Add task</strong> button next to each issue. Give each task an owner
+        and a due date so the Remediation checklist auto-ticks "Tasks assigned with owners &amp; due dates".
       </P>
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800 leading-relaxed">
-        <strong>Convention:</strong> Complete all tasks belonging to a phase, then mark the milestone as complete. The milestone's due date should align with the last task in its phase.
-      </div>
 
-      <Callout type="example" title="Example — Float Pool Phase 1 tasks driving the milestone">
-        <p><strong>Milestone:</strong> Phase 1 — Root Cause Investigation · Due in 2 weeks</p>
+      <Callout type="example" title="Example — Float Pool remediation tasks">
+        <p><strong>Issue:</strong> Low Overall Experience — Float Pool (score: 48%, target: 70%)</p>
         <div className="mt-3 space-y-2">
           {[
             { title: 'Conduct 1:1 interviews with float pool nurses', who: 'James Lee', priority: 'High', due: '10 days' },
@@ -567,7 +462,7 @@ function TasksSection() {
             </div>
           ))}
         </div>
-        <p className="mt-3">Once all four tasks are <Badge label="Done" color="bg-green-100 text-green-700" />, James clicks ✓ on the Phase 1 milestone. The action plan progress moves to <strong>25%</strong>. The issue should then move to <strong>In Progress</strong> to begin Phase 2.</p>
+        <p className="mt-3">As each task is marked <Badge label="Done" color="bg-green-100 text-green-700" />, the Remediation stage progress advances. When every task on the issue is Done, the stage auto-completes.</p>
       </Callout>
 
       <H3>Subtasks</H3>
@@ -694,7 +589,7 @@ function AnalyticsSection() {
           ['Executive',  '6 KPI cards (Overall Engagement %, eNPS, Response Count, Low-performing Units, Open Issues, Overdue Tasks), risk alert banner, top 5 problem areas, and a list of the lowest-performing units',  'SVP / CNO — quick 60-second system health check'],
           ['Heatmap',    'Color-coded grid: each row is a hospital, each column is one of the 10 dimensions. Click any cell to drill down into that unit.',                                                                'VP / Director — identify which hospitals have which dimension problems'],
           ['Execution',  'Bar charts showing issues and tasks broken down by status, plus a severity breakdown and a "stuck items" table (issues that haven\'t moved in 14+ days)',                                      'Program managers — are action plans actually progressing?'],
-          ['Leaders',    'Accountability scorecard per manager/director: task completion rate, milestone hit rate, and an execution grade (A–F)',                                                                       'SVP / VP — hold leaders accountable for follow-through'],
+          ['Leaders',    'Accountability scorecard per manager/director: task completion rate, on-time rate, and an execution grade (A–F)',                                                                            'SVP / VP — hold leaders accountable for follow-through'],
           ['Trends',     'Line chart of burnout/wellbeing scores over time, plus a list of units flagged as retention risks (low Advocacy scores)',                                                                     'CNO / HR — long-range wellbeing and retention monitoring'],
         ]}
       />
@@ -758,7 +653,7 @@ function ProgramFlowSection() {
           ['Survey Setup',     'Questions written, target audience configured, approval obtained',          'Survey is published and open for responses'],
           ['Survey Execution', 'Staff are responding; reminders sent; participation tracked daily',         'Survey closes with ≥ 60 % participation'],
           ['Root Cause',       'Results analysed; low-score dimensions investigated; issues being created', 'All issues for the cycle are created and assigned'],
-          ['Remediation',      'Action plans running; tasks being completed; milestones hit',               'All action plan milestones are marked complete'],
+          ['Remediation',      'Tasks assigned to each issue and being completed',                          'Every task on the cycle\'s issues is marked Done'],
           ['Communication',    'Leaders share outcomes and progress updates with staff',                    'Announcement published confirming actions taken'],
           ['Validation',       'Follow-up pulse survey sent; scores compared to baseline',                  'Pulse results show improvement (or issue is reopened)'],
         ]}
@@ -821,7 +716,7 @@ function ProgramFlowSection() {
             </div>
           ))}
         </div>
-        <p className="mt-3">This tells you: root cause is done, but remediation (action plans) is running over SLA. Float Pool's action plan milestones need to be checked — are tasks blocked? Is the milestone due date past? Click into the Remediation cell to see the linked issues.</p>
+        <p className="mt-3">This tells you: root cause is done, but remediation is running over SLA. Float Pool's remediation tasks need to be checked — are tasks blocked? Are any past their due date? Click into the Remediation cell to see the linked issues and their tasks.</p>
       </Callout>
 
       <H3>KPI cards and smart alerts</H3>
@@ -846,21 +741,20 @@ function ProgramFlowSection() {
         rows={[
           ['SVP',       'Any red (Blocked) or amber (Over SLA) cells across the whole grid; KPI cards',         'Call the relevant VP to unblock; check the Execution tab for stuck issues'],
           ['VP',        'Units in your hospitals that are stale or blocked',                                    'Reach out to the Director to investigate; reassign ownership if needed'],
-          ['Director',  'Your unit\'s current stage and whether any SLA chip is showing',                      'Progress tasks, complete milestones, or log a blocker reason'],
+          ['Director',  'Your unit\'s current stage and whether any SLA chip is showing',                      'Progress tasks, complete them, or log a blocker reason'],
           ['Manager',   'Usually does not use Program Flow directly — use the Tasks page instead',              'Mark tasks Done; Director will advance the stage'],
         ]}
       />
 
       <Callout type="tip" title="Program Flow is read-only for most roles">
-        <p>Directors and above can see Program Flow. Managers and staff do not have access. Advancing a stage is done automatically by the platform when the completion criteria are met — you cannot manually tick a stage as "done" unless you are an Admin or SVP. If a stage appears stuck, check that all the underlying issues and milestones are actually complete.</p>
+        <p>Directors and above can see Program Flow. Managers and staff do not have access. Advancing a stage is done automatically by the platform when the completion criteria are met — you cannot manually tick a stage as "done" unless you are an Admin or SVP. If a stage appears stuck, check that all the underlying issues and their tasks are actually complete.</p>
       </Callout>
 
       <H3>How Program Flow connects to the rest of the platform</H3>
       <div className="font-mono text-sm bg-gray-900 text-green-400 p-4 rounded-xl mb-6 leading-loose">
         <div>Survey (Survey Setup + Execution stages)</div>
         <div className="ml-4">└── Issues auto-created (Root Cause stage)</div>
-        <div className="ml-8">└── Action Plans + Milestones (Remediation stage)</div>
-        <div className="ml-12">└── Tasks completed by managers (Remediation stage)</div>
+        <div className="ml-8">└── Tasks attached to issues, completed by managers (Remediation stage)</div>
         <div className="ml-4">└── Announcement published (Communication stage)</div>
         <div className="ml-4">└── Pulse survey validates improvement (Validation stage)</div>
       </div>
@@ -1178,7 +1072,7 @@ function ProgramFlowWalkthroughSection() {
             heads={['Stage', 'Key step', 'When done']}
             rows={[
               ['Root Cause',    'Review survey results, draft findings, create issues, get team agreement', 'All four checklist items ticked'],
-              ['Remediation',   'Draft action plan, assign tasks, review progress',                          'Tasks marked done in the Tasks page'],
+              ['Remediation',   'Assign tasks to each issue with owners & due dates, review progress',        'All tasks marked Done'],
               ['Communication', 'Brief leadership, update employees, document the report',                   'All four checklist items ticked'],
               ['Validation',    'Plan follow-up pulse, review metrics vs. baseline, document outcomes',      'Outcomes documented; program advances to COMPLETED'],
             ]}
@@ -1251,8 +1145,6 @@ export default function HelpPage() {
         <AnnouncementsSection />
         <Divider />
         <IssuesSection />
-        <Divider />
-        <ActionPlansSection />
         <Divider />
         <TasksSection />
         <Divider />
