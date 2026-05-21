@@ -23,6 +23,7 @@ interface Resolved {
   hospitalName: string;
   room: string;
   display: string; // "<Hospital> | Room <room>"
+  retentionDays?: number;
   form: { title: string; description: string; questions: QuestionDef[] };
 }
 
@@ -206,9 +207,9 @@ function FeedbackInner() {
             </p>
             <p>
               Any identifiable information you might enter (for example, in the comment box) will be{' '}
-              <strong>deleted or de-identified within 7 days</strong>, unless retention is required
-              by law or hospital policy. Aggregated, non-identifiable results may be kept to track
-              care quality over time.
+              <strong>deleted or de-identified within {resolved.retentionDays ?? 7} days</strong>,
+              unless retention is required by law or hospital policy. Aggregated, non-identifiable
+              results may be kept to track care quality over time.
             </p>
             <p className="text-gray-500">
               Questions or concerns? Please contact the hospital&apos;s Patient Relations office.
@@ -383,7 +384,8 @@ function FeedbackInner() {
         <p className="mt-6 text-xs text-gray-500 leading-relaxed">
           By submitting this survey, you acknowledge that you have read the privacy and data
           retention notice and understand that identifiable survey data will be deleted or
-          de-identified within 7 days, unless retention is required by law or hospital policy.
+          de-identified within {resolved.retentionDays ?? 7} days, unless retention is required by
+          law or hospital policy.
         </p>
 
         <button

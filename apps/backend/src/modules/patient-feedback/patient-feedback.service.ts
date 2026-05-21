@@ -26,8 +26,12 @@ const AUDIT_ENTITY = 'feedback_ticket';
 // Identifiable feedback content (free-text comment + IP hash) is cleared this
 // many days after submission. Structured answers/severity/rating are retained
 // so dashboards/aggregates are unaffected. Surfaced to patients in the privacy
-// notice on the public form.
-const RETENTION_DAYS = 7;
+// notice on the public form. Override with FEEDBACK_RETENTION_DAYS (no redeploy
+// of code needed — just set the env var); falls back to 7.
+function retentionDays(): number {
+  const n = Number(process.env.FEEDBACK_RETENTION_DAYS);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 7;
+}
 
 interface RequestUser { id: string; email?: string; roles?: string[] }
 
@@ -158,6 +162,7 @@ export class PatientFeedbackService {
       hospitalName,
       room: loc.room,
       display: `${hospitalName} | Room ${loc.room}`,
+      retentionDays: retentionDays(),
       form: this.getFormDefinition(),
     };
   }
@@ -690,7 +695,7 @@ export class PatientFeedbackService {
    * touches rows not yet de-identified.
    */
   async deidentifyOldFeedback(): Promise<number> {
-    const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400000);
+    const cutoff = new Date(Date.now() - retentionDays() * 86400000);
     const res = await this.feedbackRepo
       .createQueryBuilder()
       .update(PatientFeedback)
